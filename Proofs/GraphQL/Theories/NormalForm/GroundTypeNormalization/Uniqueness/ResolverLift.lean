@@ -90,6 +90,20 @@ theorem liftResolvers_resolve_liftResolverValue
       = (base.resolve parentType fieldName arguments source).map liftResolverValue := by
   simp [liftResolvers, lowerResolverValue?_liftResolverValue]
 
+theorem liftResolvers_resolveFieldValue_liftResolverValue
+    {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
+    (source : Execution.ResolverValue ObjectRef)
+    : Execution.resolveFieldValue (liftResolvers base) parentType fieldName arguments
+        (liftResolverValue source)
+      = (Execution.resolveFieldValue base parentType fieldName arguments source).map
+          liftResolverValue := by
+  by_cases hmeta : fieldName = "__typename"
+  · subst fieldName
+    cases source <;>
+      simp [Execution.resolveFieldValue, Execution.resolveTypenameField, liftResolverValue]
+  · simp [Execution.resolveFieldValue, hmeta, liftResolvers_resolve_liftResolverValue]
+
 theorem runtimeObjectType?_liftResolverValue
     {ObjectRef : Type} (value : Execution.ResolverValue ObjectRef)
     : Execution.runtimeObjectType? (liftResolverValue value)
@@ -256,21 +270,19 @@ mutual
                   hcoerce]
             | success coercedArguments =>
             cases hresolve :
-                base.resolve parentType field.fieldName
+                Execution.resolveFieldValue base parentType field.fieldName
                   coercedArguments source with
             | none =>
-                simp [Execution.resolveFieldValue,
-                  hlookup,
+                simp [hlookup,
                   hcoerce,
-                  liftResolvers_resolve_liftResolverValue base
+                  liftResolvers_resolveFieldValue_liftResolverValue base
                     parentType field.fieldName
                     coercedArguments source,
                   hresolve]
             | some resolved =>
-                simp [Execution.resolveFieldValue,
-                  hlookup,
+                simp [hlookup,
                   hcoerce,
-                  liftResolvers_resolve_liftResolverValue base
+                  liftResolvers_resolveFieldValue_liftResolverValue base
                     parentType field.fieldName
                     coercedArguments source,
                   hresolve,
@@ -465,6 +477,22 @@ theorem parentObjectFieldResolvers_resolve_liftResolverValue
           (liftResolverValue source) := by
   cases source <;> simp [parentObjectFieldResolvers, liftResolverValue]
 
+theorem parentObjectFieldResolvers_resolveFieldValue_liftResolverValue
+    {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
+    (targetParent targetField runtimeType : Name) (ref : ObjectRef)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
+    (source : Execution.ResolverValue ObjectRef)
+    : Execution.resolveFieldValue
+        (parentObjectFieldResolvers base targetParent targetField runtimeType ref)
+        parentType fieldName arguments (liftResolverValue source)
+      = Execution.resolveFieldValue (liftResolvers base) parentType fieldName arguments
+          (liftResolverValue source) := by
+  unfold Execution.resolveFieldValue
+  split
+  · rfl
+  · exact parentObjectFieldResolvers_resolve_liftResolverValue base targetParent
+      targetField runtimeType ref parentType fieldName arguments source
+
 mutual
   theorem executeCollectedFields_parentObjectFieldResolvers_liftResolverValue
       {ObjectRef : Type} (schema : Schema)
@@ -519,22 +547,20 @@ mutual
                   hcoerce]
             | success coercedArguments =>
             have hresolveEq :=
-              parentObjectFieldResolvers_resolve_liftResolverValue base
+              parentObjectFieldResolvers_resolveFieldValue_liftResolverValue base
                 targetParent targetField runtimeType ref parentType
                 field.fieldName coercedArguments source
             have hliftResolve :=
-              liftResolvers_resolve_liftResolverValue base parentType
+              liftResolvers_resolveFieldValue_liftResolverValue base parentType
                 field.fieldName coercedArguments source
             cases hresolve :
-                base.resolve parentType field.fieldName
+                Execution.resolveFieldValue base parentType field.fieldName
                   coercedArguments source with
             | none =>
-                simp [Execution.resolveFieldValue,
-                  hlookup, hcoerce, hresolveEq,
+                simp [hlookup, hcoerce, hresolveEq,
                   hliftResolve, hresolve]
             | some resolved =>
-                simp [Execution.resolveFieldValue,
-                  hlookup, hcoerce, hresolveEq,
+                simp [hlookup, hcoerce, hresolveEq,
                   hliftResolve, hresolve,
                   completeValue_parentObjectFieldResolvers_liftResolverValue
                     schema base variableValues targetParent targetField

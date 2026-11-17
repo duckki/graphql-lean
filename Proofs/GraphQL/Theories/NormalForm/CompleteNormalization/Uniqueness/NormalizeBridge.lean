@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Semantics
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.TypenameFree
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ReadinessPreservation
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.OperationBridge
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
@@ -87,19 +88,19 @@ theorem completeNormalizeOperation_boolVarsEquivalent
 theorem completeNormalizeOperation_uniqueUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationUniqueUpToReordering schema left right := by
-  intro hschema hleftValid hrightValid hleftFields hrightFields
-    hleftBoolFeasible hrightBoolFeasible hleftSourceSub hrightSourceSub hdefinitions
+  intro hschema hleftValid hrightValid hleftTypes hrightTypes hleftFields hrightFields
+    hleftShapes hrightShapes hleftBoolFeasible hrightBoolFeasible hleftSourceSub hrightSourceSub hdefinitions
     hvariables hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema left) :=
     completeNormalizeOperation_valid schema left hschema hleftValid
-      hleftFields hleftBoolFeasible
+      hleftFields hleftShapes hleftBoolFeasible
   have hrightNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema right) :=
     completeNormalizeOperation_valid schema right hschema hrightValid
-      hrightFields hrightBoolFeasible
+      hrightFields hrightShapes hrightBoolFeasible
   have hleftNormalizedNormal :
       completeNormalOperation schema
         (completeNormalizeOperation schema left) :=
@@ -175,7 +176,10 @@ theorem completeNormalizeOperation_uniqueUpToReordering
       hschema hleftNormalizedValid hrightNormalizedValid
       hleftNormalizedNormal hrightNormalizedNormal hleftNormalizedSub
       hrightNormalizedSub hnormalizedVariables
-      hnormalizedDefinitions hnormalizedSemantics
+      hnormalizedDefinitions
+    (completeNormalizeOperation_typenameFree schema left hleftTypes)
+    (completeNormalizeOperation_typenameFree schema right hrightTypes)
+    hnormalizedSemantics
 
 end CompleteNormalization
 

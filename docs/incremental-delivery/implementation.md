@@ -335,6 +335,9 @@ comparison: an initial bubbling result also bubbles after directive erasure, and
 initial null remains null or bubbles. Its mutual witness follows actual collection,
 partitioning, field/value completion, non-null wrappers, and streamed prefixes under
 incremental-argument validity. No schedule or equal-error-count premise is needed.
+Runtime output-shape mismatches retain a counted null at their nullable response
+position. Ownership, cursor, attachment, and contributor certificates cover these
+completed nulls; a non-null wrapper propagates the existing error count.
 `executeRoot_preserves_failures` lifts this to root execution;
 `completeStreamItems_failure_bubbles` proves that a retained failed mixed stream item
 forces ordinary full-list bubbling. Regressions distinguish initial error counts from

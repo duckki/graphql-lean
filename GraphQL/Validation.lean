@@ -7,7 +7,8 @@ Spec reference: GraphQL September 2026.
   schema and operation syntax.
 - Fidelity note: the model is intentionally partial. It omits document-level
   multi-operation rules, mutation/subscription rules, custom directive definitions, full
-  input coercion and literal type checking, fragment-must-be-used, and meta-field rules.
+  input coercion and literal type checking, fragment-must-be-used, and schema introspection.
+  Shared field lookup supplies `__typename`; ordinary argument and leaf rules apply.
 - 5.3.3 Leaf Field Selections: the spec separates an absent subselection set from a present
   empty one, `{}`. Field syntax stores `List Selection`, so `[]` reads as absent on a leaf
   field and as `{}` on a composite field; `leaf {}` and a bare composite field, both
@@ -84,7 +85,8 @@ def variableUsageAllowed (schema : Schema)
 mutual
   -- Spec 5.6.1 Values of Correct Type, 5.6.2-5.6.4 input object rules, 5.8.3
   -- variable definition lookup, and 5.8.5 variable usage compatibility. Literal coercion
-  -- remains deliberately shallow, but input-object structure is checked recursively.
+  -- remains deliberately shallow. Input-object structure is checked recursively;
+  -- custom-scalar payloads are opaque constants.
   inductive ValueIsCorrectTypeAtLocation (schema : Schema)
       (variableDefinitions : List VariableDefinition)
       : InputValue -> TypeRef -> Option ConstInputValue -> Prop where
@@ -134,6 +136,16 @@ mutual
       (hfields
         : InputObjectFieldsValid schema variableDefinitions
             inputObject.inputFields fields)
+      : ValueIsCorrectTypeAtLocation schema variableDefinitions
+          (InputValue.object fields) (TypeRef.named typeName) locationDefault
+    | objectCustomScalar (fields : List (Name × InputValue)) (typeName : Name)
+      (locationDefault : Option ConstInputValue)
+      (scalar : CustomScalarType)
+      (hinput : (TypeRef.named typeName).isInputType schema)
+      (hlookup : schema.lookupCustomScalar typeName = some scalar)
+      (hconst
+        : ∃ constValue : ConstInputValue,
+            InputValue.object fields = constValue.toInputValue)
       : ValueIsCorrectTypeAtLocation schema variableDefinitions
           (InputValue.object fields) (TypeRef.named typeName) locationDefault
     | objectAsListItem (fields : List (Name × InputValue)) (inner : TypeRef)
@@ -290,43 +302,43 @@ def variableDefinitionsValid (schema : Schema)
 
 mutual
   -- Spec 5.8.4 variable uses nested within an input value.
-  def inputValueVariables : InputValue -> List Name
+  def inputValueVariables : InputValue -> VariableNames
     | .variable name => [name]
     | .list values => inputValuesVariables values
     | .object fields => inputObjectFieldsVariables fields
     | _ => []
 
-  def inputValuesVariables : List InputValue -> List Name
+  def inputValuesVariables : List InputValue -> VariableNames
     | [] => []
     | value :: rest =>
         inputValueVariables value ++ inputValuesVariables rest
 
-  def inputObjectFieldsVariables : List (Name × InputValue) -> List Name
+  def inputObjectFieldsVariables : List (Name × InputValue) -> VariableNames
     | [] => []
     | (_name, value) :: rest =>
         inputValueVariables value ++ inputObjectFieldsVariables rest
 end
 
-def argumentVariables (argument : Argument) : List Name :=
+def argumentVariables (argument : Argument) : VariableNames :=
   inputValueVariables argument.value
 
-def argumentsVariables : List Argument -> List Name
+def argumentsVariables : List Argument -> VariableNames
   | [] => []
   | argument :: rest =>
       argumentVariables argument ++ argumentsVariables rest
 
-def directiveVariables : DirectiveApplication -> List Name
+def directiveVariables : DirectiveApplication -> VariableNames
   | .skip ifArgument => inputValueVariables ifArgument
   | .include ifArgument => inputValueVariables ifArgument
 
-def directivesVariables : List DirectiveApplication -> List Name
+def directivesVariables : List DirectiveApplication -> VariableNames
   | [] => []
   | directive :: rest =>
       directiveVariables directive ++ directivesVariables rest
 
 mutual
   -- Spec 5.8.4 variable uses in field arguments, directives, and nested selections.
-  def selectionVariables : Selection -> List Name
+  def selectionVariables : Selection -> VariableNames
     | .field _responseName _fieldName arguments directives selectionSet =>
         argumentsVariables arguments
         ++ directivesVariables directives
@@ -334,7 +346,7 @@ mutual
     | .inlineFragment _typeCondition directives selectionSet =>
         directivesVariables directives ++ selectionSetVariables selectionSet
 
-  def selectionSetVariables : List Selection -> List Name
+  def selectionSetVariables : List Selection -> VariableNames
     | [] => []
     | selection :: rest =>
         selectionVariables selection ++ selectionSetVariables rest
@@ -428,6 +440,19 @@ end Validation
 
 namespace FieldMerge
 
+-- Non-spec type-reference helper for `SameResponseShape` wrapper and leaf-type checks.
+def sameTypeShape (schema : Schema) : TypeRef -> TypeRef -> Prop
+  | .nonNull left, .nonNull right => sameTypeShape schema left right
+  | .nonNull _, _ => False
+  | _, .nonNull _ => False
+  | .list left, .list right => sameTypeShape schema left right
+  | .list _, _ => False
+  | _, .list _ => False
+  | .named left, .named right =>
+      schema.isOutputType left
+      ∧ schema.isOutputType right
+      ∧ ((schema.isLeafType left ∨ schema.isLeafType right) -> left = right)
+
 -- Spec 5.3.2 `FieldsInSetCanMerge` field-pair context: non-spec helper carrying the
 -- parent type and field data needed by merge checks.
 structure ScopedField where
@@ -438,20 +463,6 @@ structure ScopedField where
   outputType : TypeRef
   selectionSet : List Selection
 deriving Repr
-
--- Spec 5.3.2 `SameResponseShape`: mostly faithful for wrapping structure and leaf
--- named-type equality, using the modeled schema's leaf/output predicates.
-def sameResponseShape (schema : Schema) : TypeRef -> TypeRef -> Prop
-  | .nonNull left, .nonNull right => sameResponseShape schema left right
-  | .nonNull _, _ => False
-  | _, .nonNull _ => False
-  | .list left, .list right => sameResponseShape schema left right
-  | .list _, _ => False
-  | _, .list _ => False
-  | .named left, .named right =>
-      schema.isOutputType left
-      ∧ schema.isOutputType right
-      ∧ ((schema.isLeafType left ∨ schema.isLeafType right) -> left = right)
 
 -- Spec 5.3.2 `CollectFieldsAndFragmentNames` / 6.3.2 `CollectFields`: partial validation
 -- helper; it does not apply directives or runtime type-condition filtering.
@@ -478,10 +489,13 @@ def collectFields (schema : Schema) : Name -> List Selection -> List ScopedField
             collectFields schema typeCondition selectionSet
       current ++ collectFields schema parentType rest
 
--- Spec 5.3.2 `FieldsInSetCanMerge`: captures pairwise response-shape,
--- same-field/argument checks on overlapping parent types, and recursive merged
--- subselection checks. It is a proposition rather than a recursive executable
--- function, so it does not need a synthetic fuel counter.
+-- Subfields retain each selection's declared return-type context when merged.
+def collectSubfields (schema : Schema) (left right : ScopedField) : List ScopedField :=
+  collectFields schema left.outputType.namedType left.selectionSet
+  ++ collectFields schema right.outputType.namedType right.selectionSet
+
+-- Spec 5.3.2: recursive shape compatibility is unconditional, while field names,
+-- arguments, and recursive mergeability are checked for potentially coexecuted fields.
 mutual
   inductive FieldsInSetCanMerge (schema : Schema) : Name -> List Selection -> Prop where
     | intro (parentType : Name) (selectionSet : List Selection)
@@ -498,7 +512,7 @@ mutual
   inductive FieldsForNameCanMerge (schema : Schema)
       : ScopedField -> ScopedField -> Prop where
     | intro (left right : ScopedField)
-      (hshape : sameResponseShape schema left.outputType right.outputType)
+      (hshape : SameResponseShape schema left right)
       (hidentity
         : (left.parentType = right.parentType
             ∨ ¬ schema.objectType left.parentType
@@ -509,11 +523,33 @@ mutual
         : (left.parentType = right.parentType
             ∨ ¬ schema.objectType left.parentType
             ∨ ¬ schema.objectType right.parentType)
-          -> ∀ objectType,
-              FieldsInSetCanMerge schema objectType
-                (left.selectionSet ++ right.selectionSet))
+          -> ∀ subLeft,
+              subLeft ∈ collectSubfields schema left right
+              -> ∀ subRight,
+                  subRight ∈ collectSubfields schema left right
+                  -> subLeft.responseName = subRight.responseName
+                  -> FieldsForNameCanMerge schema subLeft subRight)
       : FieldsForNameCanMerge schema left right
+
+  inductive SameResponseShape (schema : Schema) : ScopedField -> ScopedField -> Prop where
+    | intro (left right : ScopedField)
+      (htypes : FieldMerge.sameTypeShape schema left.outputType right.outputType)
+      (hsubfields
+        : schema.isCompositeType left.outputType.namedType
+          -> schema.isCompositeType right.outputType.namedType
+          -> ∀ subLeft,
+              subLeft ∈ collectSubfields schema left right
+              -> ∀ subRight,
+                  subRight ∈ collectSubfields schema left right
+                  -> subLeft.responseName = subRight.responseName
+                  -> SameResponseShape schema subLeft subRight)
+      : SameResponseShape schema left right
 end
+
+-- Spec 5.3.2 `SameResponseShape`: return-type compatibility and recursive shape
+-- compatibility of same-response-name children in their declared return scopes.
+def sameResponseShape (schema : Schema) (left right : ScopedField) : Prop :=
+  SameResponseShape schema left right
 
 def fieldsInSetCanMerge (schema : Schema)
     (parentType : Name) (selectionSet : List Selection)

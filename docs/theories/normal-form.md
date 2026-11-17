@@ -8,9 +8,20 @@ representations to the same resolver-parametric execution semantics.
 The public definitions live in `GraphQL/Theories/NormalForm.lean`. Proof witnesses live
 under `Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/` and
 `Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/`.
+The umbrella import is `Proofs.GraphQL.Theories.NormalForm`.
 
-The public soundness and uniqueness propositions and their checked proof witnesses use
-coerced resolver arguments.
+Schema well-formedness permits covariant return strengthening. Normalization
+validity and source-normalization uniqueness use an explicit operation-local
+output-shape agreement premise; normality and semantics preservation do not.
+
+The public soundness and uniqueness propositions use coerced resolver arguments.
+The semantics-preservation and validity witnesses retain declared-scope source evidence
+along runtime object paths. The proof-only `runtimeMergeSource` invariant keeps each
+source field's declared return scope; schema covariance transfers possible runtime types,
+not unrestricted static mergeability. `FieldProjection` traces each normalized field to
+a nonempty source group and recursively traces its collected children, preserving the
+spec's full response-shape checks when grounding return scopes. Recursive declared lookup
+remains available when Boolean filtering empties a composite child body.
 
 ## The Two Normal Forms
 
@@ -60,11 +71,11 @@ Normality says the output has the intended syntactic shape.
 
 - `NormalForm.normalizeOperationNormal` is witnessed by
   `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_normal` in
-  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
-  It assumes only `SchemaWellFormedness.schemaWellFormed schema`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality`.
+  It assumes schema well-formedness and operation validity.
 - `NormalForm.completeNormalizeOperationNormal` is witnessed by
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_normal`
-  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.OperationNormality`.
   It assumes schema well-formedness and operation validity, because the complete
   normal shape depends on the operation's modeled directive variables and
   validated root shape.
@@ -77,15 +88,16 @@ and variable assignment in the theorem's stated runtime domain.
 
 - `NormalForm.groundTypeNormalFormSemanticsPreservation` is witnessed by
   `GraphQL.NormalForm.GroundTypeNormalization.groundTypeNormalFormSemanticsPreservation`
-  in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
+  in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.OperationSemantics`.
   It assumes schema well-formedness, operation validity, and
   `operationDirectiveFree operation`.
 - `NormalForm.completeNormalizationSemanticsPreserved` is witnessed by
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizationSemanticsPreserved`
-  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.OperationSemantics`.
   It assumes schema well-formedness, operation validity, and
-  `operationBoolVarsComplete operation variableValues`, so every modeled
-  directive variable used by the operation has a Boolean runtime value.
+  `operationBoolVarsComplete operation (Execution.coerceVariableValues operation variableValues)`,
+  so every modeled directive variable used by the operation has a Boolean runtime
+  value after operation defaults are materialized.
 
 Both statements compare `Execution.executeQueryWithFuel` at the same explicit
 fuel. This avoids making a false syntax-size preservation claim: normalization
@@ -100,19 +112,46 @@ assumptions that are not GraphQL validation rules.
 
 - `NormalForm.normalizeOperationValid` is witnessed by
   `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_valid` in
-  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Operation`.
   In addition to schema well-formedness, operation validity, and
-  directive-freeness, it assumes `operationFieldsValidInPossibleTypes` and
-  `operationTypeConditionFeasible`.
+  directive-freeness, it assumes `operationFieldsValidInPossibleTypes`,
+  `operationFieldsSameOutputShape`, and `operationTypeConditionFeasible`.
 - `NormalForm.completeNormalizeOperationValid` is witnessed by
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_valid`
-  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Operation`.
   In addition to schema well-formedness and operation validity, it assumes
-  `operationFieldsValidInPossibleTypes` and
+  `operationFieldsValidInPossibleTypes`, `operationFieldsSameOutputShape`, and
   `operationBoolTypeConditionFeasible`.
 
 The extra assumptions are important because they expose a real gap between
 GraphQL operation validity and runtime semantics.
+
+`operationFieldsSameOutputShape` is included specifically to satisfy the spec's
+unconditional `SameResponseShape` check after normalization. It is a conservative
+sufficient condition over the field names occurring in the operation, including
+nested and inactive selections.
+For each such name, `fieldSameOutputShape` requires every declaration-to-possible-object
+lookup across the schema to preserve list/non-null wrappers and leaf types.
+It does not restrict unused field names, but it can restrict declarations outside
+the operation's reachable scopes when they share a used name. It is not claimed
+to be necessary for normalization validity and is not a GraphQL validation rule.
+
+For example, this schema permits covariant strengthening:
+
+```graphql
+interface I { value: String }
+type Query implements I { value: String!, node: I, safe: String }
+type Plain implements I { value: String }
+```
+
+The valid query `{ node { value } }` grounds to `Query` and `Plain` branches with
+`String!` and `String` return types. The spec's unconditional `SameResponseShape`
+check rejects that normalized query even though its execution is preserved.
+`Tests.GraphQL.Theories.NormalForm.OutputCovariance` proves source validity,
+normalized invalidity, and semantics preservation. It also checks that selecting
+only `safe` satisfies output-shape agreement despite the schema's unrelated strengthening.
+`Tests.GraphQL.SchemaWellFormedness.OutputCovariance` covers scalar and list
+strengthening acceptance and invalid weakening/list-shape rejection.
 
 Spec 5.8.4 requires every declared variable to remain syntactically used. The
 ground feasibility assumption requires every selected field's complete
@@ -234,6 +273,13 @@ question, namely whether a normalized operation is itself a valid GraphQL operat
 
 ### Uniqueness Up To Reordering
 
+Uniqueness requires `operationTypenameFree` for both operations: no selected field
+may have the name `__typename`, at any depth, regardless of its response alias.
+Both normalizers preserve this predicate. The builtin remains supported by
+execution and normalization soundness. The
+[uniqueness guide](normal-form-uniqueness.md) explains why deterministic type-name
+leaves require this domain restriction and links the proved counterexample.
+
 Uniqueness says valid normal operations with the same resolver-parametric semantics
 have the same structure modulo order, with corresponding field arguments compared
 after the schema and operation variables coerce them to the lists seen by resolvers.
@@ -249,15 +295,15 @@ it intentionally does not compare variable types.
 
 - `NormalForm.normalOperationsEqualUpToReorderingSemanticallyEquivalent` is witnessed
   by `normal_operations_equalUpToReordering_semanticallyEquivalent` in
-  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
   It lifts selection-set reordering soundness to operation execution.
 - `NormalForm.normalizeOperationsEqualUpToReorderingSemanticallyEquivalent` is
   witnessed by `normalizeOperations_equalUpToReordering_semanticallyEquivalent` in
-  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
   It lifts normalized-operation reordering equality back to source-operation semantics.
 - `NormalForm.normalOperationsSemanticallyEquivalentEqualUpToReordering` is witnessed
   by `normal_operations_semanticallyEquivalent_equalUpToReordering` in
-  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
   It concludes `operationsEqualUpToReorderingWithCoercion`, comparing
   directive-free ground-normal siblings up to reordering for every supplied variable
   environment.
@@ -266,12 +312,14 @@ it intentionally does not compare variable types.
   an empty inline fragment makes two different normal operations equivalent.
 - `NormalForm.normalizeOperationUniqueUpToReordering` is witnessed by
   `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`
-  in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
-  Its sources must satisfy `operationSubselectionsNonemptyInPossibleTypes`, which makes
-  the normalized operations satisfy `operationSubselectionsNonempty`.
+  in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
+  Both source operations satisfy the same output-shape agreement and other
+  preconditions as ground-normalization validity. They must also satisfy
+  `operationSubselectionsNonemptyInPossibleTypes`, which makes the normalized
+  operations satisfy `operationSubselectionsNonempty`.
 - `NormalForm.completeNormalOperationsSemanticallyEquivalentEqualUpToReordering` is
   witnessed by `complete_normal_operations_semanticallyEquivalent_equalUpToReordering`
-  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
   It concludes `completeNormalOperationsEqualUpToReorderingWithCoercion` and
   additionally ignores complete Boolean branch order and minterm stem order;
   field arguments are compared in environments satisfying each paired minterm.
@@ -286,7 +334,7 @@ it intentionally does not compare variable types.
 - `NormalForm.completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent`
   is witnessed by
   `completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent` in
-  `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
   Its semantic conclusion is restricted to complete Boolean environments, with
   source Boolean-support equivalence stated explicitly because normalized equality
   only compares normalized support. It also requires position-wise
@@ -294,11 +342,12 @@ it intentionally does not compare variable types.
   operation-specific defaults.
 - `NormalForm.completeNormalizeOperationUniqueUpToReordering` is witnessed by
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`
-  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
-  It uses the same possible-type and Boolean/type-condition feasibility assumptions as
-  complete-normalization validity, plus `operationSubselectionsNonemptyInPossibleTypes`,
-  and compares operations with equivalent Boolean variable support. Its semantic premise is restricted to complete Boolean
-  environments, matching the soundness conclusion, so the two directions together
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
+  It uses the same possible-type, output-shape agreement, and Boolean/type-condition
+  feasibility assumptions as complete-normalization validity, plus
+  `operationSubselectionsNonemptyInPossibleTypes`, and compares operations with
+  equivalent Boolean variable support. Its semantic premise is restricted to complete
+  Boolean environments, matching the soundness conclusion, so the two directions together
   characterize exactly that fragment of the semantics. Joint Boolean-case argument
   coercibility is derived from possible-type field validity and equivalent variable
   definitions; callers do not need to provide a separate coercibility premise.

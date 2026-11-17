@@ -72,36 +72,7 @@ theorem lookupField_executionCompletionFuel_le
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     : typeRefExecutionCompletionFuel fieldDefinition.outputType
       ≤ typeDefinitionsExecutionCompletionFuel schema.types := by
-  unfold Schema.lookupField at hlookup
-  cases htype : schema.lookupType parentType with
-  | none => simp [htype] at hlookup
-  | some typeDefinition =>
-      simp only [htype, Option.bind_eq_bind] at hlookup
-      have htypeMem : typeDefinition ∈ schema.allTypes := by
-        exact List.mem_of_find?_eq_some htype
-      unfold Schema.allTypes at htypeMem
-      rcases typeDefinition with scalar | scalar | objectType | interfaceType |
-          unionType | enumType | inputObjectType
-      all_goals simp only [TypeDefinition.fields?] at hlookup
-      · cases hlookup
-      · cases hlookup
-      · have hfield : fieldDefinition ∈ objectType.fields :=
-          List.mem_of_find?_eq_some hlookup
-        have hobject : TypeDefinition.object objectType ∈ schema.types := by
-          simpa [Schema.builtinScalarDefinitions] using htypeMem
-        exact Nat.le_trans
-          (fieldDefinitionsExecutionCompletionFuel_mem hfield)
-          (typeDefinitionsExecutionCompletionFuel_object_mem hobject)
-      · have hfield : fieldDefinition ∈ interfaceType.fields :=
-          List.mem_of_find?_eq_some hlookup
-        have hinterface : TypeDefinition.interface interfaceType ∈ schema.types := by
-          simpa [Schema.builtinScalarDefinitions] using htypeMem
-        exact Nat.le_trans
-          (fieldDefinitionsExecutionCompletionFuel_mem hfield)
-          (typeDefinitionsExecutionCompletionFuel_interface_mem hinterface)
-      · cases hlookup
-      · cases hlookup
-      · cases hlookup
+  exact GraphQL.Execution.lookupField_executionCompletionFuel_le schema hlookup
 
 structure ExecutionBoundary {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues) where
@@ -120,7 +91,7 @@ structure ExecutionBoundary {ObjectRef : Type}
   parentObject : schema.objectType parentType
   parentRuntimeApplies : ScopedParentRuntimeApplies schema runtimeType parentType
   semanticsReady : NormalForm.selectionSetSemanticsReady schema parentType selectionSet
-  fieldsCanMerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
+  fieldsCanMerge : NormalForm.runtimeMergeSource schema runtimeType selectionSet
   argumentsNodup : CollectedGroupsArgumentsNodup allSpecGroups
   childrenArgumentsNodup
     : ∀ field,
@@ -163,12 +134,14 @@ theorem ExecutionBoundary.groupsFieldCompatible
     {ObjectRef : Type} {schema : Schema} {variableValues : VariableValues}
     (boundary : ExecutionBoundary (ObjectRef := ObjectRef) schema variableValues)
     : CollectedGroupsFieldValidationMergeCompatible boundary.allSpecGroups := by
+  have hruntime : boundary.runtimeType = boundary.parentType :=
+    object_typeIncludesObjectBool_eq_self schema boundary.parentObject
+      boundary.parentRuntimeApplies
   rw [boundary.allSpecGroups_eq]
-  exact collectFields_fieldCompatible_of_canMerge_lookupValid schema variableValues
-    boundary.parentType boundary.parentType boundary.runtimeType boundary.ref
-    boundary.selectionSet boundary.fieldsCanMerge boundary.parentRuntimeApplies
-    (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady
-      boundary.selectionSet boundary.semanticsReady)
+  exact collectFields_fieldCompatible_of_runtimeMergeSource schema variableValues
+    boundary.parentType boundary.runtimeType boundary.ref boundary.selectionSet
+    (by simpa [hruntime] using boundary.parentObject)
+    boundary.fieldsCanMerge
 
 theorem typeRefExecutionCompletionFuel_pos (fieldType : TypeRef)
     : 0 < typeRefExecutionCompletionFuel fieldType := by
@@ -534,7 +507,7 @@ mutual
                             simp [hleftCoerce, hrightCoerce,
                               ArgumentCoercionResult.equivalent] at hcoercedArguments ⊢
                           rw [hfieldName]
-                          exact resolvers.resolve_argumentsEquivalent _ _ _ _ _
+                          exact resolveFieldValue_argumentsEquivalent resolvers _ _ _ _ _
                             hcoercedArguments
                         cases hresolve
                               : coerceAndResolveFieldValue schema resolvers variableValues
@@ -800,13 +773,22 @@ mutual
                               fieldDefinition (hlookupAll field hfield) childRuntime
                               hincludeDefinition
                           have hchildMerge :
-                              FieldMerge.fieldsInSetCanMerge schema childRuntime
+                              NormalForm.runtimeMergeSource schema childRuntime
                                 rightSelectionSet := by
-                            apply fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
-                              schema boundary.parentType boundary.runtimeType
-                              boundary.selectionSet responseName
-                              (rightHead :: rightRest) boundary.fieldsCanMerge
-                              (boundary.groupRuntimeScoped hrightGroup) childRuntime
+                            apply collectFields_group_mergedRuntimeSource schema hschema
+                              variableValues boundary.parentType boundary.runtimeType
+                              boundary.ref boundary.selectionSet responseName
+                              (rightHead :: rightRest) rightHead fieldDefinition childRuntime
+                              (ScopedParentRuntimeApplies.runtimeObjectType schema hschema
+                                boundary.parentRuntimeApplies)
+                              (object_typeIncludesObjectBool_eq_self schema boundary.parentObject
+                                boundary.parentRuntimeApplies).symm
+                              boundary.fieldsCanMerge
+                            · rw [← boundary.allSpecGroups_eq]
+                              exact hrightGroup
+                            · simp
+                            · exact hlookupAll rightHead (by simp)
+                            · exact hincludeDefinition
                           have hchildObject : schema.objectType childRuntime :=
                             SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
                               hschema typeName childRuntime
@@ -1048,15 +1030,23 @@ theorem execution_equivalent_of_sufficient_fuel
           allSpecGroups := specGroups
           allSpecGroups_eq := rfl
           extractionPossible := by simpa [Schema.typeIncludesObjectBool] using hpossible
-          parentObject :=
-            NormalForm.CompleteNormalization.operation_root_object_of_valid
-              hschema hoperation
+          parentObject := by
+            rw [Validation.operationDefinitionValid_rootType_eq hoperation]
+            exact hschema.2.1
           parentRuntimeApplies := by simpa [ScopedParentRuntimeApplies] using hpossible
           semanticsReady :=
-            NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
-              hschema hoperation
+            NormalForm.selectionSetSemanticsReady_of_selectionSetValid_object schema
+              operation.variableDefinitions (operation.rootType schema) hschema
+              (by rw [Validation.operationDefinitionValid_rootType_eq hoperation]
+                  exact hschema.2.1)
+              operation.selectionSet
+              (Validation.operationDefinitionValid_selectionSetValid hoperation)
           fieldsCanMerge :=
-            Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
+            NormalForm.runtimeMergeSource_of_valid schema operation.variableDefinitions
+              (SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
+                (operation.rootType schema) runtimeType (List.contains_iff_mem.mp hpossible))
+              hpossible (Validation.operationDefinitionValid_selectionSetValid hoperation)
+              (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation)
           argumentsNodup := hrootArgumentsAndChildrenNodup.1
           childrenArgumentsNodup := hrootArgumentsAndChildrenNodup.2
         }

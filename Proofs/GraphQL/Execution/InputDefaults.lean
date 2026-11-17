@@ -149,6 +149,10 @@ theorem coerceConstInputValueBounded_success_of_no_default_cycle
             .list coerced,
             by simp [ConstInputValue.toInputValue, coerceInputValueBounded, hcoerced]
           ⟩
+      | objectCustomScalar fields name scalar _ hlookup =>
+          exact ⟨.object fields,
+            coerceInputValueBounded_customScalar_const schema values fuel name scalar
+              (.object fields) hlookup⟩
       | objectNamed fields name inputObject _ hlookup hfields =>
           have hobjectWell : inputObjectTypeWellFormed schema inputObject :=
             hschema.2.2.1 (.inputObject inputObject) (lookupInputObject_mem hlookup)

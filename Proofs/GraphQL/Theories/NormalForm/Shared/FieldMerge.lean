@@ -816,12 +816,19 @@ theorem fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object
       -> FieldMerge.fieldsInSetCanMerge schema parentType
           (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> (∀ field,
+            field
+              ∈ FieldMerge.collectFields schema parentType
+                  (Selection.field responseName fieldName arguments [] subselections
+                    :: rest)
+            -> field.responseName = responseName
+            -> field.outputType.namedType = objectType)
       -> FieldMerge.fieldsInSetCanMerge schema objectType
           (subselections
             ++ mergeSelectionSets
                 (fieldSelectionsWithResponseNameInScope schema parentType responseName
                   rest)) := by
-  intro hobject hvalid hmerge hlookup
+  intro hobject hvalid hmerge hlookup hreturnScopes
   let headSelection : Selection :=
     Selection.field responseName fieldName arguments [] subselections
   let matching :=
@@ -925,7 +932,8 @@ theorem fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object
       · exact Or.inr (Or.inl hleftObject)
     have hsubfields :=
       FieldMerge.fieldsForNameCanMerge_subfields hfieldMerge hparents
-        objectType
+        objectType (hreturnScopes leftScoped hleftScoped hleftResponse)
+          (hreturnScopes rightScoped hrightScoped hrightResponse)
     rw [hleftSelectionSet, hrightSelectionSet] at hsubfields
     exact hsubfields
   simpa [group, headSelection, matching, mergeSelectionSets, Selection.subselections]

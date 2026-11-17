@@ -123,7 +123,7 @@ mutual
                 · exact pure_scoped route _
             | list items =>
                 simpa only [RecordedExecution.completeValue, StateT.run_pure, id_pure_eq]
-                  using fault_scoped route (.error 1 : Result ResponseValue)
+                  using fault_scoped route (.ok (.null, 1) : Result ResponseValue)
             | object runtimeType reference =>
                 simp only [RecordedExecution.completeValue]
                 split
@@ -143,10 +143,10 @@ mutual
                   using pure_scoped route ResponseValue.null
             | scalar scalar =>
                 simpa only [RecordedExecution.completeValue, StateT.run_pure, id_pure_eq]
-                  using fault_scoped route (.error 1 : Result ResponseValue)
+                  using fault_scoped route (.ok (.null, 1) : Result ResponseValue)
             | object runtimeType reference =>
                 simpa only [RecordedExecution.completeValue,
-                  StateT.run_pure, id_pure_eq] using fault_scoped route (.error 1 : Result ResponseValue)
+                  StateT.run_pure, id_pure_eq] using fault_scoped route (.ok (.null, 1) : Result ResponseValue)
             | list items =>
                 simpa only [RecordedExecution.completeValue]
                   using (completeListValueWithStream_origins schema resolvers variables

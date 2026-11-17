@@ -220,8 +220,8 @@ theorem object_run_of_plan (schema : Schema) (resolvers : Resolvers ObjectRef)
         keys,
         by
           simpa only [ScheduledExecution.completeValue, Execution.completeValue, includes,
-            Bool.not_false, ↓reduceIte, Completion.error]
-            using pureResult_run supplies (.error 1)
+            Bool.not_false, ↓reduceIte]
+            using pureResult_run supplies (.ok (ResponseValue.null, 1))
       ⟩
   | true =>
       let collected := (collectSubfields schema variables runtimeType

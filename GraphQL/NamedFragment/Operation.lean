@@ -10,6 +10,9 @@ schema, argument, variable, and directive syntax.
 namespace GraphQL
 namespace NamedFragment
 
+/-- Fragment names used in spread traversal, including frontiers and visited lists. -/
+abbrev FragmentNames := List Name
+
 -- Spec 2.5-2.9 selection syntax extended with named fragment spreads.
 inductive Selection where
   | field

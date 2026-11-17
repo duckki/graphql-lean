@@ -5,7 +5,6 @@ import Proofs.GraphQL.Execution.Data
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.FieldCollection
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Semantics
-import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Variables
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.BoolCaseWrappers
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.OperationNormality

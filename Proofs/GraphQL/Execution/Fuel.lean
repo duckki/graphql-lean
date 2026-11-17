@@ -1,5 +1,6 @@
 import GraphQL.Execution
 import GraphQL.Theories.ResponseMeasure
+import Proofs.GraphQL.Schema.Typename
 
 /-! Sufficiency of the public schema-aware execution fuel bound. -/
 
@@ -65,13 +66,25 @@ theorem typeDefinitionsExecutionCompletionFuel_interface_mem
           | exact Nat.le_trans (ih hrest) (Nat.le_max_right _ _)
           | exact ih hrest
 
+theorem one_le_typeDefinitionsExecutionCompletionFuel (types : List TypeDefinition)
+    : 1 ≤ typeDefinitionsExecutionCompletionFuel types := by
+  induction types with
+  | nil => simp [typeDefinitionsExecutionCompletionFuel]
+  | cons head rest ih =>
+      cases head <;> simp only [typeDefinitionsExecutionCompletionFuel]
+      all_goals first
+        | exact Nat.le_trans ih (Nat.le_max_right _ _)
+        | exact ih
+
 theorem lookupField_executionCompletionFuel_le
     (schema : Schema) {parentType fieldName : Name}
     {fieldDefinition : FieldDefinition}
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     : typeRefExecutionCompletionFuel fieldDefinition.outputType
       ≤ typeDefinitionsExecutionCompletionFuel schema.types := by
-  unfold Schema.lookupField at hlookup
+  rcases Schema.lookupField_eq_some_cases hlookup with ⟨_, rfl, _⟩ | ⟨_, hlookup⟩
+  · exact one_le_typeDefinitionsExecutionCompletionFuel schema.types
+  unfold Schema.lookupDeclaredField at hlookup
   cases htype : schema.lookupType parentType with
   | none => simp [htype] at hlookup
   | some typeDefinition =>

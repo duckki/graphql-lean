@@ -111,6 +111,8 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
     (hdefinitions
       : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
           right.variableDefinitions)
+    (hleftTypes : operationTypenameFree left)
+    (hrightTypes : operationTypenameFree right)
     (hsem
       : operationsSemanticallyEquivalentForCompleteBoolVars schema
           (operationBoolVars left) left right)
@@ -147,7 +149,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
         GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering
           (schema := schema) (left := left) (right := right) hschema
           hleftValid hrightValid hleftShape.2 hrightShape.2
-          hleftShape.1 hrightShape.1 hleftSub hrightSub hdefinitions hsemAll
+          hleftTypes hrightTypes hleftShape.1 hrightShape.1 hleftSub hrightSub hdefinitions hsemAll
       simpa [hleftVars] using hground.2
   | cons leftVar leftVariables =>
       cases hrightVars : operationBoolVars right with
@@ -378,12 +380,12 @@ theorem complete_normal_operations_semanticallyEquivalent_equalUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
         schema left right := by
-  intro hschema hleftValid hrightValid hleftNormal hrightNormal hleftSub hrightSub
-    hdefinitions hvariables hsem
+  intro hschema hleftValid hrightValid hleftTypes hrightTypes hleftNormal hrightNormal
+    hleftSub hrightSub hdefinitions hvariables hsem
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftValid hrightValid hleftNormal hrightNormal hleftSub hrightSub
-      hvariables hdefinitions hsem
+      hvariables hdefinitions hleftTypes hrightTypes hsem
 
 end CompleteNormalization
 

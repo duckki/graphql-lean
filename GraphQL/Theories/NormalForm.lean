@@ -550,8 +550,8 @@ end
 -- must also be valid in every concrete object scope where normalization may ground them.
 -- This is not a GraphQL validation rule; it is an operation-specific proof assumption
 -- needed because the normalized operation explicitly contains those concrete branches.
--- Without it, normalization can change the field definition used for argument coercion
--- and therefore change the semantic argument map passed to a resolver.
+-- It supplies static field and argument validity in those scopes, not execution
+-- equivalence: semantics preservation does not require this assumption.
 -- Related spec issue: https://github.com/graphql/graphql-spec/issues/1121
 def operationFieldsValidInPossibleTypes (schema : Schema) (operation : Operation)
     : Prop :=
@@ -561,7 +561,7 @@ def operationFieldsValidInPossibleTypes (schema : Schema) (operation : Operation
 -- Type-condition feasibility for one field occurrence: the inline-fragment type
 -- conditions between the field and its nearest parent field/root selection set,
 -- including that parent type itself, have a nonempty possible-object intersection.
-def typeConditionStackFeasible (schema : Schema) (typeConditions : List Name) : Prop :=
+def typeConditionStackFeasible (schema : Schema) (typeConditions : TypeNames) : Prop :=
   ∃ objectType,
     ∀ typeCondition,
       typeCondition ∈ typeConditions -> objectType ∈ schema.getPossibleTypes typeCondition
@@ -572,7 +572,7 @@ def typeConditionStackFeasible (schema : Schema) (typeConditions : List Name) : 
 -- object scope introduced by ground normalization.
 mutual
   def selectionTypeConditionFeasible (schema : Schema)
-      (parentType : Name) (typeConditions : List Name)
+      (parentType : Name) (typeConditions : TypeNames)
       : Selection -> Prop
     | .field _responseName fieldName _arguments _directives selectionSet =>
         typeConditionStackFeasible schema typeConditions
@@ -596,7 +596,7 @@ mutual
           (typeCondition :: typeConditions) selectionSet
 
   def selectionSetTypeConditionFeasible (schema : Schema)
-      (parentType : Name) (typeConditions : List Name)
+      (parentType : Name) (typeConditions : TypeNames)
       : List Selection -> Prop
     | [] => True
     | selection :: rest =>
@@ -611,6 +611,37 @@ def operationTypeConditionFeasible (schema : Schema) (operation : Operation) : P
   selectionSetTypeConditionFeasible schema (operation.rootType schema)
     [operation.rootType schema] operation.selectionSet
 
+-- Conservative normalization-only condition for one field name: grounding any
+-- declaration of that name preserves response wrappers and leaf types. This is
+-- stricter than schema validity's covariance requirement.
+def fieldSameOutputShape (schema : Schema) (fieldName : Name) : Prop :=
+  ∀ parentType objectTypeName expected implementation,
+    objectTypeName ∈ schema.getPossibleTypes parentType
+    -> schema.lookupField parentType fieldName = some expected
+    -> schema.lookupField objectTypeName fieldName = some implementation
+    -> FieldMerge.sameTypeShape schema implementation.outputType expected.outputType
+
+mutual
+  def selectionFieldsSameOutputShape (schema : Schema) : Selection -> Prop
+    | .field _responseName fieldName _arguments _directives children =>
+        fieldSameOutputShape schema fieldName
+        ∧ selectionSetFieldsSameOutputShape schema children
+    | .inlineFragment _typeCondition _directives children =>
+        selectionSetFieldsSameOutputShape schema children
+
+  def selectionSetFieldsSameOutputShape (schema : Schema) : List Selection -> Prop
+    | [] => True
+    | selection :: rest =>
+        selectionFieldsSameOutputShape schema selection
+        ∧ selectionSetFieldsSameOutputShape schema rest
+end
+
+-- Only field names occurring in this operation are restricted, but all schema
+-- declarations of those names are checked, including unreachable scopes.
+-- This sufficient condition is not a GraphQL operation-validation requirement.
+def operationFieldsSameOutputShape (schema : Schema) (operation : Operation) : Prop :=
+  selectionSetFieldsSameOutputShape schema operation.selectionSet
+
 -- Public validity-preservation statement for the ground-type normalizer. The theorem
 -- witness is `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_valid`.
 def normalizeOperationValid (schema : Schema) (operation : Operation) : Prop :=
@@ -618,6 +649,7 @@ def normalizeOperationValid (schema : Schema) (operation : Operation) : Prop :=
   -> Validation.operationDefinitionValid schema operation
   -> operationDirectiveFree operation
   -> operationFieldsValidInPossibleTypes schema operation
+  -> operationFieldsSameOutputShape schema operation
   -> operationTypeConditionFeasible schema operation
   -> Validation.operationDefinitionValid schema (normalizeOperation schema operation)
 
@@ -759,6 +791,24 @@ def normalizeOperationsEqualUpToReorderingSemanticallyEquivalent
       (normalizeOperation schema right)
   -> operationsSemanticallyEquivalent schema left right
 
+-- Domain of structural uniqueness: exclude `__typename` fields, since they may have
+-- the same value without unique provenance (multiple fields with the same type may
+-- resolve to the same value).
+-- This checks field names rather than response aliases, including nested selections.
+mutual
+  def selectionTypenameFree : Selection -> Prop
+    | .field _responseName fieldName _arguments _directives children =>
+        fieldName ≠ "__typename" ∧ selectionSetTypenameFree children
+    | .inlineFragment _typeCondition _directives children =>
+        selectionSetTypenameFree children
+
+  def selectionSetTypenameFree (selections : List Selection) : Prop :=
+    ∀ selection, selection ∈ selections -> selectionTypenameFree selection
+end
+
+def operationTypenameFree (operation : Operation) : Prop :=
+  selectionSetTypenameFree operation.selectionSet
+
 -- States: Two semantically equivalent normal operations are syntactically equal.
 -- The theorem witness is
 -- `GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering`
@@ -774,6 +824,8 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationNormal schema left
   -> operationNormal schema right
   -> operationSubselectionsNonempty schema left
@@ -797,8 +849,12 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
+  -> operationFieldsSameOutputShape schema left
+  -> operationFieldsSameOutputShape schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
   -> operationSubselectionsNonemptyInPossibleTypes schema left
@@ -1125,7 +1181,7 @@ mutual
   -/
   def selectionBoolTypeConditionFeasible
       (schema : Schema) (parentType : Name)
-      (typeConditions : List Name) (boolCases : List BoolCase)
+      (typeConditions : TypeNames) (boolCases : List BoolCase)
       : Selection -> Prop
     | .field _responseName fieldName _arguments directives selectionSet =>
         let allowedCases :=
@@ -1169,7 +1225,7 @@ mutual
   -/
   def selectionSetBoolTypeConditionFeasible
       (schema : Schema) (parentType : Name)
-      (typeConditions : List Name) (boolCases : List BoolCase)
+      (typeConditions : TypeNames) (boolCases : List BoolCase)
       (selectionSet : List Selection)
       : Prop :=
     (∀ selection,
@@ -1218,6 +1274,7 @@ def completeNormalizeOperationValid (schema : Schema) (operation : Operation) : 
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
   -> operationFieldsValidInPossibleTypes schema operation
+  -> operationFieldsSameOutputShape schema operation
   -> operationBoolTypeConditionFeasible schema operation
   -> Validation.operationDefinitionValid schema
       (completeNormalizeOperation schema operation)
@@ -1391,6 +1448,8 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
   -> operationSubselectionsNonempty schema left
@@ -1417,8 +1476,12 @@ def completeNormalizeOperationUniqueUpToReordering
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> operationTypenameFree left
+  -> operationTypenameFree right
   -> operationFieldsValidInPossibleTypes schema left
   -> operationFieldsValidInPossibleTypes schema right
+  -> operationFieldsSameOutputShape schema left
+  -> operationFieldsSameOutputShape schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
   -> operationSubselectionsNonemptyInPossibleTypes schema left

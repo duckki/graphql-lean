@@ -60,6 +60,11 @@ theorem Under.mono {base next} {completed : Completion α}
 theorem pure (base : ResponsePath) (value : α) : Under base (Completion.pure value) :=
   trivial
 
+/-- Counted completed values also retain no work. -/
+theorem ok (base : ResponsePath) (value : α) (errors : Nat)
+    : Under base { result := .ok (value, errors) } :=
+  trivial
+
 /-- Failed completions retain no work, regardless of their error count. -/
 theorem error (base : ResponsePath) (errors : Nat)
     : Under base (Completion.error errors : Completion α) :=
@@ -267,14 +272,14 @@ mutual
             | scalar scalar =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error path 1)
+                · exact runEnsures_pure _ _ (ok path ResponseValue.null 1)
                 · exact runEnsures_pure _ _ (pure path _)
             | list items =>
-                simpa only [completeValue] using runEnsures_pure _ _ (error path 1)
+                simpa only [completeValue] using runEnsures_pure _ _ (ok path ResponseValue.null 1)
             | object runtimeType ref =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error path 1)
+                · exact runEnsures_pure _ _ (ok path ResponseValue.null 1)
                 · refine runEnsures_bind (fun _ : FieldCollection => True) _ _ _
                     (fun _ => trivial) ?_
                   intro collection _
@@ -289,9 +294,9 @@ mutual
                 simpa only [completeValue] using runEnsures_pure _ _
                   (pure path ResponseValue.null)
             | scalar scalar =>
-                simpa only [completeValue] using runEnsures_pure _ _ (error path 1)
+                simpa only [completeValue] using runEnsures_pure _ _ (ok path ResponseValue.null 1)
             | object runtimeType ref =>
-                simpa only [completeValue] using runEnsures_pure _ _ (error path 1)
+                simpa only [completeValue] using runEnsures_pure _ _ (ok path ResponseValue.null 1)
             | list items =>
                 simpa only [completeValue] using completeListValueWithStream_under
                   schema resolvers variables fuel inner fields items path usages deferMap

@@ -8,6 +8,7 @@ import Proofs.GraphQL.Theories.TreeSummary.ExactCases.VariableValues
 import Proofs.GraphQL.Theories.TreeSummary.Algebra
 import Proofs.GraphQL.Theories.TreeSummary.Soundness
 import Proofs.GraphQL.Theories.TreeSummary.ExecutionValidity
+import Proofs.GraphQL.Theories.TreeSummary.RuntimeLookup
 import GraphQL.Theories.TreeSummary.ExactCases
 
 /-! Soundness of the exact-case-tree summary fold. -/
@@ -1122,7 +1123,8 @@ private theorem annotatedResponseExecution_related_all
       definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid _hdefinitions
     simpa [completeAnnotatedResponseValue, hcomposite, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case13 =>
     intro fuel typeName fields value hnotComposite runtimeType ref fieldName
@@ -1171,7 +1173,7 @@ private theorem annotatedResponseExecution_related_all
       exact hlookup
     rcases hexecutionValid.childrenValid first definition childRuntimeType hfirst hlookupFirst
         hinclude with
-      ⟨hchildObject, hchildReady, hchildMerge⟩
+      ⟨hchildObject, hchildReady, hchildSource⟩
     have hchildArguments : selectionSetArgumentsNodup
         (Execution.mergedFieldSelectionSet fields) :=
       selectionSetArgumentsNodup_mergedFieldSelectionSet fields
@@ -1179,7 +1181,7 @@ private theorem annotatedResponseExecution_related_all
     have hchildExecutionValid : ExecutableGroupsValid schema childRuntimeType childGroups := by
       have hcollected := collectFields_executableGroupsValid schema variableValues
         childRuntimeType childRef (Execution.mergedFieldSelectionSet fields)
-        hschema hchildObject hchildReady hchildMerge hchildArguments
+        hschema hchildObject hchildReady hchildSource hchildArguments
       simpa [childGroups,
         NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
         using hcollected
@@ -1317,7 +1319,8 @@ private theorem annotatedResponseExecution_related_all
       | false => rfl
       | true => exact False.elim (hnotInclude hvalue)
     simpa [completeAnnotatedResponseValue, hinclude, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref fieldName
@@ -1356,14 +1359,16 @@ private theorem annotatedResponseExecution_related_all
       group _hnamed _hlookup _houtput _hwitness _hexecutionValid _hfields
       _hvalid _hdefinitions
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case18 =>
     intro fuel inner fields value hnotNull hnotList runtimeType ref fieldName
       definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid _hdefinitions
     simpa [completeAnnotatedResponseValue, hnotNull, hnotList,
-      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult]
+      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult,
+      foldAnnotatedResponseValue, foldChildSummaryForValue]
       using soundness.empty_sound
   case case19 =>
     intro fuel itemType fields runtimeType ref fieldName definition group
@@ -1474,8 +1479,10 @@ theorem SoundnessWithFactoring.executeSelectionSetAnnotated_sound
         hselectionValid
     have harguments := Execution.selectionSetArgumentsNodup_of_selectionSetValid
       hselectionValid
+    have hsource := runtimeMergeSource_of_valid_possibleObject schema variableDefinitions
+      hschema hobject hpossible hselectionValid hmerge
     exact collectFields_executableGroupsValid schema variableValues runtimeType
-      ref selectionSet hschema hobject hready hmerge harguments
+      ref selectionSet hschema hobject hready hsource harguments
   have hrelated :=
     (annotatedResponseExecution_related_all schema resolvers variableDefinitions
       variableValues variableValues hmatch hschema soundness).1 fuel runtimeType
@@ -1611,9 +1618,14 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
             (Validation.operationDefinitionValid_selectionSetValid hoperation)
         have harguments := Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hoperation)
+        have hsource := NormalForm.runtimeMergeSource_of_valid schema
+          operation.variableDefinitions hrootObject
+          (NormalForm.object_typeIncludesObjectBool_self schema hrootObject)
+          (Validation.operationDefinitionValid_selectionSetValid hoperation)
+          (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation)
         exact collectFields_executableGroupsValid schema coercedVariableValues
           (operation.rootType schema) ref operation.selectionSet hschema hrootObject hready
-          (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation) harguments
+          hsource harguments
       have hrelated :=
         (annotatedResponseExecution_related_all schema resolvers
           operation.variableDefinitions coercedVariableValues pruningValues hmatch hschema

@@ -18,6 +18,9 @@ Spec reference: GraphQL September 2026.
 
 namespace GraphQL
 
+/-- Variable names collected from operation syntax; occurrences may repeat. -/
+abbrev VariableNames := List Name
+
 -- Spec 2.7 `Argument`: faithful shape for a name/value pair; directive arguments are only
 -- modeled for built-ins elsewhere.
 structure Argument where

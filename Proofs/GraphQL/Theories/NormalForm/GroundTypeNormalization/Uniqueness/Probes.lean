@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Execution.ArgumentCoercion
+import Proofs.GraphQL.Theories.NormalForm.TypenameFree
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.OperationBridge
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.ExecutionKeys
 import Proofs.GraphQL.Validation.FieldMerge
@@ -1380,6 +1381,7 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
     (childSelectionSet : List Selection)
     (fieldDefinition : FieldDefinition)
     : schema.lookupField parentType fieldName = some fieldDefinition
+      -> fieldName ≠ "__typename"
       -> (Execution.coerceArgumentValues schema variableValues
             fieldDefinition.arguments arguments).isSuccess
           = true
@@ -1403,7 +1405,7 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
                 }]
                 (deepSelectionSetSuccessResolverValueWithRef schema rootSelectionSet
                   objectRef parentType fieldName fieldDefinition.outputType)) := by
-  intro hlookup hcoerce
+  intro hlookup hfieldName hcoerce
   rcases
       Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
     ⟨coercedArguments, hcoercionResult⟩
@@ -1416,7 +1418,7 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
               objectRef parentType fieldName fieldDefinition.outputType) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
-    exact deepSelectionSetSuccessResolversWithRef_resolve_lookup schema
+    simpa [hfieldName] using deepSelectionSetSuccessResolversWithRef_resolve_lookup schema
       rootSelectionSet objectRef parentType fieldName
       coercedArguments source fieldDefinition hlookup
   simp [hlookup, hresolve]
@@ -1473,26 +1475,28 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
                       selectionSet := childSelectionSet
                     }])
                 = .ok (responseFields, errors))
-      -> ∃ responseValue errors,
-          Execution.executeField schema
-              (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues
-              (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-              parentType source responseName
-              [{
-                fieldName := fieldName
-                arguments := arguments
-                selectionSet := childSelectionSet
-              }]
-            = .ok ([(responseName, responseValue)], errors)
-          ∧ responseValue ≠ .null := by
-  intro hlookup hcoerce hkind
+      -> ∀ (_hfieldName : fieldName ≠ "__typename" := by typename_free),
+          ∃ responseValue errors,
+            Execution.executeField schema
+                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                  objectRef)
+                variableValues
+                (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+                parentType source responseName
+                [{
+                  fieldName := fieldName
+                  arguments := arguments
+                  selectionSet := childSelectionSet
+                }]
+              = .ok ([(responseName, responseValue)], errors)
+            ∧ responseValue ≠ .null := by
+  intro hlookup hcoerce hkind hfieldName
   have hfield :=
     executeField_deepSelectionSetSuccessWithRef_of_lookup schema
       rootSelectionSet objectRef variableValues
       (fuel + leafProbeFuel fieldDefinition.outputType) source responseName
       parentType fieldName arguments childSelectionSet fieldDefinition
-      hlookup hcoerce
+      hlookup hfieldName hcoerce
   rcases hkind with hobjectKind | hleafOrAbstract
   · rcases hobjectKind with ⟨hobject, responseFields, childErrors,
       hfields⟩
@@ -1583,20 +1587,22 @@ theorem
                   variableValues fuel runtimeType
                   (.object runtimeType objectRef) childSelectionSet
                 = .ok (responseFields, errors))
-      -> ∃ responseValue errors,
-          Execution.executeField schema
-              (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues
-              (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-              parentType source responseName
-              [{
-                fieldName := fieldName
-                arguments := arguments
-                selectionSet := childSelectionSet
-              }]
-            = .ok ([(responseName, responseValue)], errors)
-          ∧ responseValue ≠ .null := by
-  intro hlookup hcoerce hkind
+      -> ∀ (_hfieldName : fieldName ≠ "__typename" := by typename_free),
+          ∃ responseValue errors,
+            Execution.executeField schema
+                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                  objectRef)
+                variableValues
+                (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+                parentType source responseName
+                [{
+                  fieldName := fieldName
+                  arguments := arguments
+                  selectionSet := childSelectionSet
+                }]
+              = .ok ([(responseName, responseValue)], errors)
+            ∧ responseValue ≠ .null := by
+  intro hlookup hcoerce hkind hfieldName
   have hcollectedKind :
       (objectTypeNameBool schema fieldDefinition.outputType.namedType = true
           ∧ ∃ responseFields errors,
@@ -1707,18 +1713,20 @@ theorem
                   (fuel - leafProbeFuel fieldDefinition.outputType)
                   runtimeType (.object runtimeType objectRef) childSelectionSet
                 = .ok (responseFields, errors))
-      -> ∃ responseValue errors,
-          Execution.executeField schema
-              (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues (fuel + 1) parentType source responseName
-              [{
-                fieldName := fieldName
-                arguments := arguments
-                selectionSet := childSelectionSet
-              }]
-            = .ok ([(responseName, responseValue)], errors)
-          ∧ responseValue ≠ .null := by
-  intro hlookup hcoerce hfuel hkind
+      -> ∀ (_hfieldName : fieldName ≠ "__typename" := by typename_free),
+          ∃ responseValue errors,
+            Execution.executeField schema
+                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                  objectRef)
+                variableValues (fuel + 1) parentType source responseName
+                [{
+                  fieldName := fieldName
+                  arguments := arguments
+                  selectionSet := childSelectionSet
+                }]
+              = .ok ([(responseName, responseValue)], errors)
+            ∧ responseValue ≠ .null := by
+  intro hlookup hcoerce hfuel hkind hfieldName
   rcases
       executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok
         schema rootSelectionSet objectRef variableValues
@@ -1787,18 +1795,20 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_ready_
           (fuel - leafProbeFuel fieldDefinition.outputType)
           parentType responseName fieldName arguments childSelectionSet
           fieldDefinition
-      -> ∃ responseValue errors,
-          Execution.executeField schema
-              (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues (fuel + 1) parentType source responseName
-              [{
-                fieldName := fieldName
-                arguments := arguments
-                selectionSet := childSelectionSet
-              }]
-            = .ok ([(responseName, responseValue)], errors)
-          ∧ responseValue ≠ .null := by
-  intro hlookup hfuel hready
+      -> ∀ (_hfieldName : fieldName ≠ "__typename" := by typename_free),
+          ∃ responseValue errors,
+            Execution.executeField schema
+                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                  objectRef)
+                variableValues (fuel + 1) parentType source responseName
+                [{
+                  fieldName := fieldName
+                  arguments := arguments
+                  selectionSet := childSelectionSet
+                }]
+              = .ok ([(responseName, responseValue)], errors)
+            ∧ responseValue ≠ .null := by
+  intro hlookup hfuel hready hfieldName
   rcases hready with ⟨hcoerce, hready⟩
   exact executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok_fuel_ge
     schema rootSelectionSet objectRef variableValues fuel source responseName parentType
@@ -1830,19 +1840,21 @@ theorem executeSelectionSet_deepSelectionSetSuccessWithRef_deepFieldReady
                       (fuel - leafProbeFuel fieldDefinition.outputType)
                       parentType responseName fieldName arguments childSelectionSet
                       fieldDefinition)
-        -> ∃ responseFields errors,
-            Execution.executeSelectionSet schema
-                (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
-                  objectRef)
-                variableValues (fuel + 1) parentType source selectionSet
-              = .ok (responseFields, errors)
-            ∧ responseFields.map Prod.fst = selectionSet.filterMap Selection.responseName?
-  | [], _hfree, _hnormal, _hobject, _hsource, _hready => by
+        -> ∀ (_hTypeNames : selectionSetTypenameFree selectionSet := by typename_free),
+            ∃ responseFields errors,
+              Execution.executeSelectionSet schema
+                  (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
+                    objectRef)
+                  variableValues (fuel + 1) parentType source selectionSet
+                = .ok (responseFields, errors)
+              ∧ responseFields.map Prod.fst
+                = selectionSet.filterMap Selection.responseName?
+  | [], _hfree, _hnormal, _hobject, _hsource, _hready, _hTypeNames => by
       refine ⟨[], 0, ?_, ?_⟩
       · simp [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
           Execution.collectFields, Execution.executeCollectedFields]
       · simp
-  | selection :: rest, hfree, hnormal, hobject, hsource, hready => by
+  | selection :: rest, hfree, hnormal, hobject, hsource, hready, hTypeNames => by
       have hallFields :
           selectionsAllFields (selection :: rest) :=
         selectionSetNormal_allFields_of_object hnormal hobject
@@ -1959,10 +1971,11 @@ theorem deepFieldSelectionSetExecutionReadyWithRef_object_of_child_deepFieldRead
                     fieldDefinition.outputType.namedType childResponseName
                     childFieldName childArguments grandChildSelectionSet
                     childFieldDefinition)
-      -> deepFieldSelectionSetExecutionReadyWithRef schema rootSelectionSet
-          objectRef variableValues (fuel + 1) parentType responseName fieldName
-          arguments childSelectionSet fieldDefinition := by
-  intro hcoerce hobject hchildFree hchildNormal hchildReady
+      -> ∀ (_hTypeNames : selectionSetTypenameFree childSelectionSet := by typename_free),
+          deepFieldSelectionSetExecutionReadyWithRef schema rootSelectionSet
+            objectRef variableValues (fuel + 1) parentType responseName fieldName
+            arguments childSelectionSet fieldDefinition := by
+  intro hcoerce hobject hchildFree hchildNormal hchildReady hTypeNames
   have hsource :
       ∃ runtimeType ref,
         (Execution.ResolverValue.object
@@ -2289,6 +2302,7 @@ theorem executeField_schemaLeafProbe_singleton_of_fuel_ge
     (selectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (value : String)
     : schema.lookupField parentType fieldName = some fieldDefinition
+      -> fieldName ≠ "__typename"
       -> (Execution.coerceArgumentValues schema variableValues
             fieldDefinition.arguments arguments).isSuccess
           = true
@@ -2308,7 +2322,7 @@ theorem executeField_schemaLeafProbe_singleton_of_fuel_ge
                 [(responseName, leafProbeResponseValue fieldDefinition.outputType value)],
                 0
               ) := by
-  intro hlookup hcoerce hfuel hleaf
+  intro hlookup hfieldName hcoerce hfuel hleaf
   rcases
       Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
     ⟨coercedArguments, hcoercionResult⟩
@@ -2321,7 +2335,7 @@ theorem executeField_schemaLeafProbe_singleton_of_fuel_ge
               fieldDefinition.outputType value) := by
     simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
       hcoercionResult]
-    exact schemaLeafProbeResolvers_resolve_lookup schema value parentType
+    simpa [hfieldName] using schemaLeafProbeResolvers_resolve_lookup schema value parentType
       fieldName coercedArguments source fieldDefinition hlookup
   exact
     executeField_leafProbe_singleton_of_resolve_fuel_ge schema

@@ -96,6 +96,7 @@ theorem scope_executeScheduleItem_result_count_mismatch
     (schema : Schema) (resolvers : ResolverMap ObjectRef)
     (variableValues : VariableValues) (item : ScheduleItem ObjectRef)
     (fieldDefinition : FieldDefinition) (coercedArguments : CoercedArguments)
+    (hfieldName : item.key.fieldName ≠ "__typename")
     : schema.lookupField item.key.parentType item.key.fieldName = some fieldDefinition
       -> coerceArgumentValues schema variableValues fieldDefinition.arguments
             item.key.arguments
@@ -112,7 +113,7 @@ theorem scope_executeScheduleItem_result_count_mismatch
                 (.completed (handleFieldError fieldDefinition.outputType)))]
           ) := by
   intro hlookup hcoerce hlength
-  simp [executeScheduleItem, hlookup, hcoerce, hlength]
+  simp [executeScheduleItem, hlookup, hcoerce, hfieldName, hlength]
 
 theorem scope_executeScheduleItem_fromSpecResolvers_length_ok
     (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -152,8 +153,12 @@ theorem scope_executeScheduleItem_fromSpecResolvers_lookup_some
         hcoerce, ScheduleItem.sources, -List.map_flatten,
         slots_buildFieldSlots_map_none, schedulePendingChildWork]
   | success coercedArguments =>
-      simp [executeScheduleItem, GraphQL.Execution.resolveFieldValue, hlookup,
-        hcoerce, ResolverMap.fromSpecResolvers]
+      by_cases hmeta : item.key.fieldName = "__typename"
+      · rw [hmeta] at hlookup
+        simp [executeScheduleItem, GraphQL.Execution.resolveFieldValue, hlookup,
+          hcoerce, hmeta]
+      · simp [executeScheduleItem, GraphQL.Execution.resolveFieldValue, hlookup,
+          hcoerce, ResolverMap.fromSpecResolvers, hmeta]
 
 theorem scope_expectedChildQueueForItem_fromSpecResolvers_lookup_some
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)

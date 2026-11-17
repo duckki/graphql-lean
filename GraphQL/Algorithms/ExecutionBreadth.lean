@@ -300,12 +300,12 @@ def buildValueSlot (schema : Schema) (selectionSet : List Selection)
           state values
       (work, .list slots)
   | .list _inner, _value, state =>
-      (state, .completed (.error 1))
+      (state, .completed (.ok (.null, 1)))
   | .named _typeName, .null, state =>
       (state, .completed (.ok (.null, 0)))
   | .named typeName, .scalar value, state =>
       if (TypeRef.named typeName).isCompositeBool schema then
-        (state, .completed (.error 1))
+        (state, .completed (.ok (.null, 1)))
       else
         (state, .completed (.ok (.scalar value, 0)))
   | .named parentType, .object runtimeType ref, state =>
@@ -318,9 +318,9 @@ def buildValueSlot (schema : Schema) (selectionSet : List Selection)
           }
         (state ++ [work], .child)
       else
-        (state, .completed (.error 1))
+        (state, .completed (.ok (.null, 1)))
   | .named _typeName, .list _values, state =>
-      (state, .completed (.error 1))
+      (state, .completed (.ok (.null, 1)))
 
 def buildFieldSlotForResolved
     (schema : Schema) (fieldType : TypeRef) (selectionSet : List Selection)
@@ -497,8 +497,11 @@ def executeScheduleItem
           )
       | .success coercedArguments =>
           let resolved :=
-            resolvers.resolve item.key.parentType item.key.fieldName
-              coercedArguments sources
+            if item.key.fieldName == "__typename" then
+              sources.map resolveTypenameField
+            else
+              resolvers.resolve item.key.parentType item.key.fieldName
+                coercedArguments sources
           if !(resolved.length == sources.length) then
             (
               [],
@@ -913,10 +916,11 @@ def typeDefinitionCompleteValueFuelBound : TypeDefinition -> Nat
   | _ => 0
 
 def schemaCompleteValueFuelBound (schema : Schema) : Nat :=
+  -- The implicit `__typename` scalar needs one tick even without declared output fields.
   schema.types.foldl
     (fun bound typeDefinition =>
       max bound (typeDefinitionCompleteValueFuelBound typeDefinition))
-    0
+    1
 
 def specQueryFuelBound (schema : Schema) (operation : Operation) : Nat :=
   operation.size * (schemaCompleteValueFuelBound schema + 1)

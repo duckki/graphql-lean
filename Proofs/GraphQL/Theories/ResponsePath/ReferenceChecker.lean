@@ -51,10 +51,10 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
     (hparentObject : schema.objectType parentType)
     (hleftReady
       : NormalForm.selectionSetSemanticsReady schema parentType leftSelectionSet)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType leftSelectionSet)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema parentType rightSelectionSet)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType rightSelectionSet)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType rightSelectionSet)
     (hdepth : selectionSetResponseDepth rightSelectionSet ≤ fuel)
     (hpaths
       : ∀ step rest,
@@ -262,11 +262,11 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
           have hrightChildReady :=
             completionFieldsSemanticsReady_merged_semantics hrightCompletion hincludes
           have hleftChildMerge :=
-            completionFieldsSemanticsReady_merged_canMerge hleftCompletion
-              childRuntimeType
+            completionFieldsSemanticsReady_merged_runtimeSource hschema hleftCompletion
+              childRuntimeType hincludes
           have hrightChildMerge :=
-            completionFieldsSemanticsReady_merged_canMerge hrightCompletion
-              childRuntimeType
+            completionFieldsSemanticsReady_merged_runtimeSource hschema hrightCompletion
+              childRuntimeType hincludes
           have hresult :=
             ih childRuntimeType
               (executableFieldsMergedSelectionSet (leftHead :: leftRest))
@@ -300,9 +300,9 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
         (leftSelectionSet rightSelectionSet : List Selection),
         schema.objectType parentType
         -> NormalForm.selectionSetSemanticsReady schema parentType leftSelectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema parentType leftSelectionSet
+        -> NormalForm.runtimeMergeSource schema parentType leftSelectionSet
         -> NormalForm.selectionSetSemanticsReady schema parentType rightSelectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema parentType rightSelectionSet
+        -> NormalForm.runtimeMergeSource schema parentType rightSelectionSet
         -> selectionSetIncludesBoolWithFuel schema fuel parentType variableValues
               leftSelectionSet rightSelectionSet
             = true
@@ -477,11 +477,11 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
             completionFieldsSemanticsReady_merged_semantics hrightCompletion
               hincludesBool
           have hleftChildMerge :=
-            completionFieldsSemanticsReady_merged_canMerge hleftCompletion
-              next.parentObject
+            completionFieldsSemanticsReady_merged_runtimeSource hschema hleftCompletion
+              next.parentObject hincludesBool
           have hrightChildMerge :=
-            completionFieldsSemanticsReady_merged_canMerge hrightCompletion
-              next.parentObject
+            completionFieldsSemanticsReady_merged_runtimeSource hschema hrightCompletion
+              next.parentObject hincludesBool
           have hchildLeft :=
             ih next childFuel next.parentObject
               (executableFieldsMergedSelectionSet (leftHead :: leftRest))

@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.TypenameFree
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.OperationSemantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.ReadinessPreservation
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.OperationBridge
@@ -21,18 +21,18 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
         (normalizeOperation schema left) (normalizeOperation schema right)
       -> normalizeOperationUniqueUpToReordering schema left right := by
   intro hnormalUnique hschema hleftValid hrightValid hleftCoercion hrightCoercion
-    hleftFree hrightFree
+    hleftTypes hrightTypes hleftFree hrightFree hleftShapes hrightShapes
     hleftFields hrightFields hleftSourceSub hrightSourceSub hdefinitions hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (normalizeOperation schema left) :=
     normalizeOperation_valid schema left hschema hleftValid hleftCoercion
-      hleftFree hleftFields
+      hleftFree hleftShapes hleftFields
   have hrightNormalizedValid :
       Validation.operationDefinitionValid schema
         (normalizeOperation schema right) :=
     normalizeOperation_valid schema right hschema hrightValid hrightCoercion
-      hrightFree hrightFields
+      hrightFree hrightShapes hrightFields
   have hleftNormalizedFree :
       operationDirectiveFree (normalizeOperation schema left) :=
     normalizeOperation_directiveFree schema left hleftCoercion
@@ -91,8 +91,10 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
       using hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
   exact
     hnormalUnique hschema hleftNormalizedValid hrightNormalizedValid
-      hleftNormalizedFree hrightNormalizedFree hleftNormalizedNormal
-      hrightNormalizedNormal hleftNormalizedSub hrightNormalizedSub
+      hleftNormalizedFree hrightNormalizedFree
+      (normalizeOperation_typenameFree schema left hleftTypes)
+      (normalizeOperation_typenameFree schema right hrightTypes)
+      hleftNormalizedNormal hrightNormalizedNormal hleftNormalizedSub hrightNormalizedSub
       hnormalizedDefinitions hnormalizedSem
 
 end GroundTypeNormalization

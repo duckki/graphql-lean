@@ -1,5 +1,4 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.FieldSemantics
-import Proofs.GraphQL.Theories.NormalForm.Shared.FieldMergeLookup
 
 /-!
 Selection-set semantic preservation for ground-type normalization.
@@ -25,7 +24,7 @@ theorem normalizeSelectionSet_executeSelectionSet
               ∧ schema.typeIncludesObjectBool parentType runtimeType = true)
         -> selectionSetDirectiveFree selectionSet
         -> selectionSetSemanticsReady schema parentType selectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
+        -> runtimeMergeSource schema parentType selectionSet
         -> Execution.executeSelectionSet schema resolvers variableValues depth
               parentType source
               (normalizeSelectionSet schema parentType selectionSet)
@@ -49,7 +48,7 @@ theorem normalizeSelectionSet_executeSelectionSet
             subselections :: rest)
           hready
       exact False.elim
-        (selectionSetLookupValid_field_head_lookup_none_false hlookupValid
+        (runtimeLookupValid_field_head_lookup_none_false hlookupValid
           hlookup)
   | case3 parentType rest responseName fieldName arguments directives
       subselections fieldDefinition hlookup matching mergedSubselections
@@ -74,10 +73,8 @@ theorem normalizeSelectionSet_executeSelectionSet
           selectionSetSemanticsReady schema parentType rest :=
         selectionSetSemanticsReady_tail hready
       have htailMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType rest :=
-        fieldsInSetCanMerge_tail schema parentType
-          (Selection.field responseName fieldName arguments [] subselections)
-          rest hmerge
+          runtimeMergeSource schema parentType rest :=
+        runtimeMergeSource_tail hmerge
       have hfilteredFree :
           selectionSetDirectiveFree
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
@@ -89,9 +86,9 @@ theorem normalizeSelectionSet_executeSelectionSet
         selectionSetSemanticsReady_withoutFieldSelectionsWithResponseName schema
           responseName parentType rest htailReady
       have hfilteredMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType
+          runtimeMergeSource schema parentType
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
-        fieldsInSetCanMerge_withoutFieldSelectionsWithResponseName schema responseName
+        runtimeMergeSource_without schema responseName
           parentType rest htailMerge
       have htailEq :
           Execution.executeSelectionSet schema resolvers variableValues depth
@@ -162,10 +159,10 @@ theorem normalizeSelectionSet_executeSelectionSet
             (selectionSet ++ rest) :=
         selectionSetSemanticsReady_append hselectionReady htailReady
       have happendMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType
+          runtimeMergeSource schema parentType
             (selectionSet ++ rest) :=
-        fieldsInSetCanMerge_inlineFragment_none_flatten schema parentType
-          selectionSet rest hmerge
+        runtimeMergeSource_inlineFragment_flatten schema parentType none
+          selectionSet rest (by simp) hmerge
       have happendEq :
           Execution.executeSelectionSet schema resolvers variableValues depth
             parentType source
@@ -208,9 +205,6 @@ theorem normalizeSelectionSet_executeSelectionSet
             ∧ (schema.typesOverlapBool parentType typeCondition = true ->
               selectionSetSemanticsReady schema parentType selectionSet) := by
         simpa [selectionSemanticsReady] using hheadReady
-      have hselectionTypeLookup :
-          selectionSetLookupValid schema typeCondition selectionSet := by
-        exact hheadReadyPair.1
       have hselectionReady :
           selectionSetSemanticsReady schema parentType selectionSet :=
         hheadReadyPair.2 hoverlap
@@ -221,23 +215,11 @@ theorem normalizeSelectionSet_executeSelectionSet
           selectionSetSemanticsReady schema parentType
             (selectionSet ++ rest) :=
         selectionSetSemanticsReady_append hselectionReady htailReady
-      have hselectionParentLookup :
-          selectionSetLookupValid schema parentType selectionSet :=
-        selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
-          hselectionReady
-      have htailLookup :
-          selectionSetLookupValid schema parentType rest :=
-        selectionSetLookupValid_of_selectionSetSemanticsReady rest htailReady
-      have hparentObject :
-          schema.objectType parentType :=
-        objectType_of_objectTypeNameBool_eq_true schema hobject
       have happendMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType
+          runtimeMergeSource schema parentType
             (selectionSet ++ rest) :=
-        fieldsInSetCanMerge_inlineFragment_some_overlap_flatten_object
-          schema parentType typeCondition selectionSet rest hschema
-          hparentObject hoverlap hselectionParentLookup hselectionTypeLookup
-          htailLookup hmerge
+        runtimeMergeSource_inlineFragment_flatten schema parentType (some typeCondition)
+          selectionSet rest (by intro condition heq; cases heq; exact hoverlap) hmerge
       have happendEq :
           Execution.executeSelectionSet schema resolvers variableValues depth
             parentType source
@@ -268,10 +250,8 @@ theorem normalizeSelectionSet_executeSelectionSet
           selectionSetSemanticsReady schema parentType rest :=
         selectionSetSemanticsReady_tail hready
       have htailMerge :
-          FieldMerge.fieldsInSetCanMerge schema parentType rest :=
-        fieldsInSetCanMerge_tail schema parentType
-          (Selection.inlineFragment (some typeCondition) [] selectionSet)
-          rest hmerge
+          runtimeMergeSource schema parentType rest :=
+        runtimeMergeSource_tail hmerge
       have hrestEq :
           Execution.executeSelectionSet schema resolvers variableValues depth
             parentType source

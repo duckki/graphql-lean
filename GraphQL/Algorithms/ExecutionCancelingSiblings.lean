@@ -89,7 +89,7 @@ mutual
         .ok (.null, 0)
     | _fuel + 1, .named typeName, _fields, .scalar value =>
         if (TypeRef.named typeName).isCompositeBool schema then
-          .error 1
+          .ok (.null, 1)
         else
           .ok (.scalar value, 0)
     | fuel + 1, .named parentType, fields, source@(.object runtimeType _ref) =>
@@ -99,15 +99,15 @@ mutual
               (collectSubfields schema variableValues runtimeType source fields)
           catchBubbleAsNull ResponseValue.object completed
         else
-          .error 1
+          .ok (.null, 1)
     | fuel + 1, .list inner, fields, .list values =>
         let completed :=
           completeValueList schema resolvers variableValues fuel inner fields values
         catchBubbleAsNull ResponseValue.list completed
     | _fuel + 1, .named _typeName, _fields, .list _values =>
-        .error 1
+        .ok (.null, 1)
     | _fuel + 1, .list _inner, _fields, _value =>
-        .error 1
+        .ok (.null, 1)
 
   def completeValueList
       (schema : Schema) (resolvers : Resolvers ObjectRef)

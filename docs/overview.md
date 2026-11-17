@@ -30,7 +30,8 @@ a public correctness statement is not itself a proof.
 
 - **Core GraphQL:** schema and operation syntax, validity, field collection, value
   completion, null bubbling, and modeled execution errors.
-  See [execution](execution.md) for the representation and specification mapping.
+  See [schemas](schema.md), [operations and validation](operations.md), and
+  [execution](execution.md) for their representations and specification mappings.
   [Execution-readiness checking](theories/execution-readiness.md) covers argument
   defaults and composite-output inhabitance after validation.
 - **Named fragments:** fragment-aware syntax, validation, execution, and translation

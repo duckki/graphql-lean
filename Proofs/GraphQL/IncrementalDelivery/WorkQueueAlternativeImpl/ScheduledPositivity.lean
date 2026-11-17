@@ -16,7 +16,8 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open GraphQL.IncrementalDelivery.Correctness.ExecutionErrors
   (
-  WorkPositive ItemsPositive Positive pure error combine map catchNull nonNull failedField
+  WorkPositive ItemsPositive Positive pure ok error combine map catchNull nonNull
+    failedField
   )
 
 variable {ObjectRef : Type}
@@ -225,15 +226,15 @@ mutual
             | scalar scalar =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error 1 (by decide))
+                · exact runEnsures_pure _ _ (ok ResponseValue.null 1)
                 · exact runEnsures_pure _ _ (pure _)
             | list items =>
                 simpa only [completeValue]
-                  using runEnsures_pure _ _ (error (α := ResponseValue) 1 (by decide))
+                  using runEnsures_pure _ _ (ok ResponseValue.null 1)
             | object runtimeType ref =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error 1 (by decide))
+                · exact runEnsures_pure _ _ (ok ResponseValue.null 1)
                 · refine runEnsures_bind (fun _ : FieldCollection => True) _ _ _
                     (fun _ => trivial) ?_
                   intro collection _
@@ -248,10 +249,10 @@ mutual
                 simpa only [completeValue] using runEnsures_pure _ _ (pure ResponseValue.null)
             | scalar scalar =>
                 simpa only [completeValue]
-                  using runEnsures_pure _ _ (error (α := ResponseValue) 1 (by decide))
+                  using runEnsures_pure _ _ (ok ResponseValue.null 1)
             | object runtimeType ref =>
                 simpa only [completeValue]
-                  using runEnsures_pure _ _ (error (α := ResponseValue) 1 (by decide))
+                  using runEnsures_pure _ _ (ok ResponseValue.null 1)
             | list items =>
                 simpa only [completeValue] using completeListValueWithStream_positive
                   schema resolvers variables fuel inner fields items path usages deferMap

@@ -12,6 +12,8 @@ namespace Eager
 
 open GraphQL.Execution
 
+attribute [local simp] mergeResponse_null_right
+
 attribute [local simp] TypeRef.namedType
 
 local instance fieldGroupCompleteAppendResponseVisitStatusCoe
@@ -268,7 +270,7 @@ theorem completeValue_group_append_one_result_aligned_spec
           | null =>
               simp [GraphQL.Execution.completeValue,
                 completeResolvedValue_previous_null, resultValueOrNull,
-                GraphQL.Execution.Result.combine, mergeResponse,
+                GraphQL.Execution.Result.combine,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | scalar value =>
               simp [GraphQL.Execution.completeValue,
@@ -342,7 +344,7 @@ theorem completeValue_group_append_one_result_aligned_spec
                       simp [GraphQL.Execution.completeValue,
                         completeResolvedValue_previous_null, hprefixList,
                         happended, resultValueOrNull,
-                        GraphQL.Execution.Result.combine, mergeResponse,
+                        GraphQL.Execution.Result.combine,
                         catchBubbleAsNull, ResponseValueResultAlignedEquivalent,
                         ErrorPresenceEquivalent]
                   | ok prefixResult =>
@@ -517,7 +519,7 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
           | null =>
               simp [GraphQL.Execution.completeValue,
                 completeResolvedValue_previous_null, resultValueOrNull,
-                GraphQL.Execution.Result.combine, mergeResponse,
+                GraphQL.Execution.Result.combine,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | scalar value =>
               simp [GraphQL.Execution.completeValue,
@@ -591,7 +593,7 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
                       simp [GraphQL.Execution.completeValue,
                         completeResolvedValue_previous_null, hprefixList,
                         happended, resultValueOrNull,
-                        GraphQL.Execution.Result.combine, mergeResponse,
+                        GraphQL.Execution.Result.combine,
                         catchBubbleAsNull, ResponseValueResultAlignedEquivalent,
                         ErrorPresenceEquivalent]
                   | ok prefixResult =>
@@ -1005,7 +1007,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
         | succ childDepth =>
             cases resolved with
             | null =>
-                simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse]
+                simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
             | scalar value =>
                 simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
             | object runtimeType identity =>
@@ -1110,7 +1112,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (prefixFields ++ [later]) values =
                             .error prefixErrors := by
                           rw [happendedPrefix, hprefixList]
-                        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefixList, happended, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse, catchBubbleAsNull]
+                        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefixList, happended, resultValueOrNull, GraphQL.Execution.Result.combine, catchBubbleAsNull]
                     | ok prefixResult =>
                         rcases prefixResult with ⟨prefixValues, prefixErrors⟩
                         have happended :
@@ -1154,7 +1156,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                           simp [hprefixList, GraphQL.Execution.Result.combine]
                             at hcombined
                           simpa using hcombined.symm
-                        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefixList, happended, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse, catchBubbleAsNull]
+                        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefixList, happended, resultValueOrNull, GraphQL.Execution.Result.combine, catchBubbleAsNull]
                     | ok prefixResult =>
                         rcases prefixResult with ⟨prefixValues, prefixErrors⟩
                         have hlistStatus :=
@@ -1547,7 +1549,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                         | null =>
                             cases rightValue <;>
                                 simp [completeResolvedValue_previous_null] at hright'
-                            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefix, happended, resultValueOrNull, nonNullCompletion, GraphQL.Execution.Result.combine, mergeResponse]
+                            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefix, happended, resultValueOrNull, nonNullCompletion, GraphQL.Execution.Result.combine]
                         | scalar prefixScalar =>
                             have hrightNonNullRaw :
                                 resultValueOrNull

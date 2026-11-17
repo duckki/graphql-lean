@@ -80,14 +80,14 @@ mutual
             | scalar scalar =>
                 cases hc : (TypeRef.named parentType).isCompositeBool schema <;>
                   simp [completeValue, GraphQL.Execution.completeValue, hc, RunMatches,
-                    CompletionMatches, Completion.pure, Completion.error, Work.size]
+                    CompletionMatches, Completion.pure, Work.size]
             | list items =>
                 simp [completeValue, GraphQL.Execution.completeValue, RunMatches,
-              CompletionMatches, Completion.error, Work.size]
+              CompletionMatches, Work.size]
             | object runtimeType ref =>
                 cases hi : schema.typeIncludesObjectBool parentType runtimeType
                 · simp [completeValue, GraphQL.Execution.completeValue, hi, RunMatches,
-                    CompletionMatches, Completion.error, Work.size]
+                    CompletionMatches, Work.size]
                 · simp only [completeValue, GraphQL.Execution.completeValue, hi, Bool.not_true,
                     Bool.false_eq_true, ↓reduceIte]
                   apply runMatches_after_contextCollection usage _ _ _ _ _
@@ -113,10 +113,10 @@ mutual
               CompletionMatches, Completion.pure, Work.size]
             | scalar scalar =>
                 simp [completeValue, GraphQL.Execution.completeValue, RunMatches,
-              CompletionMatches, Completion.error, Work.size]
+              CompletionMatches, Work.size]
             | object runtimeType ref =>
                 simp [completeValue, GraphQL.Execution.completeValue, RunMatches,
-            CompletionMatches, Completion.error, Work.size]
+            CompletionMatches, Work.size]
             | list items =>
                 simp only [completeValue, GraphQL.Execution.completeValue,
                   completeListValueWithStream]
@@ -517,11 +517,11 @@ theorem completeValue_error_silent (schema : Schema) (resolvers : Resolvers Obje
           | scalar scalar =>
               simp only [completeValue]
               split <;> rfl
-          | list values => simp [completeValue, Completion.error, Work.size]
+          | list values => simp [completeValue, Work.size]
           | object runtimeType ref =>
               simp only [completeValue] at herror ⊢
               split at herror
-              · simp_all [Completion.error, Work.size]
+              · simp_all
               · simp only [run_bind, StateT.run_pure, id_pure_eq] at herror
                 obtain ⟨value, count, h⟩ := catchNull_result_ok
                   ((executeExecutionPlan schema resolvers variables fuel runtimeType
@@ -540,9 +540,9 @@ theorem completeValue_error_silent (schema : Schema) (resolvers : Resolvers Obje
           cases value with
           | null => simp [completeValue, Completion.pure] at herror
           | scalar scalar =>
-              simp [completeValue, Completion.error, Work.size]
+              simp [completeValue, Work.size]
           | object runtimeType ref =>
-              simp [completeValue, Completion.error, Work.size]
+              simp [completeValue, Work.size]
           | list values =>
               obtain ⟨value, count, h⟩ := completeListValueWithStream_result_ok schema
                 resolvers variables fuel

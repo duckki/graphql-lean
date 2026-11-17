@@ -50,6 +50,12 @@ theorem seeded_pure {paths : α → List ResponsePath} {cursors : α → Cursors
     : SeedOwnsCompletion paths cursors scope (Completion.pure data) :=
   ⟨[], .empty, by simpa [Completion.pure, result] using h⟩
 
+theorem seeded_ok {paths : α → List ResponsePath} {cursors : α → Cursors}
+    {scope : ResponsePath → Prop} {data : α} (errors : Nat)
+    (h : Owns scope (paths data))
+    : SeedOwnsCompletion paths cursors scope { result := .ok (data, errors) } :=
+  ⟨[], .empty, by simpa [result] using h⟩
+
 theorem seeded_combine {pa : α → List ResponsePath} {pb : β → List ResponsePath}
     {pc : γ → List ResponsePath} {ca : α → Cursors} {cb : β → Cursors}
     {cc : γ → Cursors} {f : α → β → γ} {sa sb sc : ResponsePath → Prop}

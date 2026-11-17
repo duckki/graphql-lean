@@ -103,15 +103,15 @@ private theorem possibleTypes (typeName : Name)
     Schema.builtinScalarDefinitions, List.find?, TypeDefinition.name, BuiltinScalar.name,
     query, schema, hbInt, hbFloat, hbString, hbBool, hbID, hbQ, hQ]
 
-private theorem lookupQuery (fieldName : Name)
+private theorem lookupQuery (fieldName : Name) (hmeta : fieldName ≠ "__typename")
     : schema.lookupField "Query" fieldName
       = if fieldName = "f" then some field else none := by
   by_cases h : fieldName = "f"
   · subst fieldName; rfl
   · have hb := beq_eq_false_iff_ne.mpr (Ne.symm h)
-    unfold Schema.lookupField
-    rw [show schema.lookupType "Query" = some (.object query) from rfl]
-    simp [TypeDefinition.fields?, query, field, List.find?, hb, h]
+    simp [Schema.lookupField, Schema.lookupDeclaredField, hmeta,
+      show schema.lookupType "Query" = some (.object query) from rfl,
+      TypeDefinition.fields?, query, field, List.find?, hb, h]
 
 private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
   constructor
@@ -134,7 +134,8 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
       have heq : definition = arg := by simpa [field] using hmem
       subst definition
       exact ⟨inputInt, trivial⟩
-    · exact ⟨by simp [SchemaWellFormedness.namesAreUnique, query], by simp [query]⟩
+    · exact ⟨by simp [SchemaWellFormedness.namesAreUnique, query], by simp [query],
+        by simp [SchemaWellFormedness.interfacesIncludeInherited, query]⟩
   constructor
   · exact ⟨rfl, rfl⟩
   constructor
@@ -157,18 +158,20 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
       subst parentType
       have heq : objectTypeName = "Query" := by simpa using hpossible
       subst objectTypeName
-      rw [lookupQuery] at hlookup
+      by_cases hmeta : fieldName = "__typename"
+      · subst fieldName
+        exact SchemaWellFormedness.lookupField_typename_implements hlookup ⟨query, rfl⟩
+      rw [lookupQuery fieldName hmeta] at hlookup
       split at hlookup
       next heq =>
         subst fieldName
         have heq : expected = field := Option.some.inj hlookup.symm
         subst expected
-        refine ⟨field, rfl, ?_, ?_⟩
+        refine ⟨field, rfl, ?_⟩
         · constructor
-          · exact Or.inl ⟨leafString, leafString, rfl⟩
+          · exact ⟨outputString, outputString, Or.inl rfl⟩
           · simp [SchemaWellFormedness.argumentDefinitionsImplement,
               Schema.lookupArgumentDefinition, field, arg]
-        · exact ⟨outputString, outputString, by intro _; rfl⟩
       next => cases hlookup
     next => cases hpossible
   · constructor
@@ -207,7 +210,9 @@ private theorem valid : Validation.operationDefinitionValid schema op := by
     subst left
     subst right
     refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
-    · exact ⟨outputString, outputString, by intro _; rfl⟩
+    · refine .intro _ _ ⟨outputString, outputString, by intro _; rfl⟩ ?_
+      intro _ _ child hchild
+      simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
     · intro _
       constructor
       · rfl
@@ -220,11 +225,8 @@ private theorem valid : Validation.operationDefinitionValid schema op := by
           subst argument
           change "a" = "a" ∧ (1 : Int) = 1
           exact ⟨rfl, rfl⟩
-    · intro _ objectType
-      refine FieldMerge.FieldsInSetCanMerge.intro objectType [] ?_
-      dsimp
-      intro left hleft
-      simp [FieldMerge.collectFields] at hleft
+    · intro _ child hchild
+      simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
   · simp [Validation.operationVariablesUsed, op]
 
 private theorem comparisonCoercible

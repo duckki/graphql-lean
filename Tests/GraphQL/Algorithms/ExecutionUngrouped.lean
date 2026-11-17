@@ -1,6 +1,8 @@
 import GraphQL.Algorithms.ExecutionUngrouped
 import GraphQL.Algorithms.ExecutionUngroupedUncached
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.CachedRefinement
 import Tests.GraphQL.Execution
+import Tests.GraphQL.Validation.FieldMerge
 
 namespace GraphQL
 namespace Tests
@@ -338,6 +340,87 @@ theorem uncachedUngroupedExecutorPassesCoercedArgumentsToGivenResolver
         (.object [("echo", .scalar "present")])
       = true := by
   native_decide
+
+namespace DeclaredReturnScopes
+
+open GraphQL.Tests.Validation.FieldMerge
+open GraphQL.Algorithms.ExecutionUngroupedUncached.Eager
+
+private def queryObject : ObjectType :=
+  { name := "Query", fields := [{ name := "user", outputType := .named "User" }] }
+
+theorem collectedFields_retainDeclaredSources (responseName : Name)
+    (fields : List GraphQL.Execution.ExecutableField)
+    (hgroup
+      : (responseName, fields)
+        ∈ GraphQL.Execution.collectFields returnScopeSchema [] "Query"
+            (GraphQL.Execution.ResolverValue.object "Query" ())
+            returnScopeQuery.selectionSet)
+    : NormalForm.runtimeMergeSource returnScopeSchema "Query"
+        (executableFieldSelections responseName fields) := by
+  have hobject : returnScopeSchema.objectType "Query" := ⟨queryObject, rfl⟩
+  apply collectFields_executableFields_runtimeMergeSource returnScopeSchema [] "Query"
+    "Query" () returnScopeQuery.selectionSet responseName fields hobject
+  · exact NormalForm.runtimeMergeSource_of_valid returnScopeSchema [] hobject (by decide)
+      (GraphQL.Validation.operationDefinitionValid_selectionSetValid returnScopeQuery_valid)
+      returnScopeQuery_canMerge
+  · exact fun _ hfield => collectedExecutableEntries_mem_of_group_mem hgroup hfield
+
+theorem mergedChildren_doNotHaveArbitraryStaticScopes
+    : ¬ GraphQL.FieldMerge.fieldsInSetCanMerge returnScopeSchema "Other"
+          (GraphQL.Execution.mergedFieldSelectionSet
+            [
+              { fieldName := "user", arguments := [], selectionSet := directName },
+              { fieldName := "user", arguments := [], selectionSet := fragmentName }
+            ]) := by
+  simpa [GraphQL.Execution.mergedFieldSelectionSet] using unrelatedScope_rejected
+
+private def resolvers : GraphQL.Execution.Resolvers :=
+  {
+    resolve :=
+      fun _ fieldName _ _ =>
+        some (if fieldName == "user" then .object "User" () else .scalar "Ada")
+    resolve_argumentsEquivalent := by intros; rfl
+  }
+
+theorem cachedExecutor_declaredReturnScopes
+    : responseEqBool
+        (GraphQL.Algorithms.ExecutionUngrouped.executeQuery returnScopeSchema resolvers []
+          returnScopeQuery (.object "Query" ())).data
+        (.object [("user", .object [("name", .scalar "Ada")])])
+      = true := by
+  native_decide
+
+theorem uncachedExecutor_declaredReturnScopes
+    : responseEqBool
+        (GraphQL.Algorithms.ExecutionUngroupedUncached.executeQuery returnScopeSchema
+          resolvers [] returnScopeQuery (.object "Query" ())).data
+        (.object [("user", .object [("name", .scalar "Ada")])])
+      = true := by
+  native_decide
+
+theorem executors_declaredReturnScopes_errorFree
+    : (GraphQL.Algorithms.ExecutionUngrouped.executeQuery returnScopeSchema resolvers []
+          returnScopeQuery (.object "Query" ())).errors
+        = 0
+      ∧ (GraphQL.Algorithms.ExecutionUngroupedUncached.executeQuery returnScopeSchema
+          resolvers [] returnScopeQuery (.object "Query" ())).errors
+        = 0 := by
+  native_decide
+
+theorem cachedCorrectness_contract (schema : Schema) (operation : Operation)
+    : GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution
+        schema operation :=
+  GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution_proof
+    schema operation
+
+theorem uncachedCorrectness_contract (schema : Schema) (operation : Operation)
+    : GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution
+        schema operation :=
+  GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution_proof
+    schema operation
+
+end DeclaredReturnScopes
 
 end ExecutionUngrouped
 end Tests

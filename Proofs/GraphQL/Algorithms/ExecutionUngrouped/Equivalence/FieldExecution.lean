@@ -821,7 +821,7 @@ theorem completeValue_object_eq_visitSubfields
                   (.object runtimeType identity) selectionSet (.object [])
               catchVisitBubbleAsNull visited.fst visited.snd
             else
-              .error 1
+              .ok (.null, 1)
         | some .null => .ok (.null, 0)
         | some previous@(.object _fields) =>
             if schema.typeIncludesObjectBool parentType runtimeType then
@@ -831,7 +831,12 @@ theorem completeValue_object_eq_visitSubfields
                   previous
               catchVisitBubbleAsNull visited.fst visited.snd
             else
+              .ok (.null, 1)
+        | some (.list _items) =>
+            if schema.typeIncludesObjectBool parentType runtimeType then
               .error 1
+            else
+              .ok (.null, 1)
         | _ => .error 1 := by
   cases previous? with
   | none =>

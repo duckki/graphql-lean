@@ -1,4 +1,4 @@
-import GraphQL.Validation
+import GraphQL.Schema
 
 /-! Well-formedness of GraphQL schemas
 Spec reference: GraphQL September 2026.
@@ -7,13 +7,13 @@ Spec reference: GraphQL September 2026.
   this module names the resulting schema invariants `WellFormed`.
 - 3.6-3.10 Object, Interface, Union, Enum, and Input Object validation: modeled partially,
   covering uniqueness, non-empty member/field lists, default-value validity, and
-  object/interface field implementation compatibility.
+  object/interface field implementation compatibility and interface inheritance.
 - 3.13 Directives: directive definitions are checked for locations, self-reference,
   argument definitions, and the directives applied to them (5.4 and 5.7 read over
   constant arguments).
--- Fidelity note: several normative rules are omitted, including reserved `__` names,
-  interface cycles, directives on schema elements other than directive definitions,
-  extensions, OneOf, mutation/subscription roots, and introspection.
+- Fidelity note: several normative rules are omitted, including reserved `__` names,
+  directives on schema elements other than directive definitions, extensions, OneOf,
+  mutation/subscription roots, and schema introspection.
 -/
 
 namespace GraphQL
@@ -97,23 +97,37 @@ def fieldsImplementInterface (schema : Schema)
               = some implementationField
             ∧ fieldDefinitionImplements schema implementationField interfaceField
 
--- Spec 3.6 object type rules: checks non-empty fields, declared interface existence,
--- and interface field implementation compatibility.
+-- Spec 3.6 `IsValidImplementation`, step 1: every declared interface's own interfaces
+-- must also be declared. Closure under this step includes all transitive ancestors.
+def interfacesIncludeInherited (schema : Schema) (interfaces : InterfaceTypeNames)
+    : Prop :=
+  ∀ interfaceName,
+    interfaceName ∈ interfaces
+    -> ∀ interfaceType,
+        schema.lookupInterface interfaceName = some interfaceType
+        -> interfaceType.interfaces ⊆ interfaces
+
+-- Spec 3.6 object type rules: non-empty fields, declared interface existence, explicit
+-- inherited interfaces, and interface field implementation compatibility.
 def objectTypeWellFormed (schema : Schema) (objectType : ObjectType) : Prop :=
   fieldDefinitionsWellFormed schema objectType.fields
   ∧ namesAreUnique objectType.interfaces
-  ∧ ∀ interfaceName,
+  ∧ (∀ interfaceName,
       interfaceName ∈ objectType.interfaces
-      -> fieldsImplementInterface schema objectType.fields interfaceName
+      -> fieldsImplementInterface schema objectType.fields interfaceName)
+  ∧ interfacesIncludeInherited schema objectType.interfaces
 
--- Spec 3.7 interface type rules: checks non-empty fields, declared interface existence,
--- and interface field implementation compatibility, but not cycles.
+-- Spec 3.7 interface type rules: interface implementations obey the same declaration
+-- and field rules as objects. Explicit ancestors plus no self-implementation exclude
+-- inheritance cycles; raw-schema reachability remains independent of these checks.
 def interfaceTypeWellFormed (schema : Schema) (interfaceType : InterfaceType) : Prop :=
   fieldDefinitionsWellFormed schema interfaceType.fields
   ∧ namesAreUnique interfaceType.interfaces
-  ∧ ∀ implementedInterfaceName,
+  ∧ (∀ implementedInterfaceName,
       implementedInterfaceName ∈ interfaceType.interfaces
-      -> fieldsImplementInterface schema interfaceType.fields implementedInterfaceName
+      -> fieldsImplementInterface schema interfaceType.fields implementedInterfaceName)
+  ∧ interfaceType.name ∉ interfaceType.interfaces
+  ∧ interfacesIncludeInherited schema interfaceType.interfaces
 
 -- Spec 3.8 union type rules: checks non-empty unique object members; directives and
 -- extensions are out of scope.
@@ -144,7 +158,7 @@ def nonNullSingularInputObjectTarget? (inputType : TypeRef) : Option Name :=
   | _ => none
 
 def inputObjectHasNonNullSingularCycleFrom (schema : Schema)
-    : Nat -> List Name -> Name -> Bool
+    : Nat -> TypeNames -> Name -> Bool
   | 0, _visited, _current => false
   | fuel + 1, visited, current =>
       if visited.contains current then
@@ -287,8 +301,6 @@ def possibleObjectFieldDefinitionsImplement (schema : Schema) : Prop :=
     -> ∃ implementation,
         schema.lookupField objectTypeName fieldName = some implementation
         ∧ fieldDefinitionImplements schema implementation expected
-        ∧ FieldMerge.sameResponseShape schema
-            implementation.outputType expected.outputType
 
 -- Spec 5.4.1-5.4.3 and 5.6.1 for one directive applied in the type system: every
 -- argument is defined with a value of its type, names are unique, and required

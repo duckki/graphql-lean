@@ -110,7 +110,7 @@ theorem object_cuts_of_plan (schema : Schema) (resolvers : Resolvers ObjectRef)
   | false =>
       simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
         includes, Bool.not_false, ↓reduceIte, StateT.run_pure, id_pure_eq]
-        using CompletionCutTrace.fault route (.error 1)
+        using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
   | true =>
       let collected := (collectSubfields schema variables runtimeType (.object runtimeType reference)
         fields).run left

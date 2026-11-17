@@ -41,14 +41,14 @@ theorem valueCutConstruction_holds (schema : Schema) (resolvers : Resolvers Obje
               | scalar scalar =>
                   simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
                   split
-                  · simpa only [StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.error 1)
+                  · simpa only [StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
                   · simpa only [StateT.run_pure, id_pure_eq] using CompletionCutTrace.pure (ResponseValue.scalar scalar)
               | object runtimeType reference =>
                   exact object_cuts_of_plan schema resolvers variables fuel plans name runtimeType reference
                     fields path usages context allowStream route keys left right supplies ordered usageBound contextBound
               | list items =>
                   simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.error 1)
+                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
           | list inner _ =>
               intro fields source path usages context allowStream route keys left right supplies
                 ordered usageBound contextBound
@@ -58,10 +58,10 @@ theorem valueCutConstruction_holds (schema : Schema) (resolvers : Resolvers Obje
                     StateT.run_pure, id_pure_eq] using CompletionCutTrace.pure ResponseValue.null
               | scalar scalar =>
                   simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.error 1)
+                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
               | object runtimeType reference =>
                   simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.error 1)
+                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
               | list items =>
                   simpa only [RecordedExecution.completeValue,
                     EagerRecordedExecution.completeValue]

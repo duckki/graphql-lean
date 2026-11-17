@@ -194,13 +194,16 @@ mutual
             | scalar scalar =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (seeded_error _ _ _ _)
+                · exact runEnsures_pure _ _ (seeded_ok 1 (owns_singleton (below_self _)))
                 · exact runEnsures_pure _ _ (seeded_pure (owns_singleton (below_self _)))
-            | list items => simp [completeValue, RunEnsures, seeded_error]
+            | list items =>
+                simp only [completeValue]
+                apply runEnsures_pure
+                exact seeded_ok 1 (owns_singleton (below_self _))
             | object runtimeType ref =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (seeded_error _ _ _ _)
+                · exact runEnsures_pure _ _ (seeded_ok 1 (owns_singleton (below_self _)))
                 · refine runEnsures_bind (fun collection => GroupsUnique collection.collectedFieldsMap) _ _ _ ?_ ?_
                   · exact collectSubfields_unique schema variables runtimeType (.object runtimeType ref) selected
                   · intro collection hc
@@ -216,9 +219,14 @@ mutual
             | null =>
                 simp only [completeValue]
                 exact runEnsures_pure _ _ (seeded_pure (owns_singleton (below_self _)))
-            | scalar scalar => simp [completeValue, RunEnsures, seeded_error]
+            | scalar scalar =>
+                simp only [completeValue]
+                apply runEnsures_pure
+                exact seeded_ok 1 (owns_singleton (below_self _))
             | object runtimeType ref =>
-                simp [completeValue, RunEnsures, seeded_error]
+                simp only [completeValue]
+                apply runEnsures_pure
+                exact seeded_ok 1 (owns_singleton (below_self _))
             | list items =>
                 simpa only [completeValue] using completeListValueWithStream_seeded schema
                   resolvers variables fuel inner selected items

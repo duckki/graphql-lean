@@ -7,6 +7,8 @@ Spec reference: GraphQL September 2026.
   modes.
 - 6.3 Executing Selection Sets: field collection, grouped field execution, and subfield
   merging are represented over selections.
+- 4.1 Type Name Introspection: `__typename` resolves from the source object's runtime
+  type independently of user resolvers.
 - 6.4 Executing Fields: resolver invocation, argument default materialization, value
   completion, and execution-error null bubbling are modeled for a synchronous query
   fragment. Argument coercion failure is handled as a field error before resolver
@@ -292,7 +294,15 @@ mutual
         | .error => .error
     | fuel + 1, .named typeName, .object fields =>
         match schema.lookupInputObject typeName with
-        | none => .error
+        | none =>
+            -- Custom-scalar payloads are already coerced opaque constants. Their
+            -- object keys are data, not input-object fields to validate or default.
+            match schema.lookupCustomScalar typeName with
+            | none => .error
+            | some _scalar =>
+                match ConstInputValue.ofInputValue? (.object fields) with
+                | some coerced => .success coerced
+                | none => .error
         | some inputObject =>
             if inputObjectFieldsKnownBool inputObject.inputFields fields then
               match coerceInputObjectFieldsBounded schema variableValues fuel
@@ -661,12 +671,21 @@ mutual
           (collectSubfields schema variableValues objectType objectValue fields)
 end
 
--- Spec 6.4.2 `ResolveFieldValue`: pass the argument values already coerced by
--- `ExecuteField` directly to the supplied resolver.
+-- Spec 4.1 `__typename`: the concrete object type is carried by the runtime source.
+-- A non-object source is a modeled field error rather than a user-resolver fallback.
+def resolveTypenameField : ResolverValue ObjectRef -> Option (ResolverValue ObjectRef)
+  | .object runtimeType _ref => some (.scalar runtimeType)
+  | _ => none
+
+-- Spec 6.4.2 `ResolveFieldValue`: dispatch the implicit type-name field internally;
+-- ordinary fields pass already-coerced argument values directly to the supplied resolver.
 def resolveFieldValue (resolvers : Resolvers ObjectRef) (parentType fieldName : Name)
     (arguments : CoercedArguments) (source : ResolverValue ObjectRef)
     : Option (ResolverValue ObjectRef) :=
-  resolvers.resolve parentType fieldName arguments source
+  if fieldName == "__typename" then
+    resolveTypenameField source
+  else
+    resolvers.resolve parentType fieldName arguments source
 
 -- Spec 6.3.3 `ExecuteCollectedFields`, 6.4 `ExecuteField`, and 6.4.3 `CompleteValue`:
 -- partial fuel-bounded execution model with spec-shaped null bubbling through non-null
@@ -726,7 +745,8 @@ mutual
   -- Spec 6.4.3 `CompleteValue`: partial; follows null, list, non-null, and composite
   -- completion shape. Scalar/enum result coercion is collapsed to string scalar
   -- acceptance, and abstract type resolution is represented by the runtime object type
-  -- carried by `ResolverValue.object`.
+  -- carried by `ResolverValue.object`. Type-shape errors complete as null at the
+  -- current nullable position; non-null wrappers propagate the counted error.
   def completeValue
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
@@ -741,7 +761,7 @@ mutual
         .ok (.null, 0)
     | _fuel + 1, .named typeName, _fields, .scalar value =>
         if (TypeRef.named typeName).isCompositeBool schema then
-          .error 1
+          .ok (.null, 1)
         else
           .ok (.scalar value, 0)
     | fuel + 1, .named parentType, fields, source@(.object runtimeType _ref) =>
@@ -751,15 +771,15 @@ mutual
               (collectSubfields schema variableValues runtimeType source fields)
           catchBubbleAsNull ResponseValue.object completed
         else
-          .error 1
+          .ok (.null, 1)
     | fuel + 1, .list inner, fields, .list values =>
         let completed :=
           completeValueList schema resolvers variableValues fuel inner fields values
         catchBubbleAsNull ResponseValue.list completed
     | _fuel + 1, .named _typeName, _fields, .list _values =>
-        .error 1
+        .ok (.null, 1)
     | _fuel + 1, .list _inner, _fields, _value =>
-        .error 1
+        .ok (.null, 1)
 
   def completeValueList
       (schema : Schema) (resolvers : Resolvers ObjectRef)

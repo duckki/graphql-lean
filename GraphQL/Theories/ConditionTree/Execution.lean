@@ -553,7 +553,7 @@ mutual
         .ok (.null, 0)
     | .named typeName, _fields, .scalar value =>
         if (TypeRef.named typeName).isCompositeBool schema then
-          .error 1
+          .ok (.null, 1)
         else
           .ok (.scalar value, 0)
     | .named _parentType, [], .object _runtimeType _ref =>
@@ -568,15 +568,15 @@ mutual
               runtimeType source childSelectionSet
           catchBubbleAsNull ResponseValue.object completed
         else
-          .error 1
+          .ok (.null, 1)
     | .list inner, fields, .list values =>
         let completed :=
           completeValueList schema resolvers variableValues inner fields values
         catchBubbleAsNull ResponseValue.list completed
     | .named _typeName, _fields, .list _values =>
-        .error 1
+        .ok (.null, 1)
     | .list _inner, _fields, _value =>
-        .error 1
+        .ok (.null, 1)
   termination_by fieldType fields value =>
     (executableFieldsResponseDepth fields, 2, sizeOf fieldType + sizeOf value)
   decreasing_by

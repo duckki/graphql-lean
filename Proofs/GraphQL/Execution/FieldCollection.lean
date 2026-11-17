@@ -119,7 +119,8 @@ theorem executeField_same_head_eq_of_completeValue
                     arguments with
             | .error => True
             | .success coercedArguments =>
-                match resolvers.resolve parentType fieldName coercedArguments source with
+                match resolveFieldValue resolvers parentType fieldName coercedArguments
+                        source with
                 | some value =>
                     completeValue schema resolvers variableValues depth
                       fieldDefinition.outputType (leftField :: leftFields) value
@@ -144,9 +145,10 @@ theorem executeField_same_head_eq_of_completeValue
           simp [hcoerce]
       | success coercedArguments =>
           cases hresolved
-                : resolvers.resolve parentType fieldName coercedArguments source with
+                : resolveFieldValue resolvers parentType fieldName coercedArguments
+                    source with
           | none =>
-              simp [resolveFieldValue, hcoerce, hresolved]
+              simp [hcoerce, hresolved]
           | some value =>
               have hcomplete' :
                   completeValue schema resolvers variableValues depth
@@ -154,7 +156,7 @@ theorem executeField_same_head_eq_of_completeValue
                   completeValue schema resolvers variableValues depth
                     fieldDefinition.outputType (rightField :: rightFields) value := by
                 simpa [fieldDefinition?, hlookup, hcoerce, hresolved] using hcomplete
-              simp [resolveFieldValue, hcoerce, hresolved,
+              simp [hcoerce, hresolved,
                 singleFieldResult,
                 leftField, rightField, hcomplete']
 
@@ -188,7 +190,7 @@ theorem executeSelectionSet_field_head_same_group_eq_of_completeValue
                       arguments with
               | .error => True
               | .success coercedArguments =>
-                  match resolvers.resolve parentType fieldName coercedArguments
+                  match resolveFieldValue resolvers parentType fieldName coercedArguments
                           source with
                   | some value =>
                       completeValue schema resolvers variableValues fieldDepth

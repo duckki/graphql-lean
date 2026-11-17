@@ -215,8 +215,9 @@ def executableFieldsSemanticsReady (schema : Schema) (parentType : Name)
   fields ≠ []
   ∧ (∀ field, field ∈ fields -> executableFieldSemanticsReady schema parentType field)
   ∧ executableFieldsSameResolver fields
-  ∧ ∀ objectType,
-      FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields)
+  ∧ ∃ responseName,
+      NormalForm.runtimeMergeSource schema parentType
+        (executableFieldSelections responseName fields)
 
 def executableGroupsSemanticsReady (schema : Schema) (parentType : Name)
     (groups : List (Name × List ExecutableField))
@@ -268,7 +269,7 @@ theorem executableGroupsSemanticsReady_collectFields
     (parentType : Name) (ref : ObjectRef) (selectionSet : List Selection)
     (hobject : schema.objectType parentType)
     (hready : NormalForm.selectionSetSemanticsReady schema parentType selectionSet)
-    (hmerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet)
+    (hmerge : NormalForm.runtimeMergeSource schema parentType selectionSet)
     : executableGroupsSemanticsReady schema parentType
         (collectFields schema variableValues parentType (.object parentType ref)
           selectionSet) := by
@@ -287,19 +288,8 @@ theorem executableGroupsSemanticsReady_collectFields
       variableValues parentType parentType ref selectionSet hobject hself hready
   have hcompatible : CollectedGroupsFieldValidationMergeCompatible groups := by
     dsimp only [groups]
-    exact collectFields_fieldCompatible_of_canMerge_lookupValid_object schema
-      variableValues parentType parentType parentType ref selectionSet hmerge hself
-      (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
-        hready)
-  have hscoped :
-      ExecutableEntriesRuntimeScopedBy schema parentType
-        (FieldMerge.collectFields schema parentType selectionSet)
-        (collectedExecutableEntries groups) := by
-    dsimp only [groups]
-    exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
-      variableValues parentType parentType parentType ref selectionSet hself
-      (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
-        hready)
+    exact collectFields_fieldCompatible_of_runtimeMergeSource schema variableValues
+      parentType parentType ref selectionSet hobject hmerge
   intro responseName fields hgroup
   refine ⟨?_, ?_, ?_, ?_⟩
   · exact hnonempty responseName fields hgroup
@@ -313,13 +303,10 @@ theorem executableGroupsSemanticsReady_collectFields
       runtimeType hincludes
   · intro first later hfirst hlater
     exact hcompatible responseName fields hgroup first later hfirst hlater
-  · intro objectType
-    apply fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped schema
-      parentType parentType selectionSet responseName fields hmerge
-    intro entry hentry
-    rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
-    exact hscoped (responseName, field)
-      (collectedExecutableEntries_mem_of_group_mem hgroup hfield)
+  · refine ⟨responseName, ?_⟩
+    exact collectFields_executableFields_runtimeMergeSource schema variableValues
+      parentType parentType ref selectionSet responseName fields hobject hmerge
+      (fun _ hfield => collectedExecutableEntries_mem_of_group_mem hgroup hfield)
 
 theorem completionFieldsSemanticsReady_merged_semantics
     {schema : Schema} {parentType : Name}
@@ -369,13 +356,18 @@ theorem completionFieldsSemanticsReady_merged_semantics
   rw [Execution.FieldGroups.mergedFieldSelectionSet_eq_flatMap]
   exact hflat fields heach
 
-theorem completionFieldsSemanticsReady_merged_canMerge
+theorem completionFieldsSemanticsReady_merged_runtimeSource
     {schema : Schema} {parentType : Name}
     {fieldType : TypeRef} {fields : List ExecutableField}
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hready : completionFieldsSemanticsReady schema parentType fieldType fields)
     (objectType : Name)
-    : FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields) :=
-  hready.1.2.2.2 objectType
+    (hincludes : schema.typeIncludesObjectBool fieldType.namedType objectType = true)
+    : NormalForm.runtimeMergeSource schema objectType
+        (mergedFieldSelectionSet fields) := by
+  rcases hready with ⟨hfields, field, definition, hfield, hlookup, htype⟩
+  exact executableFieldsMergeSource_merged hschema hfields.1 hfields.2.2.1 hfields.2.2.2
+    field definition hfield hlookup (by simpa [htype] using hincludes)
 
 theorem executableGroupsResolverReady_of_permutationEquivalent
     {guardedGroups runtimeGroups : List (Name × List ExecutableField)}

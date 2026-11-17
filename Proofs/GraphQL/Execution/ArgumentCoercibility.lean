@@ -8,17 +8,7 @@ theorem schemaWellFormed_lookupField_wellFormed
     {parentType fieldName : Name} {field : FieldDefinition}
     (hlookup : schema.lookupField parentType fieldName = some field)
     : SchemaWellFormedness.fieldDefinitionWellFormed schema field := by
-  cases htype : schema.lookupType parentType with
-  | none => simp [Schema.lookupField, htype] at hlookup
-  | some type =>
-      have hwell :=
-        SchemaWellFormedness.schemaWellFormed_lookupType_typeDefinitionWellFormed
-          hschema htype
-      cases type <;> simp [Schema.lookupField, htype, TypeDefinition.fields?] at hlookup
-      case object object =>
-        exact hwell.1.2.2 field (List.mem_of_find?_eq_some hlookup)
-      case interface interface =>
-        exact hwell.1.2.2 field (List.mem_of_find?_eq_some hlookup)
+  exact SchemaWellFormedness.schemaWellFormed_lookupField_wellFormed hschema hlookup
 
 private theorem lookupArgumentValue_mem {arguments : List Argument}
     {name : Name} {value : InputValue}

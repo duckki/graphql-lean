@@ -170,19 +170,19 @@ theorem completeValue_named_entriesCovered_of_fields (containers : Bool) (schema
   | null | list _ =>
       intro state
       apply ValueCompletionCovered.of_result_eq
-      simp [completeValue, GraphQL.Execution.completeValue, Completion.pure, Completion.error]
+      simp [completeValue, GraphQL.Execution.completeValue, Completion.pure]
   | scalar scalar =>
       intro state
       apply ValueCompletionCovered.of_result_eq
       simp only [completeValue, GraphQL.Execution.completeValue]
-      split <;> simp [Completion.pure, Completion.error]
+      split <;> simp [Completion.pure]
   | object runtimeType ref =>
       cases applies : schema.typeIncludesObjectBool parentType runtimeType <;>
         simp only [completeValue, GraphQL.Execution.completeValue, applies,
           Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
       · intro state
         apply ValueCompletionCovered.of_result_eq
-        simp [Completion.error]
+        simp
       · refine runEnsures_bind
           (fun collection =>
             eraseGroups collection.collectedFieldsMap

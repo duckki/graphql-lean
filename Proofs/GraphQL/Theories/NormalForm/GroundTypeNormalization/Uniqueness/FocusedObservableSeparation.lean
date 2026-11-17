@@ -340,11 +340,14 @@ theorem
       -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> NormalSelectionSetDiffObservableTrace schema parentType left right responsePath
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
     hargumentsCompositeLeft hchild hcoercionReflects hschema hleftValid hrightValid
     hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject htrace
+    hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject htrace hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hcoercedArgumentsDiff
       {definitions : List InputValueDefinition}
       {leftArguments rightArguments : List Argument}
@@ -573,10 +576,13 @@ theorem
       -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> NormalSelectionSetDiffObservableTrace schema parentType left right responsePath
-      -> ¬ selectionSetsDataEquivalent schema parentType left right := by
+      -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
+          ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
     hargumentsCompositeLeft hchildSplit hcoercionReflects hschema hleftValid hrightValid
-    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject htrace
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject htrace hTypeNames
+  have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
+  have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   apply
     not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_separators
       (schema := schema)

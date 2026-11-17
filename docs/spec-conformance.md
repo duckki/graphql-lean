@@ -6,18 +6,24 @@ The main model targets the
 A separate incremental-delivery model targets
 [PR #1110, revision 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec).
 
-This page records coverage and exclusions, not full-spec conformance or proof
-completion. Representation details and specification mappings are documented in
-[execution](execution.md) and [incremental delivery](incremental-delivery/README.md).
+This page records coverage and exclusions, not full-spec
+conformance or proof completion. Representation details and specification mappings
+are documented in [schemas](schema.md), [operations](operations.md),
+[execution](execution.md), and
+[incremental delivery](incremental-delivery/README.md).
 
 ## Main model: covered
 
 - **Schema and types:** objects, interfaces, unions, enums, scalars, input objects,
   lists, and non-null types; directive definitions, including directives applied to
-  them; schema well-formedness for names, members, references, defaults, input-object
-  cycles, root types, interface implementation, and directive definitions.
+  them; schema well-formedness for name uniqueness, members, references, defaults,
+  input-object cycles, root types, interface inheritance, field implementation, and
+  directive definitions. Inheritance validation includes explicit ancestor
+  declarations, self-implementation rejection, and cycle rejection.
 - **Query operations:** fields, aliases, arguments, variables and defaults, inline
   fragments, runtime type conditions, and `@skip` / `@include`.
+- **Type-name introspection:** implicit `__typename: String!` on objects,
+  interfaces, and unions, resolved from the concrete runtime object type.
 - **Operation validation:** field and argument validity, required arguments,
   variable uses and input-type compatibility, leaf and composite selection shape
   (empty selection sets admitted), fragment applicability, and same-response-name
@@ -25,7 +31,8 @@ completion. Representation details and specification mappings are documented in
 - **Named fragments:** a separate fragment-aware layer with syntax, validation,
   execution, and inlining.
 - **Input preparation:** operation-variable defaults, argument materialization,
-  schema argument defaults, and nested input-object defaults.
+  schema argument defaults, nested input-object defaults, and opaque custom-scalar
+  payloads.
 - **Execution:** resolver-parametric field collection and grouped execution,
   nullable/non-null/list completion, null bubbling, ordered response data, and
   execution-error counts.
@@ -40,14 +47,20 @@ An absent selection set and an empty one, `{}`, share a representation, so a lea
 field with `{}` and a composite field with no selection set, both invalid, cannot be
 expressed.
 
+Interface field implementations allow covariant return types, including
+nullable-to-non-null strengthening within lists. Normalization validity has
+separate operation-local assumptions; see [normal forms](theories/normal-form.md).
+
 Not covered:
 
+- Name grammar and reserved-name validation, including the `__` prefix. Names are
+  modeled as uninterpreted strings; spelling restrictions are deliberately not modeled.
 - Mutation and subscription execution.
 - Custom executable directives beyond `@skip` / `@include`, directives applied to
   schema elements other than directive definitions, and directive extensions.
 - OneOf input objects.
 - Scalar/enum parsing and coercion details, including result coercion.
-- Introspection and meta-fields.
+- Schema introspection, including `__schema` and `__type`.
 - Request errors, detailed execution errors, messages, paths, locations, and
   response `extensions`.
 - Response serialization, transport, and HTTP behavior.

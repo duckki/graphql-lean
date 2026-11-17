@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.GroupList.DuplicateFieldMiddle
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
 
 /-!
 Fresh-prefix selection plans for group-list selection sets.

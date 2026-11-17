@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness
+import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness.Readiness
 import Proofs.GraphQL.Theories.NormalForm.Shared.ResponseNameFree
 
 /-!

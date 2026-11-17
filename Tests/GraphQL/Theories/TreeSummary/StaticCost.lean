@@ -871,7 +871,7 @@ theorem annotatedResponseArgumentsAreResolved
     : newestVariableFieldArguments = some [{ name := "limit", value := .int 3 }] := by
   simp [newestVariableFieldArguments, staticCostSchema, newestVariableField,
     singleAnnotatedResponseFieldResult, resolvedFieldProvenance,
-    argumentCoercionResultArguments, Schema.lookupField, Schema.lookupType,
+    argumentCoercionResultArguments, Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType,
     Schema.lookupInputObject,
     Schema.allTypes, Schema.builtinScalarDefinitions, TypeDefinition.fields?,
     TypeDefinition.name, BuiltinScalar.name, List.find?, Argument.lookupValue?,

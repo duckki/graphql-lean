@@ -162,10 +162,10 @@ theorem selectionSetChecks_of_includes {schema : Schema} {left right : Operation
           hschema hleftValid)
     (by
       rw [← hroot]
-      exact Validation.operationDefinitionValid_fieldsInSetCanMerge hleftValid)
+      exact operation_runtimeMergeSource_of_valid hschema hleftValid)
     (NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
       hschema hrightValid)
-    (Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid)
+    (operation_runtimeMergeSource_of_valid hschema hrightValid)
     (Nat.le_succ_of_le (Execution.selectionSetResponseDepth_le_size right.selectionSet))
     hpaths
   have hagreeLeft : ∀ variableName,

@@ -1,4 +1,6 @@
 import GraphQL.Execution
+import Proofs.GraphQL.Execution.Typename
+import Proofs.GraphQL.Schema.CustomScalars
 import Proofs.GraphQL.Validation.SelectionValidity
 import Proofs.GraphQL.Validation.Variables
 
@@ -1644,8 +1646,21 @@ private theorem coerceInputValueBounded_equivalent
         | named typeName =>
             cases hinputObject : schema.lookupInputObject typeName with
             | none =>
-                simp [coerceInputValueBounded, hinputObject,
-                  inputCoercionResultsEquivalent]
+                cases hscalar : schema.lookupCustomScalar typeName with
+                | none =>
+                    simp [coerceInputValueBounded, hinputObject, hscalar,
+                      inputCoercionResultsEquivalent]
+                | some scalar =>
+                    have hvalue
+                        : (InputValue.object leftFields).equivalent (.object rightFields) :=
+                      inputValue_equivalent_of_canonical_eq_forCoercion
+                        (by simpa [InputValue.canonical] using hcanonical)
+                    have hconst := constInputValue_ofInputValue?_rel_of_equivalent hvalue
+                    cases hleft : ConstInputValue.ofInputValue? (.object leftFields) <;>
+                      cases hright : ConstInputValue.ofInputValue? (.object rightFields) <;>
+                      simp [coerceInputValueBounded, hinputObject, hscalar, hleft, hright,
+                        inputCoercionResultsEquivalent] at hconst ⊢
+                    exact hconst
             | some inputObject =>
                 have hcanonicalFields :
                     InputValue.sortObjectFieldsByName

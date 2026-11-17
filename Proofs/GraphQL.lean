@@ -5,12 +5,16 @@ import Proofs.GraphQL.Execution.InputCoercionFuel
 import Proofs.GraphQL.Execution.InputValues
 import Proofs.GraphQL.SchemaWellFormedness.InputInhabited
 import Proofs.GraphQL.Validation.InputCompatibility
+import Proofs.GraphQL.Validation.Typename
 import Proofs.GraphQL.IncrementalDelivery.Semantics
 import Proofs.GraphQL.IncrementalDelivery.WorkQueueAlternativeImpl
 import Proofs.GraphQL.NamedFragment.Semantics.Inline
 import Proofs.GraphQL.NamedFragment.Semantics.Validation
 import Proofs.GraphQL.Theories.NormalForm
 import Proofs.GraphQL.Theories.ExecutionReadiness.Checker
+import Proofs.GraphQL.Theories.ExecutionReadiness.SemanticSoundness
+import Proofs.GraphQL.Theories.ExecutionReadiness.SchemaConstraints
+import Proofs.GraphQL.Theories.ExecutionReadiness.Necessity
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentCoercibility
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentValues
 import Proofs.GraphQL.Theories.AnnotatedExecution

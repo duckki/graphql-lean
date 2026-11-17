@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection.RuntimeSources
 
 /-!
 Collected-group argument, resolver, and execution-state invariants.
@@ -1000,106 +1000,25 @@ theorem fieldsInSetCanMerge_executable_runtimeScoped
   · rw [← hfirstArguments, ← hlaterArguments]
     exact hargumentsEquivalent
 
-theorem fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
+theorem runtimeMergeSource_executableFields_of_runtimeScoped
     (schema : Schema) (parentType runtimeType : Name)
     (selectionSet : List Selection) (responseName : Name)
     (fields : List ExecutableField)
-    : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> ExecutableEntriesRuntimeScopedBy schema runtimeType
+    (hready : NormalForm.selectionSetDeclaredLookupReady schema parentType selectionSet)
+    (hmerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet)
+    (hscoped
+      : ExecutableEntriesRuntimeScopedBy schema runtimeType
           (FieldMerge.collectFields schema parentType selectionSet)
-          (fields.map (fun field => (responseName, field)))
-      -> ∀ objectType,
-          FieldMerge.fieldsInSetCanMerge schema objectType
-            (GraphQL.Execution.mergedFieldSelectionSet fields) := by
-  intro hmerge hscoped objectType
-  apply FieldMerge.fieldsInSetCanMerge_mergedFieldSelectionSet_of_pairwise
-  intro first hfirst later hlater
-  rcases hscoped (responseName, first) (by simp [hfirst]) with
-    ⟨firstScoped, hfirstScopedMem, hfirstResponse, hfirstMatch, hfirstRuntime⟩
-  rcases hscoped (responseName, later) (by simp [hlater]) with
-    ⟨laterScoped, hlaterScopedMem, hlaterResponse, hlaterMatch, hlaterRuntime⟩
-  rcases hfirstMatch with
-    ⟨_hfirstField, _hfirstArguments, hfirstSelectionSet⟩
-  rcases hlaterMatch with
-    ⟨_hlaterField, _hlaterArguments, hlaterSelectionSet⟩
-  have hscopedResponse :
-      firstScoped.responseName = laterScoped.responseName := by
-    exact hfirstResponse.trans hlaterResponse.symm
-  have hparents :
-      firstScoped.parentType = laterScoped.parentType
-        ∨ ¬schema.objectType firstScoped.parentType
-        ∨ ¬schema.objectType laterScoped.parentType :=
-    ScopedFieldRuntimeApplies.mergeIdentityCondition schema runtimeType
-      firstScoped laterScoped hfirstRuntime hlaterRuntime
-  simpa [hfirstSelectionSet, hlaterSelectionSet]
-    using FieldMerge.fieldsInSetCanMerge_pair_subfields schema parentType
-      selectionSet firstScoped laterScoped hmerge hfirstScopedMem
-      hlaterScopedMem hscopedResponse hparents objectType
-
-theorem collectFields_group_mergedFieldSelectionSet_canMerge_runtimeScoped
-    {ObjectIdentity : Type}
-    (schema : Schema)
-    (variableDefinitions : List VariableDefinition)
-    (variableValues : VariableValues)
-    (collectParent validParent runtimeType : Name)
-    (identity : ObjectIdentity)
-    (selectionSet : List Selection)
-    (groups : List (Name × List ExecutableField))
-    (responseName : Name) (fields : List ExecutableField)
-    : Validation.selectionSetValid schema variableDefinitions validParent selectionSet
-      -> FieldMerge.fieldsInSetCanMerge schema validParent selectionSet
-      -> ScopedParentRuntimeApplies schema runtimeType validParent
-      -> GraphQL.Execution.collectFields schema variableValues collectParent
-            (.object runtimeType identity) selectionSet
-          = groups
-      -> (responseName, fields) ∈ groups
-      -> ∀ objectType,
-          FieldMerge.fieldsInSetCanMerge schema objectType
-            (GraphQL.Execution.mergedFieldSelectionSet fields) := by
-  intro hvalid hmerge hparentRuntime hcollect hgroup
-  apply fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
-    schema validParent runtimeType selectionSet responseName fields hmerge
-  · have hscopedAll :
-        ExecutableEntriesRuntimeScopedBy schema runtimeType
-          (FieldMerge.collectFields schema validParent selectionSet)
-          (collectedExecutableEntries groups) := by
-      rw [← hcollect]
-      exact collectFields_entriesRuntimeScopedBy_of_selectionSetValid schema
-        variableDefinitions variableValues collectParent validParent
-        runtimeType identity selectionSet hparentRuntime hvalid
-    intro entry hentry
-    rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
-    exact hscopedAll (responseName, field)
-      (collectedExecutableEntries_mem_of_group_mem hgroup hfield)
-
-theorem collectFields_group_mergedFieldSelectionSet_canMerge_of_valid_root_operation
-    {ObjectIdentity : Type}
-    (schema : Schema)
-    (variableValues : VariableValues)
-    (operation : Operation)
-    (runtimeType : Name) (identity : ObjectIdentity)
-    (groups : List (Name × List ExecutableField))
-    (responseName : Name) (fields : List ExecutableField)
-    : rootSourceAppliesBool schema operation (.object runtimeType identity) = true
-      -> Validation.operationDefinitionValid schema operation
-      -> GraphQL.Execution.collectFields schema variableValues (operation.rootType schema)
-            (.object runtimeType identity) operation.selectionSet
-          = groups
-      -> (responseName, fields) ∈ groups
-      -> ∀ objectType,
-          FieldMerge.fieldsInSetCanMerge schema objectType
-            (GraphQL.Execution.mergedFieldSelectionSet fields) := by
-  intro hroot hvalid hcollect hgroup
-  apply collectFields_group_mergedFieldSelectionSet_canMerge_runtimeScoped
-    schema operation.variableDefinitions variableValues (operation.rootType schema)
-    (operation.rootType schema) runtimeType identity operation.selectionSet groups
-    responseName fields
-  · exact Validation.operationDefinitionValid_selectionSetValid hvalid
-  · exact Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
-  · exact ScopedParentRuntimeApplies.of_rootSourceAppliesBool schema operation
-      runtimeType identity hroot
-  · exact hcollect
-  · exact hgroup
+          (fields.map (fun field => (responseName, field))))
+    : NormalForm.runtimeMergeSource schema runtimeType
+        (executableFieldSelections responseName fields) := by
+  exact runtimeMergeSource_executableFields schema runtimeType responseName fields
+    (FieldMerge.collectFields schema parentType selectionSet)
+    (fun source hsource => NormalForm.collectFields_declaredLookupReady schema
+      parentType selectionSet source hready hsource)
+    (fun _ hleft _ hright hresponse =>
+      FieldMerge.fieldsInSetCanMerge_pair hmerge hleft hright hresponse)
+    hscoped
 
 theorem collectFields_fieldCompatible_of_selectionSetValid_scopedCompatible
     {ObjectIdentity : Type}

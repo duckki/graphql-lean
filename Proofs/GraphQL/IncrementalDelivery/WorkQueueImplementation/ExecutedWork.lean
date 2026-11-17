@@ -336,6 +336,10 @@ private theorem completionContributorsNodup_pure (value : α)
   simp [completionContributorsNodup, Execution.Completion.pure,
     contributorRefsNodup]
 
+private theorem completionContributorsNodup_ok (value : α) (errors : Nat)
+    : completionContributorsNodup { result := .ok (value, errors) } := by
+  simp [completionContributorsNodup, contributorRefsNodup]
+
 private theorem completionContributorsNodup_error (errors : Nat)
     : completionContributorsNodup (Execution.Completion.error (α := α) errors) := by
   simp [completionContributorsNodup, Execution.Completion.error,
@@ -841,19 +845,19 @@ private theorem valuePreservesContributors_all (fuel : Nat)
                   simp only [Execution.completeValue]
                   split
                   · exact Semantics.runEnsures_pure _ _
-                      (completionContributorsNodup_error _)
+                      (completionContributorsNodup_ok Execution.ResponseValue.null 1)
                   · exact Semantics.runEnsures_pure _ _
                       (completionContributorsNodup_pure
                         (Execution.ResponseValue.scalar scalar))
               | list values =>
                   simp only [Execution.completeValue]
                   exact Semantics.runEnsures_pure _ _
-                    (completionContributorsNodup_error _)
+                    (completionContributorsNodup_ok Execution.ResponseValue.null 1)
               | object runtimeType ref =>
                   simp only [Execution.completeValue]
                   split
                   · exact Semantics.runEnsures_pure _ _
-                      (completionContributorsNodup_error _)
+                      (completionContributorsNodup_ok Execution.ResponseValue.null 1)
                   · refine Semantics.runEnsures_bind (fun _ : Execution.FieldCollection => True)
                       completionContributorsNodup _ _ (fun _ => trivial) ?_
                     intro collection _
@@ -876,11 +880,11 @@ private theorem valuePreservesContributors_all (fuel : Nat)
               | scalar scalar =>
                   simp only [Execution.completeValue]
                   exact Semantics.runEnsures_pure _ _
-                    (completionContributorsNodup_error _)
+                    (completionContributorsNodup_ok Execution.ResponseValue.null 1)
               | object runtimeType ref =>
                   simp only [Execution.completeValue]
                   exact Semantics.runEnsures_pure _ _
-                    (completionContributorsNodup_error _)
+                    (completionContributorsNodup_ok Execution.ResponseValue.null 1)
               | list values =>
                   simpa only [Execution.completeValue]
                     using completeListValueWithStream_contributorRefsNodup_of_values

@@ -1,8 +1,7 @@
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Core
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Validation
-import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Support.FieldHeads
 import Proofs.GraphQL.Theories.NormalForm.Shared.LookupValidity
-import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness
+import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness.RuntimeSources
 import Proofs.GraphQL.Execution.Data
 
 namespace GraphQL

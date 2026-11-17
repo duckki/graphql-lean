@@ -234,6 +234,13 @@ theorem seeded_error (entries : α → List Entry) (cursors : α → Cursors)
   refine ⟨by simpa [BasicErrors.PositiveFailure, Completion.error] using h, ?_⟩
   simp [CompletionSuccess, Completion.error]
 
+/-- A positive counted completion cannot meet the error-free reconstruction premise. -/
+theorem seeded_counted (entries : α → List Entry) (cursors : α → Cursors)
+    (basic : Result α) (data : α) (errors : Nat) (h : 0 < errors)
+    : SeededReconstructs entries cursors basic { result := .ok (data, errors) } := by
+  refine ⟨by simp [BasicErrors.PositiveFailure], ?_⟩
+  simp [CompletionSuccess, Nat.ne_of_gt h]
+
 /-- A counted field error cannot meet the internal successful-completion premise. -/
 theorem seeded_failedField (path : ResponsePath) (name : Name) (fieldType : TypeRef)
     (basic : Result (List (Name × ResponseValue)))

@@ -270,7 +270,7 @@ theorem collectedGroup_mergedFieldSelectionSet_semanticsReady
       -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
           runtimeType parentType
       -> NormalForm.selectionSetSemanticsReady schema parentType selectionSet
-      -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
+      -> NormalForm.runtimeMergeSource schema runtimeType selectionSet
       -> (responseName, fields)
           ∈ GraphQL.Execution.collectFields schema variableValues parentType
               (.object runtimeType identity) selectionSet
@@ -291,11 +291,13 @@ theorem collectedGroup_mergedFieldSelectionSet_semanticsReady
       NormalForm.selectionSetLookupValid schema parentType selectionSet :=
     NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
       hready
-  have hcompatible :
-      KeyedExecutableFieldsFieldValidationMergeCompatible flatEntries :=
-    collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object schema
-      variableValues parentType parentType runtimeType identity selectionSet
-      hmerge hparentRuntime hlookupValid
+  have hcompatible : KeyedExecutableFieldsFieldValidationMergeCompatible flatEntries :=
+    collectFields_flat_fieldCompatible_of_runtimeMergeSource schema variableValues
+      parentType runtimeType identity selectionSet
+      (by
+        simpa [object_typeIncludesObjectBool_eq_self schema hobject hparentRuntime]
+          using hobject)
+      hmerge
   have hfirstFlat : (responseName, first) ∈ flatEntries :=
     ExecutionUngroupedUncached.Eager.collectedExecutableEntries_mem_of_group_mem
       hgroup hfirst
@@ -327,37 +329,34 @@ theorem collectedGroup_mergedFieldSelectionSet_semanticsReady
       hparentRuntime hready responseName candidate hcandidateFlat firstDefinition
       hlookupCandidate childRuntime hinclude
 
-theorem collectedGroup_mergedFieldSelectionSet_canMerge
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (parentType runtimeType : Name) (identity : ObjectRef)
-    (selectionSet : List Selection)
+theorem collectedGroup_mergedFieldSelectionSet_runtimeSource
+    {ObjectRef : Type} (schema : Schema)
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (variableValues : VariableValues) (parentType runtimeType : Name)
+    (identity : ObjectRef) (selectionSet : List Selection)
     (responseName : Name) (fields : List ExecutableField)
-    : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
-          runtimeType parentType
-      -> NormalForm.selectionSetLookupValid schema parentType selectionSet
-      -> (responseName, fields)
-          ∈ GraphQL.Execution.collectFields schema variableValues parentType
-              (.object runtimeType identity) selectionSet
-      -> ∀ objectType,
-          FieldMerge.fieldsInSetCanMerge schema objectType
-            (GraphQL.Execution.mergedFieldSelectionSet fields) := by
-  intro hmerge hparentRuntime hlookupValid hgroup objectType
-  apply
-    FieldMerge.fieldsInSetCanMerge_mergedFieldSelectionSet_of_pairwise schema
-      objectType fields
-  intro first hfirst later hlater
-  apply
-    collectFields_flat_pair_selectionSets_canMerge_of_canMerge_lookupValid_object
-      schema variableValues parentType parentType runtimeType identity selectionSet
-      hmerge hparentRuntime hlookupValid responseName first
-  · exact
-      ExecutionUngroupedUncached.Eager.collectedExecutableEntries_mem_of_group_mem
-        hgroup hfirst
-  · exact
-      ExecutionUngroupedUncached.Eager.collectedExecutableEntries_mem_of_group_mem
-        hgroup hlater
+    (first : ExecutableField) (definition : FieldDefinition) (childRuntime : Name)
+    (hobject : schema.objectType parentType)
+    (hparentRuntime
+      : ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
+          runtimeType parentType)
+    (hsource : NormalForm.runtimeMergeSource schema runtimeType selectionSet)
+    (hgroup
+      : (responseName, fields)
+        ∈ GraphQL.Execution.collectFields schema variableValues
+            parentType (.object runtimeType identity) selectionSet)
+    (hfirst : first ∈ fields)
+    (hlookup : schema.lookupField parentType first.fieldName = some definition)
+    (hinclude
+      : schema.typeIncludesObjectBool definition.outputType.namedType childRuntime = true)
+    : NormalForm.runtimeMergeSource schema childRuntime
+        (GraphQL.Execution.mergedFieldSelectionSet fields) := by
+  have hruntime : runtimeType = parentType :=
+    object_typeIncludesObjectBool_eq_self schema hobject hparentRuntime
+  exact ExecutionUngroupedUncached.Eager.collectFields_group_mergedRuntimeSource schema
+    hschema variableValues parentType runtimeType identity selectionSet responseName
+    fields first definition childRuntime (by simpa [hruntime] using hobject) hruntime.symm
+    hsource hgroup hfirst hlookup hinclude
 
 theorem collectedExecutableFields_mem_exists_group
     (groups : List (Name × List ExecutableField)) (field : ExecutableField)

@@ -281,7 +281,14 @@ theorem completeNormalizeOperation_subselectionsNonempty
           schema hrootObject)
         (filterSelectionSetBoolCase_selectionSetSemanticsReady schema boolCase
           (operation.rootType schema) operation.selectionSet hready)
-        (fieldsInSetCanMerge_filterSelectionSetBoolCase schema boolCase hmerge)
+        (runtimeMergeSource_of_declaredLookupReady schema hrootObject
+          (object_typeIncludesObjectBool_self schema hrootObject)
+          (selectionSetDeclaredLookupReady_filter schema boolCase
+            (operation.rootType schema) operation.selectionSet
+            (selectionSetDeclaredLookupReady_of_valid schema operation.variableDefinitions
+              (operation.rootType schema) operation.selectionSet
+              (Validation.operationDefinitionValid_selectionSetValid hoperation)))
+          (fieldsInSetCanMerge_filterSelectionSetBoolCase schema boolCase hmerge))
         (filterSelectionSetBoolCase_directiveFree schema boolCase operation.selectionSet)
         (selectionSetTypeConditionFeasible_filterSelectionSetBoolCase schema boolCase
           (operation.rootType schema) [(operation.rootType schema)] operation.selectionSet

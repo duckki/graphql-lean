@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ScopedStaticExecution
 import Proofs.GraphQL.Theories.NormalForm.Shared.FieldMergeLookup
+import Proofs.GraphQL.Theories.NormalForm.Shared.RuntimeMergeSource
 
 /-!
 Merge-readiness and scoped field-head lookup facts for complete normalization.
@@ -10,6 +11,20 @@ namespace GraphQL
 namespace NormalForm
 
 namespace CompleteNormalization
+
+def completeScopedSelectionSetRuntimeSource
+    (schema : Schema) (execParent : Name)
+    (scopedSelections : List CompleteScopedSelection)
+    : Prop :=
+  runtimeMergeSource schema execParent (eraseCompleteScopedSelectionSet scopedSelections)
+
+theorem completeScopedSelectionSetRuntimeSource_tail
+    (schema : Schema) (execParent : Name)
+    (selection : CompleteScopedSelection) (rest : List CompleteScopedSelection)
+    (hsource
+      : completeScopedSelectionSetRuntimeSource schema execParent (selection :: rest))
+    : completeScopedSelectionSetRuntimeSource schema execParent rest := by
+  exact runtimeMergeSource_tail hsource
 
 theorem fieldsInSetCanMerge_inline_none_head_clear_directives
     (schema : Schema) (parentType : Name)
@@ -91,7 +106,7 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
                       selectionSet
                 }
                 :: rest)
-          -> completeScopedSelectionSetCanMerge schema execParent
+          -> completeScopedSelectionSetRuntimeSource schema execParent
               ({
                   lookupParent := lookupParent,
                   selection :=
@@ -149,7 +164,7 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
         -> schema.typeIncludesObjectBool execParent groundType = true
         -> completeScopedSelectionSetSemanticsReady schema execParent scopedSelections
         -> completeScopedSelectionSetLookupValid schema scopedSelections
-        -> completeScopedSelectionSetCanMerge schema execParent scopedSelections
+        -> completeScopedSelectionSetRuntimeSource schema execParent scopedSelections
         -> completeScopedSelectionSetGroundApplies schema groundType scopedSelections
         -> variableValuesAgreeWithCase variableValues boolCase
             (operationBoolVars operation)
@@ -193,7 +208,7 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
                     rest hobject hground
                     (completeScopedSelectionSetSemanticsReady_tail hready)
                     (completeScopedSelectionSetLookupValid_tail hlookup)
-                    (completeScopedSelectionSetCanMerge_tail schema
+                    (completeScopedSelectionSetRuntimeSource_tail schema
                       execParent
                       { lookupParent := lookupParent,
                         selection :=
@@ -231,7 +246,7 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
                         boolCase rest hobject hground
                         (completeScopedSelectionSetSemanticsReady_tail hready)
                         (completeScopedSelectionSetLookupValid_tail hlookup)
-                        (completeScopedSelectionSetCanMerge_tail schema
+                        (completeScopedSelectionSetRuntimeSource_tail schema
                           execParent
                           { lookupParent := lookupParent,
                             selection :=
@@ -295,24 +310,11 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
                               simpa [selectionLookupValid] using hheadLookup))
                           (completeScopedSelectionSetLookupValid_tail hlookup))
                         (by
-                          have hmergeNoDirectives :
-                              FieldMerge.fieldsInSetCanMerge schema execParent
-                                (Selection.inlineFragment none [] selectionSet
-                                  :: eraseCompleteScopedSelectionSet rest) :=
-                            fieldsInSetCanMerge_inline_none_head_clear_directives
-                              schema execParent directives selectionSet
-                              (eraseCompleteScopedSelectionSet rest)
-                              (by
-                                simpa [completeScopedSelectionSetCanMerge,
-                                  eraseCompleteScopedSelectionSet,
-                                  eraseCompleteScopedSelection] using hmerge)
-                          simpa [completeScopedSelectionSetCanMerge,
+                          simpa [completeScopedSelectionSetRuntimeSource,
                             eraseCompleteScopedSelectionSet_append,
                             eraseCompleteScopedSelectionSet_completeScopedSelectionSet] using
-                            fieldsInSetCanMerge_inlineFragment_none_flatten
-                              schema execParent selectionSet
-                              (eraseCompleteScopedSelectionSet rest)
-                              hmergeNoDirectives)
+                            runtimeMergeSource_inlineFragment_flatten schema execParent none
+                              selectionSet (eraseCompleteScopedSelectionSet rest) (by simp) hmerge)
                         (completeScopedSelectionSetGroundApplies_append
                           (by
                             intro scopedSelection hmem
@@ -384,7 +386,7 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
                         boolCase rest hobject hground
                         (completeScopedSelectionSetSemanticsReady_tail hready)
                         (completeScopedSelectionSetLookupValid_tail hlookup)
-                        (completeScopedSelectionSetCanMerge_tail schema
+                        (completeScopedSelectionSetRuntimeSource_tail schema
                           execParent
                           { lookupParent := lookupParent,
                             selection :=
@@ -507,85 +509,12 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
                               simpa [selectionLookupValid] using hheadLookup))
                           (completeScopedSelectionSetLookupValid_tail hlookup))
                         (by
-                          have hselectionParentLookup :
-                              selectionSetLookupValid
-                                schema execParent
-                                selectionSet :=
-                            selectionSetLookupValid_of_selectionSetSemanticsReady
-                              selectionSet
-                              (by
-                                have hheadReady :
-                                    selectionSemanticsReady
-                                      schema execParent
-                                      (Selection.inlineFragment
-                                        (some typeCondition) directives
-                                        selectionSet) := by
-                                  unfold completeScopedSelectionSetSemanticsReady at hready
-                                  unfold selectionSetSemanticsReady at hready
-                                  exact hready _ (by
-                                    simp [eraseCompleteScopedSelectionSet,
-                                      eraseCompleteScopedSelection])
-                                have hpair :
-                                    selectionSetLookupValid
-                                      schema typeCondition
-                                        selectionSet
-                                      ∧
-                                    (schema.typesOverlapBool execParent
-                                        typeCondition = true ->
-                                      selectionSetSemanticsReady
-                                        schema
-                                        execParent selectionSet) := by
-                                  simpa [selectionSemanticsReady] using
-                                    hheadReady
-                                exact hpair.2 hoverlap)
-                          have hselectionTypeLookup :
-                              selectionSetLookupValid
-                                schema typeCondition
-                                selectionSet := by
-                            have hheadLookup :
-                                selectionLookupValid
-                                  schema lookupParent
-                                  (Selection.inlineFragment
-                                    (some typeCondition) directives
-                                    selectionSet) :=
-                              hlookup
-                                { lookupParent := lookupParent,
-                                  selection :=
-                                    Selection.inlineFragment
-                                      (some typeCondition) directives
-                                      selectionSet }
-                                (by simp)
-                            simpa [selectionLookupValid] using hheadLookup
-                          have htailLookup :
-                              selectionSetLookupValid
-                                schema execParent
-                                (eraseCompleteScopedSelectionSet rest) :=
-                            selectionSetLookupValid_of_selectionSetSemanticsReady
-                              (eraseCompleteScopedSelectionSet rest)
-                              (completeScopedSelectionSetSemanticsReady_tail
-                                hready)
-                          have hmergeNoDirectives :
-                              FieldMerge.fieldsInSetCanMerge schema execParent
-                                (Selection.inlineFragment
-                                    (some typeCondition) [] selectionSet
-                                  :: eraseCompleteScopedSelectionSet rest) :=
-                            fieldsInSetCanMerge_inline_some_head_clear_directives
-                              schema execParent typeCondition directives
-                              selectionSet
-                              (eraseCompleteScopedSelectionSet rest)
-                              (by
-                                simpa [completeScopedSelectionSetCanMerge,
-                                  eraseCompleteScopedSelectionSet,
-                                  eraseCompleteScopedSelection] using hmerge)
-                          simpa [completeScopedSelectionSetCanMerge,
+                          simpa [completeScopedSelectionSetRuntimeSource,
                             eraseCompleteScopedSelectionSet_append,
                             eraseCompleteScopedSelectionSet_completeScopedSelectionSet] using
-                            fieldsInSetCanMerge_inlineFragment_some_overlap_flatten_object
-                              schema execParent typeCondition selectionSet
-                              (eraseCompleteScopedSelectionSet rest) hschema
-                              hobject hoverlap hselectionParentLookup
-                              hselectionTypeLookup htailLookup
-                              hmergeNoDirectives)
+                            runtimeMergeSource_inlineFragment_flatten schema execParent
+                              (some typeCondition) selectionSet (eraseCompleteScopedSelectionSet rest)
+                              (by intro _ h; cases h; exact hoverlap) hmerge)
                         (completeScopedSelectionSetGroundApplies_append
                           (by
                             intro scopedSelection hmem

@@ -200,6 +200,32 @@ mutual
           ofInputValue_toInputValue value, ofInputFields_toInputFields rest]
 end
 
+-- Custom-scalar payloads are returned unchanged, independently of variable values.
+theorem coerceInputValueBounded_customScalar_const
+    (schema : Schema) (values : VariableValues) (fuel : Nat) (name : Name)
+    (scalar : CustomScalarType) (value : ConstInputValue)
+    (hlookup : schema.lookupCustomScalar name = some scalar)
+    : coerceInputValueBounded schema values (fuel + 1) (.named name) value.toInputValue
+      = .success value := by
+  have hinput := Schema.lookupInputObject_eq_none_of_lookupCustomScalar hlookup
+  cases value <;>
+    simp [ConstInputValue.toInputValue, coerceInputValueBounded, hinput, hlookup,
+      ConstInputValue.ofInputValue?, ofInputValues_toInputValues, ofInputFields_toInputFields]
+
+theorem coerceInputValue_customScalar_const
+    (schema : Schema) (values : VariableValues) (name : Name)
+    (scalar : CustomScalarType) (value : ConstInputValue)
+    (hlookup : schema.lookupCustomScalar name = some scalar)
+    : coerceInputValue schema values (.named name) value.toInputValue
+      = .success value := by
+  unfold coerceInputValue
+  cases hfuel : coerceInputValueFuel schema values (.named name) value.toInputValue with
+  | zero =>
+      have bound := inputTypeCoercionDepth_le_fuel schema values (.named name) value.toInputValue
+      simp [hfuel, inputTypeCoercionDepth] at bound
+  | succ fuel =>
+      exact coerceInputValueBounded_customScalar_const schema values fuel name scalar value hlookup
+
 theorem inputObjectFieldsKnownBool_of_known
     {definitions : List InputValueDefinition} {fields : List (Name × InputValue)}
     (hknown

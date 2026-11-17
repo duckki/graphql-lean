@@ -317,7 +317,14 @@ private theorem annotatedExecution_admissible
   case case8 =>
     intro parentType source responseName field rest fuel definition hlookup coercedArguments hcoerce
       resolved hresolve complete_ih
-    have hcomplete := complete_ih (hresolvers _ _ _ _ _ hresolve)
+    have hbounded : resolverValueListsBounded listSize resolved := by
+      by_cases hmeta : field.fieldName = "__typename"
+      · cases source <;>
+          simp [resolveFieldValue, hmeta, resolveTypenameField] at hresolve
+        cases hresolve
+        trivial
+      · exact hresolvers _ _ _ _ _ (by simpa [resolveFieldValue, hmeta] using hresolve)
+    have hcomplete := complete_ih hbounded
     cases hcompleted
           : completeAnnotatedResponseValue schema resolvers variableValues fuel
               definition.outputType (field :: rest) resolved with
@@ -331,7 +338,7 @@ private theorem annotatedExecution_admissible
           annotatedFieldsResultAdmissible,
           foldAnnotatedResponseFields, concreteAlgebra, responseFieldObservation,
           ResponseObservation.combine, ResponseObservation.empty]
-        exact hcomplete
+        assumption
   case case9 =>
     simp [completeAnnotatedResponseValue, annotatedValueResultAdmissible]
   case case10 =>
@@ -356,7 +363,7 @@ private theorem annotatedExecution_admissible
       foldAnnotatedResponseValue, ResponseObservation.empty]
   case case12 =>
     intro fuel typeName fields value hcomposite _hsafe
-    simp [completeAnnotatedResponseValue, hcomposite, annotatedValueResultAdmissible]
+    simp [completeAnnotatedResponseValue, hcomposite, annotatedValueResultAdmissible, responseValueChildMultiplicity, foldAnnotatedResponseValue, ResponseObservation.empty, listMultiplier]
   case case13 =>
     intro fuel typeName fields value hnotComposite _hsafe
     have hcomposite : (TypeRef.named typeName).isCompositeBool schema = false := by
@@ -407,7 +414,7 @@ private theorem annotatedExecution_admissible
       cases hvalue : schema.typeIncludesObjectBool parentType runtimeType with
       | false => rfl
       | true => exact False.elim (hnotInclude hvalue)
-    simp [completeAnnotatedResponseValue, hinclude, annotatedValueResultAdmissible]
+    simp [completeAnnotatedResponseValue, hinclude, annotatedValueResultAdmissible, responseValueChildMultiplicity, foldAnnotatedResponseValue, ResponseObservation.empty, listMultiplier]
   case case16 =>
     intro fuel inner fields values list_ih hsafe
     have hlist := list_ih hsafe.2
@@ -428,10 +435,10 @@ private theorem annotatedExecution_admissible
           (length_mul_max_one_listMultiplier_le listSize values.length inner hsafe.1),
           hlist.2⟩
   case case17 =>
-    simp [completeAnnotatedResponseValue, annotatedValueResultAdmissible]
+    simp [completeAnnotatedResponseValue, annotatedValueResultAdmissible, responseValueChildMultiplicity, foldAnnotatedResponseValue, ResponseObservation.empty, listMultiplier]
   case case18 =>
     intro fuel inner fields value hnotNull hnotList _hsafe
-    simp [completeAnnotatedResponseValue, annotatedValueResultAdmissible]
+    simp [completeAnnotatedResponseValue, annotatedValueResultAdmissible, responseValueChildMultiplicity, foldAnnotatedResponseValue, ResponseObservation.empty, listMultiplier]
   case case19 =>
     simp [completeAnnotatedResponseValueList, annotatedValuesResultAdmissible,
       responseValuesChildMultiplicity, foldAnnotatedResponseValues,

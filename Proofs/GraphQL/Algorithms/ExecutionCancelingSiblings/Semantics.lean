@@ -291,7 +291,7 @@ private theorem fuelImplementationsAligned
                 by_cases hcomposite :
                     (TypeRef.named typeName).isCompositeBool schema = true
                 · simp [completeValue, GraphQL.Execution.completeValue,
-                    hcomposite, StrongResultAligned]
+                    hcomposite, StrongResultAligned, ErrorPresenceEquivalent]
                 · have hfalse :
                     (TypeRef.named typeName).isCompositeBool schema = false := by
                     cases hmatch :
@@ -317,10 +317,10 @@ private theorem fuelImplementationsAligned
                     · rfl
                     · contradiction
                   simp [completeValue, GraphQL.Execution.completeValue,
-                    hfalse, StrongResultAligned]
+                    hfalse, StrongResultAligned, ErrorPresenceEquivalent]
             | list values =>
                 simp [completeValue, GraphQL.Execution.completeValue,
-                  StrongResultAligned]
+                  StrongResultAligned, ErrorPresenceEquivalent]
         | list inner innerIh =>
             intro fields value
             cases value with
@@ -329,10 +329,10 @@ private theorem fuelImplementationsAligned
                   StrongResultAligned, ErrorPresenceEquivalent]
             | scalar value =>
                 simp [completeValue, GraphQL.Execution.completeValue,
-                  StrongResultAligned]
+                  StrongResultAligned, ErrorPresenceEquivalent]
             | object runtimeType ref =>
                 simp [completeValue, GraphQL.Execution.completeValue,
-                  StrongResultAligned]
+                  StrongResultAligned, ErrorPresenceEquivalent]
             | list values =>
                 simpa [completeValue, GraphQL.Execution.completeValue]
                   using StrongResultAligned.catchBubbleAsNull ResponseValue.list
@@ -370,12 +370,11 @@ private theorem fuelImplementationsAligned
                       cases fieldDefinition.outputType <;>
                         simp [handleFieldError, StrongResultAligned,
                           ErrorPresenceEquivalent]
-                    simpa [executeField, GraphQL.Execution.executeField,
-                      GraphQL.Execution.resolveFieldValue, hlookup, hcoerce]
+                    simpa [executeField, GraphQL.Execution.executeField, hlookup, hcoerce]
                       using StrongResultAligned.singleFieldResult responseName hhandle
                 | success coercedArguments =>
                     cases hresolve
-                          : resolvers.resolve parentType field.fieldName
+                          : resolveFieldValue resolvers parentType field.fieldName
                               coercedArguments source with
                     | none =>
                         have hhandle :
@@ -385,12 +384,12 @@ private theorem fuelImplementationsAligned
                           cases fieldDefinition.outputType <;>
                             simp [handleFieldError, StrongResultAligned,
                               ErrorPresenceEquivalent]
-                        simpa [executeField, GraphQL.Execution.executeField,
-                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce, hresolve]
+                        simpa [executeField, GraphQL.Execution.executeField, hlookup,
+                          hcoerce, hresolve]
                           using StrongResultAligned.singleFieldResult responseName hhandle
                     | some resolved =>
-                        simpa [executeField, GraphQL.Execution.executeField,
-                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce, hresolve]
+                        simpa [executeField, GraphQL.Execution.executeField, hlookup,
+                          hcoerce, hresolve]
                           using StrongResultAligned.singleFieldResult responseName
                             (ih.completeValue fieldDefinition.outputType
                               (field :: fields) resolved)

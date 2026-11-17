@@ -460,7 +460,8 @@ private theorem annotatedResponseExecution_related_all
       definition groups _hnamed _hlookup _hwitness _hnonempty
       _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent _hdefinitions
     simpa [completeAnnotatedResponseValue, hcomposite, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case13 =>
     intro fuel typeName fields value hnotComposite runtimeType ref responseName
@@ -506,7 +507,7 @@ private theorem annotatedResponseExecution_related_all
       exact hlookup
     rcases hvalid.childrenValid first definition childRuntimeType hfirst hlookupFirst
       hinclude with
-      ⟨hchildObject, hchildReady, hchildMerge⟩
+      ⟨hchildObject, hchildReady, hchildSource⟩
     have hchildArguments : selectionSetArgumentsNodup
         (Execution.mergedFieldSelectionSet fields) :=
       selectionSetArgumentsNodup_mergedFieldSelectionSet fields
@@ -514,7 +515,7 @@ private theorem annotatedResponseExecution_related_all
     have hchildValid : ExecutableGroupsValid schema childRuntimeType childGroups := by
       have hcollected := collectFields_executableGroupsValid schema variableValues
         childRuntimeType childRef (Execution.mergedFieldSelectionSet fields)
-        hschema hchildObject hchildReady hchildMerge hchildArguments
+        hschema hchildObject hchildReady hchildSource hchildArguments
       simpa [childGroups,
         NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
         using hcollected
@@ -663,7 +664,8 @@ private theorem annotatedResponseExecution_related_all
       | false => rfl
       | true => exact False.elim (hnotInclude hvalue)
     simpa [completeAnnotatedResponseValue, hinclude, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref responseName fieldName
@@ -701,14 +703,16 @@ private theorem annotatedResponseExecution_related_all
       groups _hnamed _hlookup _hwitness _hnonempty _hvalid _hgroups
       _hinherited _hconditions _hcover _hrepresent _hdefinitions
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
-      foldChildSummaryForValueResult]
+      foldChildSummaryForValueResult, foldAnnotatedResponseValue,
+      foldChildSummaryForValue]
       using soundness.empty_sound
   case case18 =>
     intro fuel inner fields value hnotNull hnotList runtimeType ref responseName
       fieldName definition groups _hnamed _hlookup _hwitness _hnonempty
       _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent _hdefinitions
     simpa [completeAnnotatedResponseValue, hnotNull, hnotList,
-      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult]
+      foldAnnotatedResponseValueResult, foldChildSummaryForValueResult,
+      foldAnnotatedResponseValue, foldChildSummaryForValue]
       using soundness.empty_sound
   case case19 =>
     intro fuel itemType fields runtimeType ref responseName fieldName definition
@@ -814,9 +818,14 @@ theorem Soundness.executeQueryAnnotatedWithFuel_soundUsingVariables
           executionGroups := by
         have harguments := Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hoperation)
+        have hsource := NormalForm.runtimeMergeSource_of_valid schema
+          operation.variableDefinitions hrootObject
+          (NormalForm.object_typeIncludesObjectBool_self schema hrootObject)
+          (Validation.operationDefinitionValid_selectionSetValid hoperation)
+          (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation)
         exact collectFields_executableGroupsValid schema coercedVariableValues
           (operation.rootType schema) ref operation.selectionSet hschema hrootObject hready
-          (Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation) harguments
+          hsource harguments
       have hinherited :
           inheritedConditionsAllowGroups coercedVariableValues availableGroups := by
         intro group hgroup

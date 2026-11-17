@@ -1,6 +1,7 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
 import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness
 import Proofs.GraphQL.Theories.NormalForm.Shared.FieldMergeLookup
+import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness.RuntimeSources
 
 /-!
 Basic validity support facts for ground-type normalization.

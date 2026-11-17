@@ -443,19 +443,19 @@ zero counted errors.
 
 Directive erasure preserves aliases, selection order, arguments, type conditions,
 ordinary directives, and variable definitions/defaults. These are correctness
-statements derived from the independent contract, not scheduler assumptions; the new
-error-aware coverage statement above remains unproved against terminal failure reporting.
+statements proved from the independent contract, not scheduler assumptions.
+Error-aware coverage uses the contract's terminal failure reporting requirement.
 Liveness is conditional on a complete finite run, not a fairness theorem.
 
-The proposed error-aware coverage decoder uses only error-bearing completion IDs and
+The error-aware coverage decoder uses only error-bearing completion IDs and
 their earlier or same-update pending paths. Initial errors must be zero because the
 count-only initial envelope cannot localize them. Later patch errors do not license
 missing branches: those patches already carry data, including nulls. A missing basic
 response position must lie under a failed scope, or be a null ancestor of that scope
 in ordinary execution. Failure scopes remain conservative: a root-scoped notice is
 necessarily broad, and a shared scope can contain data already delivered elsewhere.
-This proposal does not reconstruct detailed error paths, enumerate an unknown stream
-tail, or cover every syntactically possible field independently of runtime execution.
+This coverage statement does not reconstruct detailed error paths, enumerate an unknown
+stream tail, or cover every syntactically possible field independently of runtime execution.
 
 Terminal reporting addresses the shared-owner omission illustrated by the fixture in
 `Tests/GraphQL/IncrementalDelivery/FailureScopes.lean`:
@@ -497,9 +497,10 @@ witnesses instead of duplicating these statements. See the [implementation bridg
 ## Proof status and verification
 
 Public definitions, proofs, and tests build with the terminal reporting requirement.
-The 12 witnesses below, finite progress, reference conformance, and the query bridge
-are verified against it. Axiom audits use only `propext`, `Classical.choice`, and
-`Quot.sound` as needed, with no proof holes or added axioms.
+The 12 established query-correctness witnesses, error-aware response-position coverage,
+finite progress, reference conformance, and the query bridge are verified against it.
+Axiom audits use only `propext`, `Classical.choice`, and `Quot.sound` as needed,
+with no proof holes or added axioms.
 
 Existing witness modules include general mixed-work progress and agreement of historical
 causality with the publication snapshot on an explained history, by

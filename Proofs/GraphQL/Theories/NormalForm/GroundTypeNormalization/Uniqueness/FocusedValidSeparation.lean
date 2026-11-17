@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.TypenameFreeSupport
 import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.CoercionDiff
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.FocusedObservableSeparation
@@ -84,18 +85,22 @@ theorem
                 ∧ selectionSetNormal schema parentType supportSelectionSet
                 ∧ selectionSetSubselectionsNonempty schema parentType supportSelectionSet)
       -> NormalSelectionSetResolverDiff schema variableValues parentType left right
-      -> ∃ runtimeType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
-            parentType runtimeType left right
-            (variableValues := variableValues)
-            (fun selectionSet => selectionSet ∈ supportSelectionSets)
-            minFuel := by
+      -> ∀ (_hTypeNames
+            : selectionSetTypenameFree
+                (List.flatten
+                  (left :: right :: supportSelectionSets)) := by typename_free),
+          ∃ runtimeType,
+            selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
+              parentType runtimeType left right
+              (variableValues := variableValues)
+              (fun selectionSet => selectionSet ∈ supportSelectionSets)
+              minFuel := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal hleftSub
-    hrightNormal hrightSub hsupportValid hdiff
+    hrightNormal hrightSub hsupportValid hdiff hTypeNames
   revert hleftValid hrightValid hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal hleftSub
-    hrightNormal hrightSub hsupportValid
+    hrightNormal hrightSub hsupportValid hTypeNames
   revert leftVariableDefinitions rightVariableDefinitions supportSelectionSets
     minFuel
   induction hdiff with
@@ -105,7 +110,13 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       have hleftObjectCoercion :=
         selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
           hobject hleftCoercion
@@ -132,7 +143,13 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       have hleftObjectCoercion :=
         selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
           hobject hleftCoercion
@@ -160,7 +177,13 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       have hleftObjectCoercion :=
         selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
           hobject hleftCoercion
@@ -232,6 +255,8 @@ theorem
               hleftLookup hrightLeaf hleftComposite (by
                 intro hsame
                 exact hfieldDiff hsame.symm)
+              (selectionSetTypenameFree_flatten_cons hrightTypes
+                (selectionSetTypenameFree_flatten_cons hleftTypes hsupportTypes))
           exact ⟨parentType,
             selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm hwitness⟩
         · have hrightComposite :
@@ -270,7 +295,13 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       have hleftObjectCoercion :=
         selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
           hobject hleftCoercion
@@ -363,7 +394,13 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       have hleftObjectCoercion :=
         selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
           hobject hleftCoercion
@@ -469,6 +506,19 @@ theorem
         simpa [returnType]
           using selectionSetArgumentsCoercible_field_children_of_directiveFree
             hrightObjectCoercion hrightFree hrightMem hlookup
+      have hleftPrefTypes := selectionSetTypenameFree_append_left hleftTypes
+      have hrightPrefTypes := selectionSetTypenameFree_append_left hrightTypes
+      have hleftTailTypes := selectionSetTypenameFree_append_right hleftTypes
+      have hrightTailTypes := selectionSetTypenameFree_append_right hrightTypes
+      have hleftSuffixTypes := selectionSetTypenameFree_tail hleftTailTypes
+      have hrightSuffixTypes := selectionSetTypenameFree_tail hrightTailTypes
+      have hleftChildTypes := selectionSetTypenameFree_fieldChildren hleftTailTypes List.mem_cons_self
+      have hrightChildTypes := selectionSetTypenameFree_fieldChildren hrightTailTypes List.mem_cons_self
+      have hchildSupportTypes := focusedObjectChildSupportSelectionSets_typenameFree
+        fieldName leftArguments rightArguments hleftPrefTypes hrightPrefTypes
+        hleftSuffixTypes hrightSuffixTypes hsupportTypes
+      have hchildTypes := selectionSetTypenameFree_flatten_cons hleftChildTypes
+        (selectionSetTypenameFree_flatten_cons hrightChildTypes hchildSupportTypes)
       have hchildSupportValid :
           ∀ supportSelectionSet,
             supportSelectionSet ∈
@@ -503,7 +553,7 @@ theorem
             hleftFree hrightFree hleftNormal hleftSub
             hrightNormal hrightSub hsupportObjectValid hlookup hnamedType hcomposite hsupport
       rcases
-          ih hleftChildValid hrightChildValid hleftChildCoercion
+          ih (hTypeNames := hchildTypes) hleftChildValid hrightChildValid hleftChildCoercion
             hrightChildCoercion
             hleftChildFree
             hrightChildFree hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub
@@ -551,7 +601,13 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       exact ⟨
         typeCondition,
         selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_left_typeCondition_diff_finiteSupport
@@ -560,16 +616,22 @@ theorem
           (parentType := parentType) (left := left) (right := right)
           (supportSelectionSets := supportSelectionSets) (typeCondition := typeCondition)
           (directives := directives) (childSelectionSet := childSelectionSet)
-          (minFuel := minFuel) hschema hleftValid hrightValid
-          hleftCoercion hrightCoercion hleftFree hrightFree
-          hleftNormal hleftSub hrightNormal hrightSub hnonObject hsupportValid hleftMem hrightNoTypeCondition
+          (minFuel := minFuel) hschema hleftValid hrightValid hleftCoercion hrightCoercion
+          hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hnonObject
+          hsupportValid hleftMem hrightNoTypeCondition
       ⟩
   | abstractRightTypeCondition hnonObject hrightMem hleftNoTypeCondition =>
       rename_i parentType left right typeCondition directives childSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       exact ⟨
         typeCondition,
         selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_right_typeCondition_diff_finiteSupport
@@ -578,9 +640,9 @@ theorem
           (parentType := parentType) (left := left) (right := right)
           (supportSelectionSets := supportSelectionSets) (typeCondition := typeCondition)
           (directives := directives) (childSelectionSet := childSelectionSet)
-          (minFuel := minFuel) hschema hleftValid hrightValid
-          hleftCoercion hrightCoercion hleftFree hrightFree
-          hleftNormal hleftSub hrightNormal hrightSub hnonObject hsupportValid hrightMem hleftNoTypeCondition
+          (minFuel := minFuel) hschema hleftValid hrightValid hleftCoercion hrightCoercion
+          hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hnonObject
+          hsupportValid hrightMem hleftNoTypeCondition
       ⟩
   | abstractChild hnonObject hleftMem hrightMem hchildDiff ih =>
       rename_i parentType typeCondition left right leftDirectives
@@ -588,7 +650,13 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftCoercion hrightCoercion
         hleftFree hrightFree hleftNormal hleftSub
-        hrightNormal hrightSub hsupportValid
+        hrightNormal hrightSub hsupportValid hTypeNames
+      have hleftTypes : selectionSetTypenameFree left :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hrightTypes : selectionSetTypenameFree right :=
+        selectionSetTypenameFree_flatten_mem hTypeNames (by simp)
+      have hsupportTypes : selectionSetTypenameFree supportSelectionSets.flatten :=
+        selectionSetTypenameFree_append_right (selectionSetTypenameFree_append_right hTypeNames)
       have hleftDirectivesNil : leftDirectives = [] :=
         selectionSetDirectiveFree_inlineFragment_directives_nil_of_mem
           hleftFree hleftMem
@@ -669,6 +737,18 @@ theorem
         ⟨rightPref, rightSuffix, hrightEq⟩
       subst left
       subst right
+      have hleftPrefTypes := selectionSetTypenameFree_append_left hleftTypes
+      have hrightPrefTypes := selectionSetTypenameFree_append_left hrightTypes
+      have hleftTailTypes := selectionSetTypenameFree_append_right hleftTypes
+      have hrightTailTypes := selectionSetTypenameFree_append_right hrightTypes
+      have hleftSuffixTypes := selectionSetTypenameFree_tail hleftTailTypes
+      have hrightSuffixTypes := selectionSetTypenameFree_tail hrightTailTypes
+      have hleftChildTypes := selectionSetTypenameFree_fragmentChildren hleftTailTypes List.mem_cons_self
+      have hrightChildTypes := selectionSetTypenameFree_fragmentChildren hrightTailTypes List.mem_cons_self
+      have hchildSupportTypes := abstractChildSupportSelectionSets_typenameFree
+        typeCondition hleftPrefTypes hrightPrefTypes hleftSuffixTypes hrightSuffixTypes hsupportTypes
+      have hchildTypes := selectionSetTypenameFree_flatten_cons hleftChildTypes
+        (selectionSetTypenameFree_flatten_cons hrightChildTypes hchildSupportTypes)
       have hchildSupportValid :
           ∀ supportSelectionSet,
             supportSelectionSet ∈
@@ -708,7 +788,7 @@ theorem
               (childSelectionSet := supportSelectionSet)
               hsupportValid hsupportTarget
       rcases
-          ih hleftChildValid hrightChildValid hleftChildCoercion
+          ih (hTypeNames := hchildTypes) hleftChildValid hrightChildValid hleftChildCoercion
             hrightChildCoercion
             hleftChildFree
             hrightChildFree hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub

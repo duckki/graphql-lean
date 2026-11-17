@@ -1,3 +1,4 @@
+import Proofs.GraphQL.SchemaWellFormedness.FieldLookup
 import GraphQL.Theories.QueryInclusionSemantics
 import GraphQL.Theories.NormalForm
 
@@ -140,15 +141,12 @@ private theorem concreteFieldWellFormed
       subst definition
       exact concreteArgWellFormed
 
-private theorem stringLeaf : exampleSchema.isLeafType "String" :=
-  ⟨.builtinScalar .string, rfl, trivial⟩
-
 private theorem concreteImplementsInterface
     : SchemaWellFormedness.fieldDefinitionImplements exampleSchema
         concreteField interfaceField := by
   constructor
   · change exampleSchema.namedOutputTypeSubtype "String" "String"
-    exact Or.inl ⟨stringLeaf, stringLeaf, rfl⟩
+    exact ⟨stringOutput, stringOutput, Or.inl rfl⟩
   · exact argsImplement
 
 private theorem concreteImplementsSelf
@@ -156,13 +154,9 @@ private theorem concreteImplementsSelf
         concreteField concreteField := by
   constructor
   · change exampleSchema.namedOutputTypeSubtype "String" "String"
-    exact Or.inl ⟨stringLeaf, stringLeaf, rfl⟩
+    exact ⟨stringOutput, stringOutput, Or.inl rfl⟩
   · simp [SchemaWellFormedness.argumentDefinitionsImplement,
       Schema.lookupArgumentDefinition, concreteField, concreteArg]
-
-private theorem stringSameShape
-    : FieldMerge.sameResponseShape exampleSchema (.named "String") (.named "String") := by
-  exact ⟨stringOutput, stringOutput, by intro _; rfl⟩
 
 private theorem interfaceTypeWellFormed
     : SchemaWellFormedness.interfaceTypeWellFormed exampleSchema interfaceType := by
@@ -175,10 +169,12 @@ private theorem interfaceTypeWellFormed
       have h : field = interfaceField := by simpa [interfaceType] using hmem
       subst field
       exact interfaceFieldWellFormed
-  constructor
+  refine ⟨?_, ?_, ?_, ?_⟩
   · simp [SchemaWellFormedness.namesAreUnique, interfaceType]
   · intro interfaceName hmem
     simp [interfaceType] at hmem
+  · simp [interfaceType]
+  · simp [SchemaWellFormedness.interfacesIncludeInherited, interfaceType]
 
 private theorem queryObjectWellFormed
     : SchemaWellFormedness.objectTypeWellFormed exampleSchema queryObject := by
@@ -191,7 +187,7 @@ private theorem queryObjectWellFormed
       have h : field = concreteField := by simpa [queryObject] using hmem
       subst field
       exact concreteFieldWellFormed
-  constructor
+  refine ⟨?_, ?_, ?_⟩
   · simp [SchemaWellFormedness.namesAreUnique, queryObject]
   · intro interfaceName hmem
     have h : interfaceName = "I" := by simpa [queryObject] using hmem
@@ -201,8 +197,14 @@ private theorem queryObjectWellFormed
     have h : field = interfaceField := by simpa [interfaceType] using hfield
     subst field
     exact ⟨concreteField, rfl, concreteImplementsInterface⟩
+  · intro interfaceName hmem implemented hlookup
+    have hname : interfaceName = "I" := by simpa [queryObject] using hmem
+    subst interfaceName
+    have htype : interfaceType = implemented := Option.some.inj hlookup
+    subst implemented
+    simp [interfaceType]
 
-private theorem lookupI (fieldName : Name)
+private theorem lookupI (fieldName : Name) (hmeta : fieldName ≠ "__typename")
     : exampleSchema.lookupField "I" fieldName
       = if fieldName = "f" then some interfaceField else none := by
   by_cases h : fieldName = "f"
@@ -210,11 +212,11 @@ private theorem lookupI (fieldName : Name)
     rfl
   · have hb : ("f" == fieldName) = false :=
       beq_eq_false_iff_ne.mpr (Ne.symm h)
-    unfold Schema.lookupField
-    rw [show exampleSchema.lookupType "I" = some (.interface interfaceType) from rfl]
-    simp [TypeDefinition.fields?, interfaceType, interfaceField, List.find?, hb, h]
+    simp [Schema.lookupField, Schema.lookupDeclaredField, hmeta,
+      show exampleSchema.lookupType "I" = some (.interface interfaceType) from rfl,
+      TypeDefinition.fields?, interfaceType, interfaceField, List.find?, hb, h]
 
-private theorem lookupQuery (fieldName : Name)
+private theorem lookupQuery (fieldName : Name) (hmeta : fieldName ≠ "__typename")
     : exampleSchema.lookupField "Query" fieldName
       = if fieldName = "f" then some concreteField else none := by
   by_cases h : fieldName = "f"
@@ -222,39 +224,48 @@ private theorem lookupQuery (fieldName : Name)
     rfl
   · have hb : ("f" == fieldName) = false :=
       beq_eq_false_iff_ne.mpr (Ne.symm h)
-    unfold Schema.lookupField
-    rw [show exampleSchema.lookupType "Query" = some (.object queryObject) from rfl]
-    simp [TypeDefinition.fields?, queryObject, concreteField, List.find?, hb, h]
+    simp [Schema.lookupField, Schema.lookupDeclaredField, hmeta,
+      show exampleSchema.lookupType "Query" = some (.object queryObject) from rfl,
+      TypeDefinition.fields?, queryObject, concreteField, List.find?, hb, h]
 
 private theorem possibleObjectFieldsImplement
     : SchemaWellFormedness.possibleObjectFieldDefinitionsImplement exampleSchema := by
   intro parentType objectTypeName fieldName expected hpossible hlookup
+  by_cases hmeta : fieldName = "__typename"
+  · subst fieldName
+    have htarget : objectTypeName = "Query" := by
+      rw [possibleTypes] at hpossible
+      split at hpossible
+      · simpa using hpossible
+      · cases hpossible
+    subst objectTypeName
+    exact SchemaWellFormedness.lookupField_typename_implements hlookup ⟨queryObject, rfl⟩
   have hparent := possibleTypes parentType
   by_cases hI : parentType = "I"
   · subst parentType
     have hobject : objectTypeName = "Query" := by simpa [possibleTypes] using hpossible
     subst objectTypeName
-    rw [lookupI] at hlookup
+    rw [lookupI fieldName hmeta] at hlookup
     by_cases hfield : fieldName = "f"
     · simp [hfield] at hlookup
       subst fieldName
       have hexpected : expected = interfaceField := by
         simpa using hlookup.symm
       subst expected
-      exact ⟨concreteField, by rfl, concreteImplementsInterface, stringSameShape⟩
+      exact ⟨concreteField, by rfl, concreteImplementsInterface⟩
     · simp [hfield] at hlookup
   by_cases hQ : parentType = "Query"
   · subst parentType
     have hobject : objectTypeName = "Query" := by simpa [possibleTypes] using hpossible
     subst objectTypeName
-    rw [lookupQuery] at hlookup
+    rw [lookupQuery fieldName hmeta] at hlookup
     by_cases hfield : fieldName = "f"
     · simp [hfield] at hlookup
       subst fieldName
       have hexpected : expected = concreteField := by
         simpa using hlookup.symm
       subst expected
-      exact ⟨concreteField, by rfl, concreteImplementsSelf, stringSameShape⟩
+      exact ⟨concreteField, by rfl, concreteImplementsSelf⟩
     · simp [hfield] at hlookup
   have hfalse : exampleSchema.getPossibleTypes parentType = [] := by
     rw [hparent]
@@ -362,19 +373,18 @@ private theorem operationValid (responseName : Name)
     subst left
     subst right
     refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
-    · change FieldMerge.sameResponseShape exampleSchema (.named "String") (.named "String")
-      have houtput : (TypeRef.named "String").isOutputType exampleSchema :=
-        ⟨.builtinScalar .string, rfl, trivial⟩
-      exact ⟨houtput, houtput, by intro _; rfl⟩
+    · refine .intro _ _ ?_ ?_
+      · change FieldMerge.sameTypeShape exampleSchema (.named "String") (.named "String")
+        exact ⟨⟨.builtinScalar .string, rfl, trivial⟩,
+          ⟨.builtinScalar .string, rfl, trivial⟩, by intro _; rfl⟩
+      · intro _ _ child hchild
+        simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
     · intro _
       constructor
       · rfl
       · simp [Argument.argumentsEquivalent, scopedField]
-    · intro _ objectType
-      refine FieldMerge.FieldsInSetCanMerge.intro objectType [] ?_
-      dsimp
-      intro left hleft
-      simp [FieldMerge.collectFields] at hleft
+    · intro _ child hchild
+      simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
   · simp [Validation.operationVariablesUsed, exampleOperation]
 
 private theorem concreteCoercionFails (values : Execution.VariableValues)

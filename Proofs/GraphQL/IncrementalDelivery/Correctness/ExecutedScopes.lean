@@ -194,14 +194,14 @@ mutual
             | scalar scalar =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error base 1)
+                · exact runEnsures_pure _ _ (ok base ResponseValue.null 1)
                 · exact runEnsures_pure _ _ (pure base _)
             | list items =>
-                simpa only [completeValue] using runEnsures_pure _ _ (error base 1)
+                simpa only [completeValue] using runEnsures_pure _ _ (ok base ResponseValue.null 1)
             | object runtimeType ref =>
                 simp only [completeValue]
                 split
-                · exact runEnsures_pure _ _ (error base 1)
+                · exact runEnsures_pure _ _ (ok base ResponseValue.null 1)
                 · refine runEnsures_bind (fun _ : FieldCollection => True) _ _ _
                     (fun _ => trivial) ?_
                   intro collection _
@@ -216,9 +216,9 @@ mutual
                 simpa only [completeValue] using runEnsures_pure _ _
                   (pure base ResponseValue.null)
             | scalar scalar =>
-                simpa only [completeValue] using runEnsures_pure _ _ (error base 1)
+                simpa only [completeValue] using runEnsures_pure _ _ (ok base ResponseValue.null 1)
             | object runtimeType ref =>
-                simpa only [completeValue] using runEnsures_pure _ _ (error base 1)
+                simpa only [completeValue] using runEnsures_pure _ _ (ok base ResponseValue.null 1)
             | list items =>
                 simpa only [completeValue] using completeListValueWithStream_scopes
                   schema resolvers variables fuel inner fields items path usages deferMap

@@ -88,6 +88,7 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_response
                 (Execution.executeSelectionSetAsResponse schema base variableValues fuel
                   runtimeType (.object runtimeType ref) childSelectionSet)) := by
   intro harguments hcoerce hlookup hinclude
+  have hfieldName := Schema.lookupField_ne_typename_of_includesObject hlookup hinclude
   let parentBase :=
     parentObjectProbeFieldResolvers base targetParent targetField runtimeType
       ref fieldDefinition.outputType
@@ -168,7 +169,7 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_response
                   fieldDefinition.arguments arguments with
         | error => simp [hcoercion] at hcoerce
         | success coercedArguments =>
-            simpa [Execution.resolveFieldValue, hcoercion, parentBase]
+            simpa [Execution.resolveFieldValue, hcoercion, parentBase, hfieldName]
               using parentObjectProbeFieldResolvers_target base targetParent targetField
                 runtimeType ref fieldDefinition.outputType coercedArguments)
       hinclude
@@ -214,6 +215,7 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_respons
                 (Execution.executeSelectionSetAsResponse schema base variableValues fuel
                   runtimeType (.object runtimeType ref) childSelectionSet)) := by
   intro harguments hcoerce hlookup hinclude
+  have hfieldName := Schema.lookupField_ne_typename_of_includesObject hlookup hinclude
   let parentBase :=
     parentObjectProbeFieldResolvers base targetParent targetField runtimeType
       ref fieldDefinition.outputType
@@ -294,7 +296,7 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_respons
                   fieldDefinition.arguments arguments with
         | error => simp [hcoercion] at hcoerce
         | success coercedArguments =>
-            simpa [Execution.resolveFieldValue, hcoercion, parentBase]
+            simpa [Execution.resolveFieldValue, hcoercion, parentBase, hfieldName]
               using parentObjectProbeFieldResolvers_target base targetParent targetField
                 runtimeType ref fieldDefinition.outputType coercedArguments)
       hinclude

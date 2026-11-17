@@ -485,7 +485,7 @@ noncomputable def
         -> schema.objectType parentType
         -> ScopedParentRuntimeApplies schema runtimeType parentType
         -> NormalForm.selectionSetSemanticsReady schema parentType selectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
+        -> NormalForm.runtimeMergeSource schema runtimeType selectionSet
         -> selectionSetArgumentsNodup selectionSet
         -> ExecutedGroupedSelectionSetAlignedState schema resolvers variableValues
             depth parentType (.object runtimeType identity) selectionSet := by
@@ -535,9 +535,12 @@ noncomputable def
           have hcompatible :
               CollectedGroupsFieldValidationMergeCompatible groups := by
             simpa [groups]
-              using collectFields_fieldCompatible_of_canMerge_lookupValid_object
-                schema variableValues parentType parentType runtimeType identity
-                selectionSet hmerge hparentRuntime hlookupReady
+              using collectFields_fieldCompatible_of_runtimeMergeSource
+                schema variableValues parentType runtimeType identity
+                selectionSet
+                (ScopedParentRuntimeApplies.runtimeObjectType schema hschema
+                  hparentRuntime)
+                hmerge
           have hcollected :
               ExecutionCollectedFieldInvariant
                 { window :=
@@ -639,14 +642,19 @@ noncomputable def
                       selectionSetSemanticsReady_mergedFieldSelectionSet schema
                         childRuntime (field :: prefixTail) hprefixReady
                     have hchildMerge :
-                        FieldMerge.fieldsInSetCanMerge schema childRuntime
+                        NormalForm.runtimeMergeSource schema childRuntime
                           (GraphQL.Execution.mergedFieldSelectionSet
-                            (field :: prefixTail)) :=
-                      collectFields_group_prefix_mergedFieldSelectionSet_canMerge_lookupValid_object
-                        schema variableValues parentType parentType runtimeType
-                        identity selectionSet responseName field fields
-                        prefixTail hlookupReady hmerge hparentRuntime hgroupMem
-                        hprefix childRuntime
+                            (field :: prefixTail)) := by
+                      rcases hlookups responseName field fields hgroup with
+                        ⟨definition, hlookup⟩
+                      apply collectFields_group_prefix_runtimeMergeSource schema hschema
+                        variableValues parentType runtimeType identity selectionSet
+                        responseName field fields prefixTail
+                        (ScopedParentRuntimeApplies.runtimeObjectType schema hschema hparentRuntime)
+                        (object_typeIncludesObjectBool_eq_self schema hobject hparentRuntime).symm
+                        hmerge hgroupMem hprefix
+                        hlookup
+                      simpa [Schema.fieldReturnType?, hlookup] using hincludes
                     have hcollectedChildren :=
                       (collectFields_argumentsAndChildrenNodup schema variableValues
                         parentType (.object runtimeType identity) selectionSet

@@ -777,9 +777,9 @@ def SelectionSetInclusionCaseReady (schema : Schema) (responseFuel : Nat)
   schema.objectType runtimeType
   ∧ fixedExecutionParentType.getD runtimeType = runtimeType
   ∧ NormalForm.selectionSetSemanticsReady schema runtimeType leftSelectionSet
-  ∧ FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet
+  ∧ NormalForm.runtimeMergeSource schema runtimeType leftSelectionSet
   ∧ NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet
-  ∧ FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet
+  ∧ NormalForm.runtimeMergeSource schema runtimeType rightSelectionSet
   ∧ selectionSetIncludesAtRuntimeBoolWithFuel schema responseFuel runtimeType runtimeType
       targetValues leftSelectionSet rightSelectionSet
     = true
@@ -850,12 +850,12 @@ mutual
       (hleftReady
         : NormalForm.selectionSetSemanticsReady schema runtimeType leftTargetSelectionSet)
       (hleftMerge
-        : FieldMerge.fieldsInSetCanMerge schema runtimeType leftTargetSelectionSet)
+        : NormalForm.runtimeMergeSource schema runtimeType leftTargetSelectionSet)
       (hrightReady
         : NormalForm.selectionSetSemanticsReady schema runtimeType
             rightTargetSelectionSet)
       (hrightMerge
-        : FieldMerge.fieldsInSetCanMerge schema runtimeType rightTargetSelectionSet)
+        : NormalForm.runtimeMergeSource schema runtimeType rightTargetSelectionSet)
       : selectionSetIncludesAtRuntimeBoolWithFuel schema responseFuel runtimeType
           runtimeType targetValues leftTargetSelectionSet rightTargetSelectionSet
         = true := by
@@ -1092,10 +1092,10 @@ mutual
                 hleftCompletionReady hchildIncludesBool
               have hrightChildReady := completionFieldsSemanticsReady_merged_semantics
                 hrightCompletionReady hchildIncludesBool
-              have hleftChildMerge := completionFieldsSemanticsReady_merged_canMerge
-                hleftCompletionReady childRuntimeType
-              have hrightChildMerge := completionFieldsSemanticsReady_merged_canMerge
-                hrightCompletionReady childRuntimeType
+              have hleftChildMerge := completionFieldsSemanticsReady_merged_runtimeSource
+                hschema hleftCompletionReady childRuntimeType hchildIncludesBool
+              have hrightChildMerge := completionFieldsSemanticsReady_merged_runtimeSource
+                hschema hrightCompletionReady childRuntimeType hchildIncludesBool
               have hseededChild : guardedFieldGroupsIncludeWithFuel schema childFuel none
                   childValues (guardedFieldGroups leftSeededEntries)
                     (guardedFieldGroups rightSeededEntries) = true :=
@@ -1367,10 +1367,10 @@ mutual
             hleftCompletionReady hchildIncludesBool
           have hrightChildReady := completionFieldsSemanticsReady_merged_semantics
             hrightCompletionReady hchildIncludesBool
-          have hleftChildMerge := completionFieldsSemanticsReady_merged_canMerge
-            hleftCompletionReady childRuntimeType
-          have hrightChildMerge := completionFieldsSemanticsReady_merged_canMerge
-            hrightCompletionReady childRuntimeType
+          have hleftChildMerge := completionFieldsSemanticsReady_merged_runtimeSource
+            hschema hleftCompletionReady childRuntimeType hchildIncludesBool
+          have hrightChildMerge := completionFieldsSemanticsReady_merged_runtimeSource
+            hschema hrightCompletionReady childRuntimeType hchildIncludesBool
           have hleftChildSelectionSet :
               (executableFieldsMergedSelectionSet guardedLeftFields).Perm
                 (executableFieldsMergedSelectionSet runtimeLeftFields) := by
@@ -1486,12 +1486,12 @@ mutual
       (hleftReady
         : NormalForm.selectionSetSemanticsReady schema runtimeType leftTargetSelectionSet)
       (hleftMerge
-        : FieldMerge.fieldsInSetCanMerge schema runtimeType leftTargetSelectionSet)
+        : NormalForm.runtimeMergeSource schema runtimeType leftTargetSelectionSet)
       (hrightReady
         : NormalForm.selectionSetSemanticsReady schema runtimeType
             rightTargetSelectionSet)
       (hrightMerge
-        : FieldMerge.fieldsInSetCanMerge schema runtimeType rightTargetSelectionSet)
+        : NormalForm.runtimeMergeSource schema runtimeType rightTargetSelectionSet)
       : selectionSetIncludesAtRuntimeBoolWithFuel schema responseFuel runtimeType
           runtimeType targetValues leftTargetSelectionSet rightTargetSelectionSet
         = true := by
@@ -2091,12 +2091,12 @@ mutual
                           hchildRightFieldsPerm
                     · simpa using completionFieldsSemanticsReady_merged_semantics
                         hleftCompletionReady hincludes
-                    · simpa using completionFieldsSemanticsReady_merged_canMerge
-                        hleftCompletionReady childRuntimeType
+                    · simpa using completionFieldsSemanticsReady_merged_runtimeSource
+                        hschema hleftCompletionReady childRuntimeType hincludes
                     · simpa using completionFieldsSemanticsReady_merged_semantics
                         hrightCompletionReady hincludes
-                    · simpa using completionFieldsSemanticsReady_merged_canMerge
-                        hrightCompletionReady childRuntimeType
+                    · simpa using completionFieldsSemanticsReady_merged_runtimeSource
+                        hschema hrightCompletionReady childRuntimeType hincludes
                     · exact hchildSemantic
                 · exact hruntimeSingletonInclude
               have hguardedRightIncluded := List.all_eq_true.mp hguardedSingletonInclude
@@ -2134,10 +2134,10 @@ theorem selectionSetIncludesBool_sound
     (hparentObject : schema.objectType parentType)
     (hleftReady
       : NormalForm.selectionSetSemanticsReady schema parentType leftSelectionSet)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType leftSelectionSet)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema parentType rightSelectionSet)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType rightSelectionSet)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType rightSelectionSet)
     (hleftComplete
       : boolVarsComplete
           (SelectionConditions.selectionSetBooleanVariables leftSelectionSet)
@@ -2185,10 +2185,10 @@ theorem selectionSetIncludesBool_complete
     (hparentObject : schema.objectType parentType)
     (hleftReady
       : NormalForm.selectionSetSemanticsReady schema parentType leftSelectionSet)
-    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType leftSelectionSet)
+    (hleftMerge : NormalForm.runtimeMergeSource schema parentType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema parentType rightSelectionSet)
-    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType rightSelectionSet)
+    (hrightMerge : NormalForm.runtimeMergeSource schema parentType rightSelectionSet)
     (hcases
       : ∀ variableValues,
           boolVarsComplete
@@ -2279,16 +2279,16 @@ theorem includesBool_to_selectionSetChecks
       exact
         NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
           hschema hleftValid
-    have hleftMerge : FieldMerge.fieldsInSetCanMerge schema
+    have hleftMerge : NormalForm.runtimeMergeSource schema
         (right.rootType schema) left.selectionSet := by
       rw [← beq_iff_eq.mp hroot]
-      exact Validation.operationDefinitionValid_fieldsInSetCanMerge hleftValid
+      exact operation_runtimeMergeSource_of_valid hschema hleftValid
     exact selectionSetIncludesBool_sound schema hschema (right.size + 1)
       (right.rootType schema) left.selectionSet right.selectionSet variableValues
       hrightObject hleftReady hleftMerge
       (NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
         hschema hrightValid)
-      (Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid)
+      (operation_runtimeMergeSource_of_valid hschema hrightValid)
       hleftComplete hrightComplete hcheck
   · simp at hcheck
 
@@ -2316,16 +2316,16 @@ theorem includesBool_complete_of_reference
     exact
       NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
         hschema hleftValid
-  have hleftMerge : FieldMerge.fieldsInSetCanMerge schema
+  have hleftMerge : NormalForm.runtimeMergeSource schema
       (right.rootType schema) left.selectionSet := by
     rw [← hroot]
-    exact Validation.operationDefinitionValid_fieldsInSetCanMerge hleftValid
+    exact operation_runtimeMergeSource_of_valid hschema hleftValid
   exact selectionSetIncludesBool_complete schema hschema (right.size + 1)
     (right.rootType schema) left.selectionSet right.selectionSet hrightObject
     hleftReady hleftMerge
     (NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
       hschema hrightValid)
-    (Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid)
+    (operation_runtimeMergeSource_of_valid hschema hrightValid)
     (fun conditionValues _hcomplete => hcases conditionValues)
 
 end QueryInclusion

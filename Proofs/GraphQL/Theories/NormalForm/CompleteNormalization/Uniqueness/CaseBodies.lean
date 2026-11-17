@@ -2,6 +2,7 @@ import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.ExecutionReadiness
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentCoercibility
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.GroundBridge
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.TypenameFree
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 
 /-!
@@ -577,6 +578,8 @@ theorem completeNormalSelection_has_match
           (Execution.coerceVariableValues rightOperation) parentType
           leftSelectionSet rightSelectionSet)
     {leftSelection : Selection} (hleftMem : leftSelection ∈ leftSelectionSet)
+    (hleftTypes : selectionSetTypenameFree leftSelectionSet := by typename_free)
+    (hrightTypes : selectionSetTypenameFree rightSelectionSet := by typename_free)
     : ∃ rightSelection,
         rightSelection ∈ rightSelectionSet
         ∧ CompleteNormalSelectionMatch schema leftOperation rightOperation
@@ -591,6 +594,8 @@ theorem completeNormalSelection_has_match
   rcases hleftBranches leftSelection hleftMem with
     ⟨leftCase, leftBody, hleftCase, hleftStem, hleftBodyNormal,
       hleftBodyFree⟩
+  have hleftBodyTypes := completeNormalBooleanStem_body_typenameFree hleftStem
+    (by unfold selectionSetTypenameFree at hleftTypes; exact hleftTypes _ hleftMem)
   have hleftReady :=
     completeNormalBooleanStem_body_valid_nonempty_of_mem hleftValid hleftSub
       hleftMem hleftStem
@@ -608,6 +613,8 @@ theorem completeNormalSelection_has_match
   · rcases hmatch with
       ⟨rightSelection, rightCase, rightBody, hrightMem, hrightCase,
         hrightStem, hequivalent, hrightBodyNormal, hrightBodyFree⟩
+    have hrightBodyTypes := completeNormalBooleanStem_body_typenameFree hrightStem
+      (by unfold selectionSetTypenameFree at hrightTypes; exact hrightTypes _ hrightMem)
     have hrightReady :=
       completeNormalBooleanStem_body_valid_nonempty_of_mem hrightValid hrightSub
         hrightMem hrightStem
@@ -657,6 +664,7 @@ theorem completeNormalSelection_has_match
         hselected.1 hschema hleftBodyValid hrightReady.1 hleftCoercion
         hrightCoercion hleftBodyFree
         hrightBodyFree hleftBodyNormal hleftBodySub hrightBodyNormal hrightBodySub hobject hselected.2
+        hleftBodyTypes hrightBodyTypes
     exact ⟨rightSelection, hrightMem, leftCase, rightCase, leftBody,
       rightBody, hleftCase, hrightCase, hleftStem, hrightStem,
       hleftBodyNormal, hrightBodyNormal, hleftBodyFree, hrightBodyFree,
@@ -725,6 +733,7 @@ theorem completeNormalSelection_has_match
         hleftBodyFree
         selectionSetDirectiveFree_nil hleftBodyNormal hleftBodySub
         (selectionSetNormal_nil schema parentType) GroundTypeNormalization.selectionSetSubselectionsNonempty_nil hobject hselectedNil.2
+        hleftBodyTypes selectionSetTypenameFree_nil
     exact False.elim
       (hleftBodyNonempty
         (selectionSetEqualUpToReorderingWithCoercion_eq_nil hbodyNilEqual))

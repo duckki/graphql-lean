@@ -78,15 +78,15 @@ mutual
                   hfield, hcoerce]
             | success coercedArguments =>
             cases hresolved :
-                resolvers.resolve parentType field.fieldName
+                GraphQL.Execution.resolveFieldValue resolvers parentType field.fieldName
                   coercedArguments source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
+                  executableFieldToSpec,
                   hfield, hcoerce, hresolved]
             | some resolved =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
+                  executableFieldToSpec,
                   hfield, hcoerce, hresolved,
                   completeValue_toSpec schema resolvers variableValues fragments fuel
                     fieldDefinition.outputType (field :: fields) resolved hinlined]
@@ -288,16 +288,14 @@ mutual
                   VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce]
             | success coercedArguments =>
             cases hresolved :
-                resolvers.resolve parentType field.fieldName
+                GraphQL.Execution.resolveFieldValue resolvers parentType field.fieldName
                   coercedArguments source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  GraphQL.Execution.resolveFieldValue,
                   VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce,
                   hresolved]
             | some resolved =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  GraphQL.Execution.resolveFieldValue,
                   VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce,
                   hresolved,
                   completeValue_toExpandedSpec schema resolvers variableValues

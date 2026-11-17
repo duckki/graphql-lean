@@ -4,6 +4,8 @@ This guide documents the specification-facing
 [`GraphQL.Execution`](../GraphQL/Execution.lean) model and its shared input and
 response abstractions. The target is the
 [GraphQL September 2026 Edition](https://spec.graphql.org/draft/).
+Schema and operation representation and validity are documented in
+[schemas](schema.md) and [operations](operations.md).
 See the [conformance summary](spec-conformance.md) for coverage and exclusions,
 [algorithms](algorithms.md) for alternative executors, and
 [incremental delivery](incremental-delivery/README.md) for the separate draft model.
@@ -11,8 +13,9 @@ See the [conformance summary](spec-conformance.md) for coverage and exclusions,
 ## Resolver and response boundary
 
 Execution is parameterized by abstract resolver functions. Runtime object values
-carry a GraphQL object type and an optional resolver-owned opaque reference;
-final responses contain neither object identity nor detailed error metadata.
+carry a GraphQL object type and a resolver-owned opaque reference. The reference
+type `ObjectRef` defaults to `PUnit`; final responses contain neither object
+identity nor detailed error metadata.
 Semantic equivalence can therefore quantify over resolver environments, variable
 values, explicit fuel values, and source values.
 
@@ -21,6 +24,21 @@ its value, and accumulates counted errors. `Response` is a data/errors envelope;
 `Result` distinguishes completed data from an error bubbling through a non-null
 position. The explicit fuel parameter bounds recursive completion, with
 `Execution.outOfFuel` represented by `.error 1`.
+
+## Type-name introspection
+
+Spec 4.1 `__typename` is an implicit `String!` field on objects, interfaces, and
+unions. `resolveFieldValue` resolves it through `resolveTypenameField`, returning
+the concrete type name carried by `ResolverValue.object` without invoking the
+user resolver. A selection through an interface or union therefore returns the
+runtime object's name. Aliases determine response keys; the field name determines
+built-in dispatch. Normal collection, directives, completion, and fuel rules apply.
+A non-object source fails resolution and uses the ordinary non-null error path.
+
+The named-fragment, incremental, and alternative executors share this behavior.
+The breadth executor maps the same built-in resolution over its source batch
+without calling the host batch resolver. Schema introspection through `__schema`
+and `__type` remains outside scope.
 
 ## Inputs and defaults
 
@@ -32,9 +50,16 @@ an omitted supplied variable receives its operation default, including an explic
 Before a resolver is invoked, `coerceArgumentValues` removes variable syntax and
 materializes schema argument defaults and nested input-object field defaults.
 Omitted values and undefined variables activate defaults; explicit `null` does
-not. Schema well-formedness rejects input-object default-expansion cycles.
-Execution remains bounded for permissive raw schemas; this does not impose a
-bound on finite, user-supplied recursive inputs through nullable or list fields.
+not. Execution remains bounded for permissive raw schemas; this does not impose
+a bound on finite, user-supplied recursive inputs through nullable or list fields.
+Schema default and cycle requirements are described in
+[schemas](schema.md#input-object-cycles).
+
+Custom-scalar payloads pass through as opaque constant values, including objects
+and lists. Argument preparation preserves their contents without applying
+input-object field checks or defaults inside the payload. Scalar-specific value
+coercion remains an assumption. Missing arguments, defaults, nullability, and list
+wrappers still use the ordinary input-preparation rules.
 
 Defaulting happens before directive evaluation. The `if` argument of `@skip`
 and `@include` has type `Boolean!`, but spec 5.8.5 permits a nullable Boolean
@@ -70,6 +95,9 @@ practical:
   an execution error has bubbled through a non-null response position;
   `.ok (value, n)` means completion produced data and accumulated `n` execution
   errors below it.
+- Runtime output-shape mismatches complete as `null` with one error at the
+  failing nullable position. Non-null wrappers propagate that counted error;
+  nullable list items retain their position without nulling the enclosing list.
 - `Response` models the spec 7.1 execution result as `data` plus a `Nat` count
   standing in for the detailed non-empty `errors` list.
 - Resolver failure is modeled as `none` and handled like a field execution
@@ -85,18 +113,13 @@ practical:
 
 ## Named-fragment execution
 
-[`GraphQL.NamedFragment`](../GraphQL/NamedFragment/) provides separate
-fragment-aware operation syntax, validation, direct execution, and static inlining
-into the core operation model. Direct collection threads the spec's
+[`GraphQL.NamedFragment`](../GraphQL/NamedFragment/) provides direct
+fragment-aware execution and static inlining into the core operation model.
+Syntax and validation are described in [operations](operations.md#named-fragments).
+Direct collection threads the spec's
 `visitedFragments` context and filters repeated spreads. The execution bridge
 shows that the repeated fields retained by static inlining are absorbed during
 execution.
-
-The all-variables-used check follows fragment spreads transitively and does not
-count uses in unreferenced fragments. Core validation also includes recursive
-input-object checks, variable/input-type compatibility with the nullable-variable
-default exception, non-empty root/composite selection sets, and response-name
-merge compatibility. These remain assumptions separate from permissive raw syntax.
 
 ## Conformance fixtures
 

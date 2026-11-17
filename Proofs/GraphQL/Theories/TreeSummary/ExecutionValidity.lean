@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.CachedRefinement.TreeSoundness.Invariants
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection.StateInvariant
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection.RuntimeSources
 
 /-! Validation facts shared by TreeSummary execution-soundness proofs. -/
 
@@ -20,7 +21,7 @@ def ExecutableFieldsChildrenValid (schema : Schema) (parentType : Name)
     -> schema.objectType childRuntime
         ∧ NormalForm.selectionSetSemanticsReady schema childRuntime
             (Execution.mergedFieldSelectionSet fields)
-        ∧ FieldMerge.fieldsInSetCanMerge schema childRuntime
+        ∧ NormalForm.runtimeMergeSource schema childRuntime
             (Execution.mergedFieldSelectionSet fields)
 
 /-- Field-merging and argument-validity facts retained recursively for collected runtime
@@ -48,7 +49,7 @@ theorem collectFields_executableGroupsValid
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hobject : schema.objectType runtimeType)
     (hready : NormalForm.selectionSetSemanticsReady schema runtimeType selectionSet)
-    (hmerge : FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet)
+    (hsource : NormalForm.runtimeMergeSource schema runtimeType selectionSet)
     (harguments : selectionSetArgumentsNodup selectionSet)
     : ExecutableGroupsValid schema runtimeType
         (collectFields schema variableValues runtimeType (.object runtimeType ref)
@@ -57,14 +58,10 @@ theorem collectFields_executableGroupsValid
   let groups := collectFields schema variableValues runtimeType source selectionSet
   have hself : ScopedParentRuntimeApplies schema runtimeType runtimeType := by
     exact NormalForm.object_typeIncludesObjectBool_self schema hobject
-  have hlookupValid :
-      NormalForm.selectionSetLookupValid schema runtimeType selectionSet :=
-    NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet hready
   intro responseName fields hgroup
   have hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields := by
-    have hall := collectFields_fieldCompatible_of_canMerge_lookupValid_object schema
-      variableValues runtimeType runtimeType runtimeType ref selectionSet hmerge hself
-      hlookupValid
+    have hall := collectFields_fieldCompatible_of_runtimeMergeSource schema
+      variableValues runtimeType runtimeType ref selectionSet hobject hsource
     exact hall responseName fields (by simpa [groups, source] using hgroup)
   have hargumentFacts := collectFields_argumentsAndChildrenNodup schema variableValues
     runtimeType source selectionSet harguments
@@ -82,11 +79,12 @@ theorem collectFields_executableGroupsValid
       · exact
           Algorithms.ExecutionUngrouped.collectedGroup_mergedFieldSelectionSet_semanticsReady
             schema variableValues runtimeType runtimeType ref selectionSet responseName
-            fields first definition childRuntime hobject hself hready hmerge
+            fields first definition childRuntime hobject hself hready hsource
             (by simpa [groups, source] using hgroup) hfirst hlookup hinclude
-      · exact Algorithms.ExecutionUngrouped.collectedGroup_mergedFieldSelectionSet_canMerge
-          schema variableValues runtimeType runtimeType ref selectionSet responseName fields
-          hmerge hself hlookupValid (by simpa [groups, source] using hgroup) childRuntime
+      · exact Algorithms.ExecutionUngrouped.collectedGroup_mergedFieldSelectionSet_runtimeSource
+          schema hschema variableValues runtimeType runtimeType ref selectionSet responseName
+          fields first definition childRuntime hobject hself hsource
+          (by simpa [groups, source] using hgroup) hfirst hlookup hinclude
     argumentsNodup :=
       hargumentFacts.1 responseName fields (by simpa [groups, source] using hgroup)
     childArgumentsNodup := by

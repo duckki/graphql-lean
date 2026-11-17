@@ -6,14 +6,16 @@ Spec reference: GraphQL September 2026.
   represented directly, constant values are separated for defaults, and coercion/source
   parsing are out of scope.
 - 2.14 Schema Coordinates are not modeled; this formalization has no source-level
-  coordinate syntax or introspection surface.
+  coordinate syntax.
 - 3.3-3.13 Type System: schema and type definitions cover core GraphQL types, wrapping
   types, built-in scalars, and the `@skip`/`@include` scalar dependencies, but omit
-  descriptions, extensions, introspection, mutation/subscription roots, and OneOf
-  metadata.
+  descriptions, extensions, schema introspection, mutation/subscription roots, and
+  OneOf metadata.
 - 3.13 Directives: directive definitions, including the directives applied to them, are
   represented with the built-in definitions. Directives applied to schema elements other
   than directive definitions, and directive extensions, are omitted.
+- 4.1 Type Name Introspection: field lookup supplies implicit `__typename: String!`
+  on composite types without adding it to their declared field lists.
 - 5.5.2.3 Fragment Spread Is Possible: possible-object helpers model the spec's
   `GetPossibleTypes` basis for overlap checks.
 -/
@@ -45,6 +47,19 @@ end SemanticEquivalence
 -- Spec 2.1.8 `Name`: partial; raw `String` does not enforce the GraphQL name grammar or
 -- reserved `__` rules.
 abbrev Name := String
+
+/-- Names of named GraphQL types; wrappers are represented separately by `TypeRef`.
+This alias imposes no existence, category, or uniqueness invariant. -/
+abbrev TypeNames := List Name
+
+/-- Names intended to identify object types; well-formedness checks their category. -/
+abbrev ObjectTypeNames := List Name
+
+/-- Names intended to identify interface types; well-formedness checks their category. -/
+abbrev InterfaceTypeNames := List Name
+
+/-- Enum value names, with validity and uniqueness checked by well-formedness. -/
+abbrev EnumValueNames := List Name
 
 -- Spec 2.10 `Value`: partial; literals and variables are represented, but
 -- constant-vs-variable contexts and input coercion are handled elsewhere or omitted.
@@ -396,7 +411,7 @@ deriving Repr
 structure ObjectType where
   name : Name
   fields : List FieldDefinition
-  interfaces : List Name := []
+  interfaces : InterfaceTypeNames := []
 deriving Repr
 
 -- Spec 3.7 `InterfaceTypeDefinition`: partial; fields and declared implemented interfaces
@@ -405,21 +420,21 @@ deriving Repr
 structure InterfaceType where
   name : Name
   fields : List FieldDefinition
-  interfaces : List Name := []
+  interfaces : InterfaceTypeNames := []
 deriving Repr
 
 -- Spec 3.8 `UnionTypeDefinition`: partial; member object names are represented, but
 -- descriptions, directives, extensions, and reserved-name validation are omitted.
 structure UnionType where
   name : Name
-  members : List Name
+  members : ObjectTypeNames
 deriving Repr, DecidableEq
 
 -- Spec 3.9 `EnumTypeDefinition`: partial; enum values are named but descriptions,
 -- directives, deprecation, and reserved-name validation are omitted.
 structure EnumType where
   name : Name
-  values : List Name
+  values : EnumValueNames
 deriving Repr, DecidableEq
 
 -- Spec 3.10 `InputObjectTypeDefinition`: partial; input fields are represented, but
@@ -455,7 +470,7 @@ def name : TypeDefinition -> Name
   | .enum enumType => enumType.name
   | .inputObject inputObjectType => inputObjectType.name
 
--- Spec 5.3 field selection lookup applies only to object and interface definitions.
+-- Spec 3.6 / 3.7 declared field lists belong only to object and interface definitions.
 def fields? : TypeDefinition -> Option (List FieldDefinition)
   | .object objectType => some objectType.fields
   | .interface interfaceType => some interfaceType.fields
@@ -548,7 +563,7 @@ deriving Repr
 
 -- Spec 3.3 `Schema`: partial; the query root, type list, and directive definitions are
 -- modeled, omitting mutation/subscription roots, schema directives, descriptions,
--- extensions, and introspection.
+-- extensions, and schema introspection.
 structure Schema where
   queryType : Name
   types : List TypeDefinition
@@ -586,6 +601,12 @@ def lookupObject (schema : Schema) (typeName : Name) : Option ObjectType := do
 def lookupInputObject (schema : Schema) (typeName : Name) : Option InputObjectType := do
   match schema.lookupType typeName with
   | some (.inputObject inputObject) => some inputObject
+  | _ => none
+
+-- Spec 3.5 custom scalars retain their identity while value coercion stays abstract.
+def lookupCustomScalar (schema : Schema) (typeName : Name) : Option CustomScalarType := do
+  match schema.lookupType typeName with
+  | some (.customScalar scalar) => some scalar
   | _ => none
 
 -- Spec 3.7 interface lookup helper for implementation checks and possible types.
@@ -718,17 +739,34 @@ def objectTypes (schema : Schema) : List ObjectType :=
 
 -- Spec 5.5.2.3 `GetPossibleTypes` interface case: objects implementing an interface.
 def objectTypesImplementingInterface (schema : Schema) (interfaceName : Name)
-    : List Name :=
+    : ObjectTypeNames :=
   (schema.objectTypes.filter
     (fun objectType =>
       schema.objectTypeImplementsInterfaceBool objectType interfaceName)).map
     ObjectType.name
 
-def lookupField (schema : Schema) (parentType fieldName : Name)
+-- Lookup over explicitly declared fields; implicit meta-fields are handled separately.
+def lookupDeclaredField (schema : Schema) (parentType fieldName : Name)
     : Option FieldDefinition := do
   let typeDefinition <- schema.lookupType parentType
   let fields <- typeDefinition.fields?
   fields.find? (fun field => field.name == fieldName)
+
+-- Spec 4.1 `__typename` is a non-null string leaf without arguments.
+def typenameFieldDefinition : FieldDefinition :=
+  { name := "__typename", outputType := .nonNull (.named "String") }
+
+-- Spec 4.1 / 5.3 selectable field lookup. The implicit definition takes precedence
+-- over conflicting raw declarations and is available directly on unions as well.
+def lookupField (schema : Schema) (parentType fieldName : Name)
+    : Option FieldDefinition :=
+  if fieldName == "__typename" then
+    match schema.lookupType parentType with
+    | some (.object _) | some (.interface _) | some (.union _) =>
+        some typenameFieldDefinition
+    | _ => none
+  else
+    schema.lookupDeclaredField parentType fieldName
 
 -- Spec 5.4.1 argument definition lookup by name.
 def lookupArgumentDefinition (definitions : List InputValueDefinition)
@@ -747,7 +785,7 @@ def fieldReturnType? (schema : Schema) (parentType fieldName : Name) : Option Na
 
 -- Spec 5.5.2.3 `GetPossibleTypes`: object and union cases are direct; interface cases are
 -- derived from object type declarations in the schema.
-def getPossibleTypes (schema : Schema) (typeName : Name) : List Name :=
+def getPossibleTypes (schema : Schema) (typeName : Name) : ObjectTypeNames :=
   match schema.lookupType typeName with
   | some (.object objectType) => [objectType.name]
   | some (.interface interfaceType) =>
@@ -848,7 +886,8 @@ def getConstInputObjectField? (fields : List (Name × ConstInputValue)) (name : 
 
 mutual
   -- Spec 3.6.1 / 3.10 default-value validity: constants are checked against input
-  -- object definitions recursively, while scalar coercion details remain out of scope.
+  -- object definitions recursively. Custom-scalar payloads stay opaque, while scalar
+  -- coercion details remain out of scope.
   inductive ConstInputValueIsCorrectType (schema : Schema)
       : ConstInputValue -> TypeRef -> Prop where
     | nullNamed (typeName : Name) (hinput : (TypeRef.named typeName).isInputType schema)
@@ -870,6 +909,12 @@ mutual
       (hinput : (TypeRef.named typeName).isInputType schema)
       (hlookup : schema.lookupInputObject typeName = some inputObject)
       (hfields : ConstInputObjectFieldsValid schema inputObject.inputFields fields)
+      : ConstInputValueIsCorrectType schema
+          (ConstInputValue.object fields) (TypeRef.named typeName)
+    | objectCustomScalar (fields : List (Name × ConstInputValue)) (typeName : Name)
+      (scalar : CustomScalarType)
+      (hinput : (TypeRef.named typeName).isInputType schema)
+      (hlookup : schema.lookupCustomScalar typeName = some scalar)
       : ConstInputValueIsCorrectType schema
           (ConstInputValue.object fields) (TypeRef.named typeName)
     | objectAsListItem (fields : List (Name × ConstInputValue)) (inner : TypeRef)
@@ -935,18 +980,25 @@ def constInputValueIsCorrectType (schema : Schema)
     : Prop :=
   ConstInputValueIsCorrectType schema value expectedType
 
--- Spec 3.6 / 3.7 field return covariance for object/interface implementation:
--- wrappers are structural, leaf named types are invariant, and composite named types
--- compare by possible runtime object subset.
+-- Spec 3.6 `IsSubType`: identity, object membership in a union, or a declared
+-- object/interface implementation of the supertype interface. Callers validate
+-- named-type existence and any input/output category requirements separately.
+def isSubType (schema : Schema) (possibleSubType superType : Name) : Prop :=
+  possibleSubType = superType
+  ∨ match schema.lookupType possibleSubType, schema.lookupType superType with
+    | some (.object _), some (.union unionType) =>
+        possibleSubType ∈ unionType.members
+    | some (.object objectType), some (.interface _) =>
+        superType ∈ objectType.interfaces
+    | some (.interface interfaceType), some (.interface _) =>
+        superType ∈ interfaceType.interfaces
+    | _, _ => False
+
+-- Non-spec domain wrapper restricting `IsSubType` to existing named output types.
 def namedOutputTypeSubtype (schema : Schema) (implementation expected : Name) : Prop :=
-  (schema.isLeafType implementation
-    ∧ schema.isLeafType expected
-    ∧ implementation = expected)
-  ∨ (schema.isCompositeType implementation
-      ∧ schema.isCompositeType expected
-      ∧ ∀ objectName,
-          schema.typeIncludesObject implementation objectName
-          -> schema.typeIncludesObject expected objectName)
+  schema.isOutputType implementation
+  ∧ schema.isOutputType expected
+  ∧ schema.isSubType implementation expected
 
 -- Spec 3.6 / 3.7 field return covariance with GraphQL wrapper rules: implementation
 -- non-null may refine nullable, expected non-null requires implementation non-null, and
