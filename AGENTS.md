@@ -10,8 +10,7 @@ The main model's explicit skips include:
 
 - mutation,
 - subscription,
-- custom executable directives beyond modeled `@skip` and `@include`, and type-system
-  directives other than those applied to directive definitions,
+- custom directives beyond modeled `@skip` and `@include`,
 - coercion, assuming values are already coerced and type-conformant,
 - schema introspection beyond `__typename`,
 - request errors, detailed execution error maps, response `extensions`, error

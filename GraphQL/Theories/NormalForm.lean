@@ -351,52 +351,6 @@ def operationSubselectionsNonempty (schema : Schema) (operation : Operation) : P
   selectionSetSubselectionsNonempty schema (operation.rootType schema)
     operation.selectionSet
 
--- The September 2025 non-emptiness rule for every field, checked again in every possible
--- object scope that ground normalization may place it in. This mirrors
--- `selectionValidInPossibleTypes`. Inline fragments outside any field may be empty, since
--- normalization drops them.
-mutual
-  def selectionSubselectionsNonemptyInPossibleTypes (schema : Schema) (parentType : Name)
-      : Selection -> Prop
-    | fieldSelection@(
-          .field _responseName fieldName _arguments _directives selectionSet) =>
-        selectionSubselectionsNonempty schema parentType fieldSelection
-        ∧ match schema.lookupField parentType fieldName with
-          | none => True
-          | some fieldDefinition =>
-              ∀ objectType,
-                objectType ∈ schema.getPossibleTypes fieldDefinition.outputType.namedType
-                -> selectionSetSubselectionsNonemptyInPossibleTypes schema objectType
-                    selectionSet
-    | .inlineFragment none _directives selectionSet =>
-        ∀ objectType,
-          objectType ∈ schema.getPossibleTypes parentType
-          -> selectionSetSubselectionsNonemptyInPossibleTypes schema objectType
-              selectionSet
-    | .inlineFragment (some typeCondition) _directives selectionSet =>
-        schema.typesOverlapBool parentType typeCondition = true
-        -> ∀ objectType,
-            objectType ∈ schema.getPossibleTypes typeCondition
-            -> selectionSetSubselectionsNonemptyInPossibleTypes schema objectType
-                selectionSet
-
-  def selectionSetSubselectionsNonemptyInPossibleTypes (schema : Schema)
-      (parentType : Name)
-      : List Selection -> Prop
-    | [] => True
-    | selection :: rest =>
-        selectionSubselectionsNonemptyInPossibleTypes schema parentType selection
-        ∧ selectionSetSubselectionsNonemptyInPossibleTypes schema parentType rest
-end
-
--- Operation-level wrapper for the possible-type form of the September 2025 non-emptiness
--- rule.
-def operationSubselectionsNonemptyInPossibleTypes (schema : Schema)
-    (operation : Operation)
-    : Prop :=
-  selectionSetSubselectionsNonemptyInPossibleTypes schema (operation.rootType schema)
-    operation.selectionSet
-
 def operationsEquivalent (schema : Schema) (left right : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
     variableValues fuel (source : Execution.ResolverValue ObjectRef),
@@ -840,8 +794,8 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
 -- `GroundTypeNormalization.normalizeOperation_uniqueUpToReordering` in
 -- `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
 -- The non-emptiness premise is the one that
--- `normalOperationsSemanticallyEquivalentEqualUpToReordering` needs, stated in every
--- possible object scope so that the normalized operations meet it.
+-- `normalOperationsSemanticallyEquivalentEqualUpToReordering` needs; normalization
+-- preserves it.
 def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
@@ -857,8 +811,8 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
   -> operationFieldsSameOutputShape schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
-  -> operationSubselectionsNonemptyInPossibleTypes schema left
-  -> operationSubselectionsNonemptyInPossibleTypes schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
@@ -1484,8 +1438,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationFieldsSameOutputShape schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
-  -> operationSubselectionsNonemptyInPossibleTypes schema left
-  -> operationSubselectionsNonemptyInPossibleTypes schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationBoolVarsEquivalent left right

@@ -86,8 +86,7 @@ theorem validInheritance_accepted : schemaWellFormed validSchema := by
     ⟨rfl, rfl⟩,
     ?_,
     ?_,
-    ?_,
-    directiveDefinitionsWellFormed_of_directives_nil rfl
+    ?_
   ⟩
   · intro parent object hpossible
     rw [possibleTypes] at hpossible
@@ -156,8 +155,7 @@ theorem diamondInheritance_accepted : schemaWellFormed diamondSchema := by
     ⟨rfl, rfl⟩,
     ?_,
     ?_,
-    ?_,
-    directiveDefinitionsWellFormed_of_directives_nil rfl
+    ?_
   ⟩
   · intro parent object hpossible
     rw [hpossibleTypes] at hpossible

@@ -56,21 +56,6 @@ theorem selectionSetObservableInScope_of_contains
   intro hcontains _hnonempty
   exact hcontains
 
-theorem selectionSetFeasibleInScope_of_everyNormalizerScope
-    {schema : Schema} {parentType : Name} {selectionSet : List Selection}
-    : selectionSetsTypeConditionFeasibleInEveryNormalizerScope schema
-      -> selectionSetFeasibleInScope schema parentType selectionSet := by
-  intro hfeasibleAll
-  constructor
-  · intro hnonempty
-    exact (hfeasibleAll parentType selectionSet hnonempty).1
-  · by_cases hnonempty : selectionSet ≠ []
-    · exact (hfeasibleAll parentType selectionSet hnonempty).2
-    · have hempty : selectionSet = [] := by
-        exact Classical.not_not.mp hnonempty
-      subst selectionSet
-      simp [selectionSetTypeConditionFeasible]
-
 theorem selectionSetTypeConditionFeasible_allFields_of_mem
     {schema : Schema} {parentType : Name}
     {typeConditions : List Name} {selectionSet : List Selection}

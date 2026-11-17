@@ -15,10 +15,9 @@ are documented in [schemas](schema.md), [operations](operations.md),
 ## Main model: covered
 
 - **Schema and types:** objects, interfaces, unions, enums, scalars, input objects,
-  lists, and non-null types; directive definitions, including directives applied to
-  them; schema well-formedness for name uniqueness, members, references, defaults,
-  input-object cycles, root types, interface inheritance, field implementation, and
-  directive definitions. Inheritance validation includes explicit ancestor
+  lists, and non-null types; schema well-formedness for name uniqueness, members,
+  references, defaults, input-object cycles, root types, interface inheritance,
+  and field implementation. Inheritance validation includes explicit ancestor
   declarations, self-implementation rejection, and cycle rejection.
 - **Query operations:** fields, aliases, arguments, variables and defaults, inline
   fragments, runtime type conditions, and `@skip` / `@include`.
@@ -56,9 +55,7 @@ Not covered:
 - Name grammar and reserved-name validation, including the `__` prefix. Names are
   modeled as uninterpreted strings; spelling restrictions are deliberately not modeled.
 - Mutation and subscription execution.
-- Custom executable directives beyond `@skip` / `@include`, directives applied to
-  schema elements other than directive definitions, and directive extensions.
-- OneOf input objects.
+- Custom directives and directive definitions beyond the modeled built-ins.
 - Scalar/enum parsing and coercion details, including result coercion.
 - Schema introspection, including `__schema` and `__type`.
 - Request errors, detailed execution errors, messages, paths, locations, and

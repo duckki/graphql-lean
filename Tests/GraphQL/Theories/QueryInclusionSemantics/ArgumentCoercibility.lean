@@ -309,12 +309,7 @@ private theorem schemaWellFormed
     by_cases h : typeName = "I" ∨ typeName = "Query"
     · simp [h]
     · simp [h]
-  constructor
   · exact possibleObjectFieldsImplement
-  · constructor
-    · simp [SchemaWellFormedness.namesAreUnique, Schema.allDirectives,
-        Schema.builtinDirectiveDefinitions, exampleSchema]
-    · simp [exampleSchema]
 
 private theorem operationValid (responseName : Name)
     : Validation.operationDefinitionValid exampleSchema

@@ -337,10 +337,16 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
 `operationSubselectionsNonempty` is the September 2025 rule that every inline fragment
 and every composite-typed field has a non-empty selection set. The September 2026
 specification allows empty selection sets, and without the premise the statement is
-false: an empty inline fragment is unobservable, so `{ hero { ... on Droid {} } }` and
-`{ hero {} }` are semantically equivalent normal operations that are not equal up to
-reordering. The separation proof also needs every composite field to have an observable
-leaf below it, which empty composite selection sets would break.
+false in two ways:
+
+- An empty inline fragment is unobservable: `{ hero { ... on Droid {} } }` and
+  `{ hero {} }` are semantically equivalent normal operations that are not equal up to
+  reordering.
+- Two fields with empty selection sets are indistinguishable. If `f: Box!` and `g: Box!`,
+  the normal operations `{ a: f {} b: g {} }` and `{ a: g {} b: f {} }` always have
+  equivalent responses: successful completion exposes only empty objects, while a
+  failure bubbles to root null with the same error count. Which resolver call produced
+  which response name is unobservable.
 
 Ground-normalization uniqueness is:
 
@@ -360,8 +366,8 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
   -> operationFieldsSameOutputShape schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
-  -> operationSubselectionsNonemptyInPossibleTypes schema left
-  -> operationSubselectionsNonemptyInPossibleTypes schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
@@ -502,8 +508,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationFieldsSameOutputShape schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
-  -> operationSubselectionsNonemptyInPossibleTypes schema left
-  -> operationSubselectionsNonemptyInPossibleTypes schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationBoolVarsEquivalent left right
@@ -520,14 +526,15 @@ The possible-type, output-shape agreement, and Boolean/type-condition feasibilit
 assumptions ensure complete normalization preserves validity and does not create
 semantically empty branches. The shape premise is the same conservative condition
 described in the [normal-form guide](normal-form.md#validity-preservation).
-`operationSubselectionsNonemptyInPossibleTypes` checks the September 2025 non-emptiness
-rule for every field in each possible object scope, mirroring
-`operationFieldsValidInPossibleTypes`. With the Boolean feasibility assumption it ensures
-that the normalized operations meet `operationSubselectionsNonempty`, which the
-already-normal theorem requires; this is
+Both normalizers preserve `operationSubselectionsNonempty`, so the normalized
+operations meet the premise that the already-normal theorem requires; this is
 `CompleteNormalization.completeNormalizeOperation_subselectionsNonempty`, and
 `GroundTypeNormalization.normalizeOperation_subselectionsNonempty` is the ground
-counterpart.
+counterpart. The source premise is checked in each selection's declared scope. Schema
+covariance carries it to the object scopes that normalization introduces: a composite
+implementation return type has a composite declared type, and its possible types are
+possible types of the declared type. Type-condition feasibility keeps a non-empty child
+from normalizing to an empty one, since an infeasible stack drops every field below it.
 The stricter, mode-free feasibility predicate ensures every Boolean condition
 and type-condition path is feasible, so all source field and variable uses
 survive in at least one complete branch. The normalized operations'

@@ -8,12 +8,9 @@ Spec reference: GraphQL September 2026.
 - 3.6-3.10 Object, Interface, Union, Enum, and Input Object validation: modeled partially,
   covering uniqueness, non-empty member/field lists, default-value validity, and
   object/interface field implementation compatibility and interface inheritance.
-- 3.13 Directives: directive definitions are checked for locations, self-reference,
-  argument definitions, and the directives applied to them (5.4 and 5.7 read over
-  constant arguments).
 - Fidelity note: several normative rules are omitted, including reserved `__` names,
-  directives on schema elements other than directive definitions, extensions, OneOf,
-  mutation/subscription roots, and schema introspection.
+  directive validation, extensions,
+  OneOf, mutation/subscription roots, and schema introspection.
 -/
 
 namespace GraphQL
@@ -148,10 +145,9 @@ def inputObjectTypeWellFormed (schema : Schema) (inputObjectType : InputObjectTy
   listNonempty inputObjectType.inputFields
   ∧ inputValueDefinitionsWellFormed schema inputObjectType.inputFields
 
--- Spec 3.10 `InputObjectHasUnbreakableCycle`: without OneOf input objects, which this
--- model omits, an unbreakable cycle is an unbroken chain of singular non-null input object
--- fields. Nullable and list fields break the chain, so schemas may still represent finite
--- recursive input values.
+-- Spec 3.10 circular-reference rule: only an unbroken chain of singular non-null input
+-- object fields is forbidden. Nullable and list fields deliberately break the chain, so
+-- schemas may still represent finite recursive input values.
 def nonNullSingularInputObjectTarget? (inputType : TypeRef) : Option Name :=
   match inputType with
   | .nonNull (.named target) => some target
@@ -302,60 +298,9 @@ def possibleObjectFieldDefinitionsImplement (schema : Schema) : Prop :=
         schema.lookupField objectTypeName fieldName = some implementation
         ∧ fieldDefinitionImplements schema implementation expected
 
--- Spec 5.4.1-5.4.3 and 5.6.1 for one directive applied in the type system: every
--- argument is defined with a value of its type, names are unique, and required
--- arguments are supplied with a non-null value.
-def constArgumentsValid (schema : Schema) (definitions : List InputValueDefinition)
-    (arguments : List ConstArgument)
-    : Prop :=
-  namesAreUnique (arguments.map ConstArgument.name)
-  ∧ (∀ argument,
-      argument ∈ arguments
-      -> ∃ definition,
-          Schema.lookupArgumentDefinition definitions argument.name = some definition
-          ∧ argument.value.isCorrectType schema definition.inputType)
-  ∧ ∀ definition,
-      definition ∈ definitions
-      -> definition.isRequired
-      -> ∃ argument,
-          argument ∈ arguments ∧ argument.name = definition.name ∧ argument.value.nonNull
-
--- Spec 5.7.1-5.7.3 for directives applied at a type-system `location`: each is defined,
--- allowed at the location, and valid in its arguments, and a non-repeatable directive is
--- applied at most once.
-def constDirectiveApplicationsValid (schema : Schema) (location : DirectiveLocation)
-    (applications : List ConstDirectiveApplication)
-    : Prop :=
-  ∀ application,
-    application ∈ applications
-    -> ∃ definition,
-        schema.lookupDirective application.name = some definition
-        ∧ location ∈ definition.locations
-        ∧ constArgumentsValid schema definition.arguments application.arguments
-        ∧ (!definition.isRepeatable
-            -> (applications.filter fun other => other.name == application.name).length
-                = 1)
-
--- Spec 3.13 directive definition rules: at least one location, no direct or indirect
--- self-reference, well-formed arguments, and valid directives applied at
--- `DIRECTIVE_DEFINITION`. Reserved `__` names are not checked.
-def directiveDefinitionWellFormed (schema : Schema) (definition : DirectiveDefinition)
-    : Prop :=
-  listNonempty definition.locations
-  ∧ ¬ schema.DirectiveReferences definition.name definition.name
-  ∧ inputValueDefinitionsWellFormed schema definition.arguments
-  ∧ constDirectiveApplicationsValid schema .directiveDefinition definition.directives
-
--- Spec 3.3 / 3.13 schema directive rules: directive names are unique, built-ins
--- included, and every user-provided definition is well-formed.
-def directiveDefinitionsWellFormed (schema : Schema) : Prop :=
-  namesAreUnique (schema.allDirectives.map DirectiveDefinition.name)
-  ∧ ∀ definition,
-      definition ∈ schema.directives -> directiveDefinitionWellFormed schema definition
-
--- Spec 3.3 schema rules: partial; checks unique type names, a query object root, and
--- directive definitions, omitting operation-type uniqueness/existence for
--- mutation/subscription.
+-- Spec 3.3 schema rules: partial; checks unique type names and a query object root,
+-- omitting operation-type uniqueness/existence for mutation/subscription and directive
+-- validation.
 def schemaWellFormed (schema : Schema) : Prop :=
   namesAreUnique (schema.allTypes.map TypeDefinition.name)
   ∧ schema.objectType schema.queryType
@@ -367,7 +312,6 @@ def schemaWellFormed (schema : Schema) : Prop :=
       -> schema.objectType objectTypeName)
   ∧ (∀ typeName, (schema.getPossibleTypes typeName).Nodup)
   ∧ possibleObjectFieldDefinitionsImplement schema
-  ∧ directiveDefinitionsWellFormed schema
 
 -- Spec-conformance pattern, not a GraphQL spec definition: bundles a schema with this
 -- file's partial well-formedness proof.

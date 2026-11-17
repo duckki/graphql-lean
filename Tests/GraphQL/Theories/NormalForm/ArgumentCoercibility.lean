@@ -150,7 +150,6 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
   · intro typeName
     rw [possibleTypes]
     split <;> simp
-  constructor
   · intro parentType objectTypeName fieldName expected hpossible hlookup
     rw [possibleTypes] at hpossible
     split at hpossible
@@ -174,10 +173,6 @@ private theorem wellFormed : SchemaWellFormedness.schemaWellFormed schema := by
               Schema.lookupArgumentDefinition, field, arg]
       next => cases hlookup
     next => cases hpossible
-  · constructor
-    · simp [SchemaWellFormedness.namesAreUnique, Schema.allDirectives,
-        Schema.builtinDirectiveDefinitions, schema]
-    · simp [schema]
 
 private def scopedField : FieldMerge.ScopedField :=
   {

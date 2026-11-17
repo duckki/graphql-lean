@@ -97,8 +97,7 @@ private theorem wellFormed (expected implementation : TypeRef)
     ⟨by rfl, by rfl⟩,
     ?_,
     ?_,
-    ?_,
-    directiveDefinitionsWellFormed_of_directives_nil rfl
+    ?_
   ⟩
   · intro parent object hobject
     rw [possibleTypes] at hobject

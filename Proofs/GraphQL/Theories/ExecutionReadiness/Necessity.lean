@@ -111,16 +111,7 @@ private theorem schema_valid : schemaWellFormed schema := by
         interfacesIncludeInherited, Schema.lookupInterface, Schema.lookupFieldDefinition]
     · exact integerDefault_valid
     · exact concreteField_implements
-  refine ⟨
-    by simp [namesAreUnique],
-    ⟨rootType, rfl⟩,
-    htypes,
-    ⟨rfl, rfl⟩,
-    ?_,
-    ?_,
-    ?_,
-    directiveDefinitionsWellFormed_of_directives_nil rfl
-  ⟩
+  refine ⟨by simp [namesAreUnique], ⟨rootType, rfl⟩, htypes, ⟨rfl, rfl⟩, ?_, ?_, ?_⟩
   · intro parent object hpossible
     rw [possibleTypes] at hpossible
     split at hpossible

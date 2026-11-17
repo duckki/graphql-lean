@@ -5,8 +5,7 @@ import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Val
 Ground-type normalization preserves the September 2025 non-emptiness rule.
 
 `normalizeOperation_subselectionsNonempty` shows that normalizing a source operation that
-meets `operationSubselectionsNonemptyInPossibleTypes` produces an operation that meets
-`operationSubselectionsNonempty`.
+meets `operationSubselectionsNonempty` produces an operation that meets it too.
 -/
 
 namespace GraphQL
@@ -18,9 +17,8 @@ namespace GroundTypeNormalization
 /-
 Proof-internal invariant for ground normalization: along the object scopes that
 normalization visits, every composite field keeps a non-empty child selection set whose
-inline fragments are non-empty. Unlike `selectionSetSubselectionsNonemptyInPossibleTypes`,
-inline fragments are followed only in the current object scope, so Boolean filtering
-preserves it.
+inline fragments are non-empty. Inline fragments are followed only in the current
+object scope, so Boolean filtering preserves it.
 -/
 mutual
   def selectionSubselectionsNonemptyOnObjectPaths (schema : Schema) (parentType : Name)
@@ -1043,112 +1041,177 @@ theorem normalizeSelectionSet_subselectionsNonempty_of_typeConditionFeasible
           htailMerge htailFree htailFeasible
           (selectionSetSubselectionsNonemptyOnObjectPaths_tail hnonempty)
 
+private theorem outputTypeSubtype_namedType_isSubType {schema : Schema}
+    {implementation expected : TypeRef}
+    (hsubtype : schema.outputTypeSubtype implementation expected)
+    : schema.isSubType implementation.namedType expected.namedType := by
+  induction implementation generalizing expected with
+  | named name =>
+      cases expected <;> simp_all [Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype,
+        TypeRef.namedType]
+  | list inner ih =>
+      cases expected <;> simp_all [Schema.outputTypeSubtype, TypeRef.namedType]
+  | nonNull inner ih =>
+      cases expected with
+      | named name => exact ih hsubtype
+      | list inner => exact ih hsubtype
+      | nonNull expectedInner => exact ih (expected := expectedInner) hsubtype
+
+private theorem isCompositeType_of_isSubType {schema : Schema}
+    {implementation expected : Name}
+    (hsubtype : schema.isSubType implementation expected)
+    (hcomposite : schema.isCompositeType implementation)
+    : schema.isCompositeType expected := by
+  rcases hsubtype with rfl | hsubtype
+  · exact hcomposite
+  split at hsubtype
+  · rename_i _ unionType _ hunion
+    exact ⟨.union unionType, hunion, trivial⟩
+  · rename_i _ interfaceType _ hinterface
+    exact ⟨.interface interfaceType, hinterface, trivial⟩
+  · rename_i _ interfaceType _ hinterface
+    exact ⟨.interface interfaceType, hinterface, trivial⟩
+  · contradiction
+
+/-
+Bridge from the source premise to the proof-internal invariant. A selection is checked
+for non-emptiness in its declared scope and placed by normalization in a possible object
+scope; schema covariance carries composite return types and possible object types from
+the object's field implementation back to the declared field.
+-/
 mutual
-  theorem selectionSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes
+  theorem selectionSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty
       (schema : Schema) (variableDefinitions : List VariableDefinition)
       (hschema : SchemaWellFormedness.schemaWellFormed schema)
-      : ∀ parentType selection,
-          schema.objectType parentType
+      : ∀ declaredType objectType selection,
+          schema.objectType objectType
+          -> objectType ∈ schema.getPossibleTypes declaredType
+          -> Validation.selectionValid schema variableDefinitions declaredType selection
+          -> selectionSubselectionsNonempty schema declaredType selection
           -> Validation.selectionValidInPossibleTypes schema variableDefinitions
-              parentType selection
-          -> selectionSubselectionsNonemptyInPossibleTypes schema parentType selection
-          -> selectionSubselectionsNonemptyOnObjectPaths schema parentType selection
-    | parentType,
+              objectType selection
+          -> selectionSubselectionsNonemptyOnObjectPaths schema objectType selection
+    | declaredType, objectType,
       .field responseName fieldName arguments directives selectionSet,
-      _hobject, himplementation, hnonempty => by
+      _hobject, hpossible, hvalid, hnonempty, himplementation => by
         simp only [selectionSubselectionsNonemptyOnObjectPaths]
         intro fieldDefinition hlookup
-        have himplementationParts := himplementation
-        simp only [Validation.selectionValidInPossibleTypes] at himplementationParts
+        rcases Validation.selectionValid_field_lookup hvalid with
+          ⟨declaredDefinition, hdeclaredLookup, _harguments, hchild⟩
         have hnonemptyParts := hnonempty
-        simp only [selectionSubselectionsNonemptyInPossibleTypes, hlookup]
-          at hnonemptyParts
-        have hplain := hnonemptyParts.1
-        simp only [selectionSubselectionsNonempty, hlookup] at hplain
-        refine ⟨hplain.1, ?_, ?_⟩
-        · rcases Validation.selectionValid_field_lookup himplementationParts.1 with
-            ⟨candidateDefinition, hcandidateLookup, _harguments, hchild⟩
-          have hdefinitionEq : candidateDefinition = fieldDefinition := by
-            rw [hlookup] at hcandidateLookup
-            cases hcandidateLookup
-            rfl
-          subst candidateDefinition
-          have hchildParts := hchild
-          simp [Validation.fieldSelectionSetValid] at hchildParts
-          rcases hchildParts.2 with hleaf | hcomposite
-          · rw [hleaf.2]
-            unfold selectionSetInlineFragmentsNonempty
+        simp only [selectionSubselectionsNonempty, hdeclaredLookup] at hnonemptyParts
+        have houtputSubtype :
+            schema.outputTypeSubtype fieldDefinition.outputType
+              declaredDefinition.outputType :=
+          SchemaWellFormedness.schemaWellFormed_possibleObject_lookupField_outputTypeSubtype
+            hschema hpossible hdeclaredLookup hlookup
+        have hsubtype := outputTypeSubtype_namedType_isSubType houtputSubtype
+        have hchildImplementation := himplementation
+        simp only [Validation.selectionValidInPossibleTypes] at hchildImplementation
+        have hchildImplementation := hchildImplementation.2
+        rw [hlookup] at hchildImplementation
+        have hchildParts := hchild
+        simp [Validation.fieldSelectionSetValid] at hchildParts
+        rcases hchildParts.2 with hleaf | hcomposite
+        · rw [hleaf.2]
+          refine ⟨?_, ?_, ?_⟩
+          · intro hcompositeImplementation
+            exact (isLeafType_not_isCompositeType hleaf.1
+              (isCompositeType_of_isSubType hsubtype hcompositeImplementation)).elim
+          · unfold selectionSetInlineFragmentsNonempty
             intro selection hselection
             cases hselection
+          · intro childObjectType _hchildObjectType
+            exact selectionSetSubselectionsNonemptyOnObjectPaths_nil schema childObjectType
+        · refine ⟨fun _ => hnonemptyParts.1 hcomposite.1, ?_, ?_⟩
           · exact
               selectionSetInlineFragmentsNonempty_of_selectionSetValid_subselectionsNonempty
-                schema variableDefinitions fieldDefinition.outputType.namedType
-                selectionSet hcomposite.2 hplain.2
-        · intro objectType hobjectType
-          have hchildImplementation := himplementationParts.2
-          rw [hlookup] at hchildImplementation
-          have hchildNonempty := hnonemptyParts.2
-          exact
-            selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
-              variableDefinitions hschema objectType selectionSet
-              (SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
-                fieldDefinition.outputType.namedType objectType hobjectType)
-              (hchildImplementation objectType hobjectType)
-              (hchildNonempty objectType hobjectType)
-    | parentType, .inlineFragment none directives selectionSet,
-      hobject, himplementation, hnonempty => by
+                schema variableDefinitions declaredDefinition.outputType.namedType
+                selectionSet hcomposite.2 hnonemptyParts.2
+          · intro childObjectType hchildObjectType
+            have hdeclaredPossible :
+                childObjectType
+                  ∈ schema.getPossibleTypes declaredDefinition.outputType.namedType :=
+              List.contains_iff_mem.mp
+                (typeIncludesObjectBool_of_outputTypeSubtype_namedType schema
+                  houtputSubtype (List.contains_iff_mem.mpr hchildObjectType))
+            exact
+              selectionSetSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty
+                schema variableDefinitions hschema
+                declaredDefinition.outputType.namedType childObjectType selectionSet
+                (SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
+                  fieldDefinition.outputType.namedType childObjectType hchildObjectType)
+                hdeclaredPossible hcomposite.2 hnonemptyParts.2
+                (hchildImplementation childObjectType hchildObjectType)
+    | declaredType, objectType, .inlineFragment none directives selectionSet,
+      hobject, hpossible, hvalid, hnonempty, himplementation => by
         simp only [selectionSubselectionsNonemptyOnObjectPaths]
-        have hparentPossible :
-            parentType ∈ schema.getPossibleTypes parentType :=
-          List.contains_iff_mem.mp
-            (object_typeIncludesObjectBool_self schema hobject)
+        have hselfPossible : objectType ∈ schema.getPossibleTypes objectType :=
+          List.contains_iff_mem.mp (object_typeIncludesObjectBool_self schema hobject)
+        have hvalid' := hvalid
+        simp [Validation.selectionValid] at hvalid'
+        simp only [selectionSubselectionsNonempty, Option.getD_none] at hnonempty
         simp only [Validation.selectionValidInPossibleTypes] at himplementation
-        simp only [selectionSubselectionsNonemptyInPossibleTypes] at hnonempty
         exact
-          selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
-            variableDefinitions hschema parentType selectionSet hobject
-            (himplementation parentType hparentPossible)
-            (hnonempty parentType hparentPossible)
-    | parentType, .inlineFragment (some typeCondition) directives selectionSet,
-      hobject, himplementation, hnonempty => by
+          selectionSetSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty schema
+            variableDefinitions hschema declaredType objectType selectionSet hobject
+            hpossible hvalid'.2 hnonempty.2 (himplementation objectType hselfPossible)
+    | _declaredType, objectType,
+      .inlineFragment (some typeCondition) directives selectionSet,
+      hobject, _hpossible, hvalid, hnonempty, himplementation => by
         simp only [selectionSubselectionsNonemptyOnObjectPaths]
         intro hoverlap
-        have hparentPossible :
-            parentType ∈ schema.getPossibleTypes typeCondition :=
+        have hconditionPossible : objectType ∈ schema.getPossibleTypes typeCondition :=
           List.contains_iff_mem.mp
-            (typeIncludesObjectBool_of_object_typesOverlapBool schema
-              hobject hoverlap)
+            (typeIncludesObjectBool_of_object_typesOverlapBool schema hobject hoverlap)
+        have hvalid' := hvalid
+        simp [Validation.selectionValid] at hvalid'
+        simp only [selectionSubselectionsNonempty, Option.getD_some] at hnonempty
         simp only [Validation.selectionValidInPossibleTypes] at himplementation
-        simp only [selectionSubselectionsNonemptyInPossibleTypes] at hnonempty
         exact
-          selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
-            variableDefinitions hschema parentType selectionSet hobject
-            (himplementation hoverlap parentType hparentPossible)
-            (hnonempty hoverlap parentType hparentPossible)
+          selectionSetSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty schema
+            variableDefinitions hschema typeCondition objectType selectionSet hobject
+            hconditionPossible hvalid'.2.2.2 hnonempty.2
+            (himplementation hoverlap objectType hconditionPossible)
 
-  theorem selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes
+  theorem selectionSetSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty
       (schema : Schema) (variableDefinitions : List VariableDefinition)
       (hschema : SchemaWellFormedness.schemaWellFormed schema)
-      : ∀ parentType selectionSet,
-          schema.objectType parentType
-          -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
-              parentType selectionSet
-          -> selectionSetSubselectionsNonemptyInPossibleTypes schema parentType
+      : ∀ declaredType objectType selectionSet,
+          schema.objectType objectType
+          -> objectType ∈ schema.getPossibleTypes declaredType
+          -> Validation.selectionSetValid schema variableDefinitions declaredType
               selectionSet
-          -> selectionSetSubselectionsNonemptyOnObjectPaths schema parentType selectionSet
-    | _parentType, [], _hobject, _himplementation, _hnonempty => by
+          -> selectionSetSubselectionsNonempty schema declaredType selectionSet
+          -> Validation.selectionSetValidInPossibleTypes schema variableDefinitions
+              objectType selectionSet
+          -> selectionSetSubselectionsNonemptyOnObjectPaths schema objectType selectionSet
+    | _declaredType, _objectType, [], _hobject, _hpossible, _hvalid, _hnonempty,
+      _himplementation => by
         simp [selectionSetSubselectionsNonemptyOnObjectPaths]
-    | parentType, selection :: rest, hobject, himplementation, hnonempty => by
+    | declaredType, objectType, selection :: rest, hobject, hpossible, hvalid,
+      hnonempty, himplementation => by
         simp only [Validation.selectionSetValidInPossibleTypes] at himplementation
-        simp only [selectionSetSubselectionsNonemptyInPossibleTypes] at hnonempty
+        unfold Validation.selectionSetValid at hvalid
+        have hvalidRest :
+            Validation.selectionSetValid schema variableDefinitions declaredType rest := by
+          unfold Validation.selectionSetValid
+          intro other hother
+          exact hvalid other (List.mem_cons_of_mem _ hother)
+        have hnonemptyRest : selectionSetSubselectionsNonempty schema declaredType rest :=
+          selectionSetSubselectionsNonempty_iff.mpr fun other hother =>
+            selectionSetSubselectionsNonempty_of_mem hnonempty
+              (List.mem_cons_of_mem _ hother)
         simp only [selectionSetSubselectionsNonemptyOnObjectPaths]
         exact ⟨
-          selectionSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
-            variableDefinitions hschema parentType selection hobject
-            himplementation.1 hnonempty.1,
-          selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
-            variableDefinitions hschema parentType rest hobject
-            himplementation.2 hnonempty.2⟩
+          selectionSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty schema
+            variableDefinitions hschema declaredType objectType selection hobject
+            hpossible (hvalid selection List.mem_cons_self)
+            (selectionSetSubselectionsNonempty_of_mem hnonempty List.mem_cons_self)
+            himplementation.1,
+          selectionSetSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty schema
+            variableDefinitions hschema declaredType objectType rest hobject hpossible
+            hvalidRest hnonemptyRest himplementation.2⟩
 end
 
 theorem normalizeOperation_subselectionsNonempty (schema : Schema) (operation : Operation)
@@ -1157,7 +1220,7 @@ theorem normalizeOperation_subselectionsNonempty (schema : Schema) (operation : 
       -> operationDirectiveFree operation
       -> operationFieldsValidInPossibleTypes schema operation
       -> operationTypeConditionFeasible schema operation
-      -> operationSubselectionsNonemptyInPossibleTypes schema operation
+      -> operationSubselectionsNonempty schema operation
       -> operationSubselectionsNonempty schema (normalizeOperation schema operation) := by
   intro hschema hvalid hfree himplementation hfeasible hnonempty
   have hrootEq :
@@ -1185,9 +1248,12 @@ theorem normalizeOperation_subselectionsNonempty (schema : Schema) (operation : 
     objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
       schema hrootObject
   have hsourceOnPaths :=
-    selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes schema
+    selectionSetSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty schema
       operation.variableDefinitions hschema (operation.rootType schema)
-      operation.selectionSet hrootObject himplementation hnonempty
+      (operation.rootType schema) operation.selectionSet hrootObject
+      (List.contains_iff_mem.mp (object_typeIncludesObjectBool_self schema hrootObject))
+      (Validation.operationDefinitionValid_selectionSetValid hvalid) hnonempty
+      himplementation
   have hnormalized :=
     normalizeSelectionSet_subselectionsNonempty_of_typeConditionFeasible schema
       hschema (operation.rootType schema)

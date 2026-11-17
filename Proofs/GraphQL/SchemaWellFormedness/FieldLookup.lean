@@ -1,6 +1,5 @@
 import GraphQL.SchemaWellFormedness
 import Proofs.GraphQL.Schema.Typename
-import Proofs.GraphQL.SchemaWellFormedness.Directives
 
 /-!
 Field lookup facts derived from schema well-formedness predicates.

@@ -5,8 +5,8 @@ import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity.Subse
 Complete normalization preserves the September 2025 non-emptiness rule.
 
 `completeNormalizeOperation_subselectionsNonempty` shows that complete normalization of a
-source operation that meets `operationSubselectionsNonemptyInPossibleTypes` produces an
-operation that meets `operationSubselectionsNonempty`.
+source operation that meets `operationSubselectionsNonempty` produces an operation that
+meets it too.
 -/
 
 namespace GraphQL
@@ -245,7 +245,7 @@ theorem completeNormalizeOperation_subselectionsNonempty
       -> Validation.operationDefinitionValid schema operation
       -> operationFieldsValidInPossibleTypes schema operation
       -> operationBoolTypeConditionFeasible schema operation
-      -> operationSubselectionsNonemptyInPossibleTypes schema operation
+      -> operationSubselectionsNonempty schema operation
       -> operationSubselectionsNonempty schema
           (completeNormalizeOperation schema operation) := by
   intro hschema hoperation hfields hboolFeasible hnonempty
@@ -260,9 +260,11 @@ theorem completeNormalizeOperation_subselectionsNonempty
         operation.selectionSet :=
     Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
   have hsourceOnPaths :=
-    GroundTypeNormalization.selectionSetSubselectionsNonemptyOnObjectPaths_of_inPossibleTypes
+    GroundTypeNormalization.selectionSetSubselectionsNonemptyOnObjectPaths_of_subselectionsNonempty
       schema operation.variableDefinitions hschema (operation.rootType schema)
-      operation.selectionSet hrootObject hfields hnonempty
+      (operation.rootType schema) operation.selectionSet hrootObject
+      (List.contains_iff_mem.mp (object_typeIncludesObjectBool_self schema hrootObject))
+      (Validation.operationDefinitionValid_selectionSetValid hoperation) hnonempty hfields
   have hbranch :
       ∀ boolCase,
         boolCase ∈ allBoolCases (operationBoolVars operation)

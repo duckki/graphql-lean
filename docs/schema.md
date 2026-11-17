@@ -10,11 +10,10 @@ See [operations](operations.md) for executable syntax and validation,
 
 ## Representation
 
-`Schema` stores the query root name, user-defined types, and directive
-definitions. `Schema.allTypes` adds the built-in scalars for lookup, and
-`Schema.allDirectives` adds the built-in directive definitions. `TypeDefinition`
-distinguishes scalars, objects, interfaces, unions, enums, and input objects;
-`TypeRef` represents named, list, and non-null references.
+`Schema` stores the query root name and user-defined types. `Schema.allTypes`
+adds the built-in scalars for lookup. `TypeDefinition` distinguishes scalars,
+objects, interfaces, unions, enums, and input objects; `TypeRef` represents named,
+list, and non-null references.
 
 Object and interface definitions carry field definitions and lists of declared
 interfaces. Field definitions carry output types and argument definitions. Input
@@ -38,10 +37,9 @@ helpers do not require a well-formedness proof.
 
 `SchemaWellFormedness.schemaWellFormed` combines name uniqueness, a query object
 root, per-type well-formedness, input-object cycle checks, possible-object lookup
-invariants, compatible field definitions on possible runtime objects, and
-directive-definition well-formedness. `WellFormedSchema` bundles a schema with
-this proof; it does not change the raw representation or executable lookup
-functions.
+invariants, and compatible field definitions on possible runtime objects.
+`WellFormedSchema` bundles a schema with this proof; it does not change the raw
+representation or executable lookup functions.
 
 Per-type predicates keep field and argument validity separate from type
 membership and inheritance. For example, `fieldDefinitionWellFormed` checks the
