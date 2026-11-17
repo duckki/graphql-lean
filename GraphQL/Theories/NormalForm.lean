@@ -320,6 +320,37 @@ end
 def operationDirectiveFree (operation : Operation) : Prop :=
   selectionSetDirectiveFree operation.selectionSet
 
+mutual
+  -- The September 2025 non-emptiness rule: every inline fragment, and every field whose
+  -- type is composite, has a non-empty selection set. The root may still be empty.
+  def selectionSubselectionsNonempty (schema : Schema) (parentType : Name)
+      : Selection -> Prop
+    | .field _responseName fieldName _arguments _directives selectionSet =>
+        match schema.lookupField parentType fieldName with
+        | none => True
+        | some fieldDefinition =>
+            (schema.isCompositeType fieldDefinition.outputType.namedType
+              -> selectionSet ≠ [])
+            ∧ selectionSetSubselectionsNonempty schema
+                fieldDefinition.outputType.namedType selectionSet
+    | .inlineFragment typeCondition _directives selectionSet =>
+        selectionSet ≠ []
+        ∧ selectionSetSubselectionsNonempty schema (typeCondition.getD parentType)
+            selectionSet
+
+  def selectionSetSubselectionsNonempty (schema : Schema) (parentType : Name)
+      (selectionSet : List Selection)
+      : Prop :=
+    ∀ selection,
+      selection ∈ selectionSet
+      -> selectionSubselectionsNonempty schema parentType selection
+end
+
+-- Operation-level wrapper for the September 2025 non-emptiness rule.
+def operationSubselectionsNonempty (schema : Schema) (operation : Operation) : Prop :=
+  selectionSetSubselectionsNonempty schema (operation.rootType schema)
+    operation.selectionSet
+
 def operationsEquivalent (schema : Schema) (left right : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
     variableValues fuel (source : Execution.ResolverValue ObjectRef),
@@ -736,6 +767,9 @@ def operationTypenameFree (operation : Operation) : Prop :=
 -- The theorem witness is
 -- `GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering`
 -- in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
+-- Both operations must satisfy the September 2025 non-emptiness rule. Without it, an empty
+-- inline fragment is unobservable: `{ hero { ... on Droid {} } }` and `{ hero {} }` are
+-- equivalent but not equal.
 def normalOperationsSemanticallyEquivalentEqualUpToReordering
     (schema : Schema) (left right : Operation)
     : Prop :=
@@ -748,6 +782,8 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
   -> operationTypenameFree right
   -> operationNormal schema left
   -> operationNormal schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
@@ -757,6 +793,9 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
 -- The theorem witness is
 -- `GroundTypeNormalization.normalizeOperation_uniqueUpToReordering` in
 -- `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
+-- The non-emptiness premise is the one that
+-- `normalOperationsSemanticallyEquivalentEqualUpToReordering` needs; normalization
+-- preserves it.
 def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
@@ -772,6 +811,8 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
   -> operationFieldsSameOutputShape schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
@@ -1352,6 +1393,9 @@ def completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
 -- equivalence implies the premise, so this statement is the stronger one.
 -- Validity and complete normality supply jointly coercible environments for every
 -- complete Boolean case; no additional coercibility assumption is needed.
+-- Both operations must satisfy the September 2025 non-emptiness rule, as in
+-- `normalOperationsSemanticallyEquivalentEqualUpToReordering`. It also rules out empty
+-- Boolean case bodies, such as `{ ... @include(if: $x) {} }`.
 def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
     (schema : Schema) (left right : Operation)
     : Prop :=
@@ -1362,6 +1406,8 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> operationTypenameFree right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationBoolVarsEquivalent left right
@@ -1376,6 +1422,8 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
 -- As above, the restricted premise makes normalization canonical for exactly the
 -- complete-Boolean-environment fragment of the semantics. Possible-type field validity
 -- supplies a jointly coercible variable environment for every complete Boolean case.
+-- The non-emptiness premise plays the same role as in
+-- `normalizeOperationUniqueUpToReordering`.
 def completeNormalizeOperationUniqueUpToReordering
     (schema : Schema) (left right : Operation)
     : Prop :=
@@ -1390,6 +1438,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationFieldsSameOutputShape schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
+  -> operationSubselectionsNonempty schema left
+  -> operationSubselectionsNonempty schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationBoolVarsEquivalent left right

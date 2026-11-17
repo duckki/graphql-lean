@@ -149,7 +149,9 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> left ≠ []
       -> right ≠ []
       -> SelectionSet.size left + SelectionSet.size right < n
@@ -161,10 +163,10 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
   | ind n ih =>
       intro schema leftVariableDefinitions rightVariableDefinitions
         leftParentType rightParentType left right hleftValid hrightValid
-        hleftNormal hrightNormal hleftNonempty hrightNonempty hsize
+        hleftNormal hleftSub hrightNormal hrightSub hleftNonempty hrightNonempty hsize
       have hleftObservable :=
         normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
-          leftParentType leftVariableDefinitions left hleftValid hleftNormal
+          leftParentType leftVariableDefinitions left hleftValid hleftNormal hleftSub
           hleftNonempty
       by_cases hleftObject :
           objectTypeNameBool schema leftParentType = true
@@ -185,7 +187,7 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                     rightChildSelectionSet, hrightMem⟩
                 rcases
                     selectionSetValid_field_lookup_leaf_or_composite_child
-                      hrightValid hrightMem with
+                      hrightValid hrightSub hrightMem with
                   ⟨rightFieldDefinition, hrightLookup, hrightKind⟩
                 rcases hrightKind with hrightLeaf | hrightComposite
                 · exact
@@ -217,7 +219,7 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                     rightChildSelectionSet, hrightMem⟩
                 rcases
                     selectionSetValid_field_lookup_leaf_or_composite_child
-                      hrightValid hrightMem with
+                      hrightValid hrightSub hrightMem with
                   ⟨rightFieldDefinition, hrightLookup, hrightKind⟩
                 rcases hrightKind with hrightLeaf | hrightComposite
                 · exact
@@ -234,7 +236,7 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                         leftChildSelectionSet := by
                     rcases
                         selectionSetValid_field_lookup_leaf_or_composite_child
-                          hleftValid hleftMem with
+                          hleftValid hleftSub hleftMem with
                       ⟨candidateDefinition, hcandidateLookup, hkind⟩
                     have hcandidateEq :
                         candidateDefinition = leftFieldDefinition := by
@@ -256,11 +258,23 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                         leftChildSelectionSet :=
                     selectionSetNormal_field_child_of_mem_lookup hleftNormal
                       hleftMem hleftLookup
+                  have hleftChildSub :
+                      selectionSetSubselectionsNonempty schema
+                        leftFieldDefinition.outputType.namedType
+                        leftChildSelectionSet :=
+                    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hleftSub
+                      hleftMem hleftLookup
                   have hrightChildNormal :
                       selectionSetNormal schema
                         rightFieldDefinition.outputType.namedType
                         rightChildSelectionSet :=
                     selectionSetNormal_field_child_of_mem_lookup hrightNormal
+                      hrightMem hrightLookup
+                  have hrightChildSub :
+                      selectionSetSubselectionsNonempty schema
+                        rightFieldDefinition.outputType.namedType
+                        rightChildSelectionSet :=
+                    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hrightSub
                       hrightMem hrightLookup
                   have hleftChildSize :=
                     selectionSet_size_field_child_lt_of_mem
@@ -273,7 +287,7 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                       (SelectionSet.size leftChildSelectionSet +
                         SelectionSet.size rightChildSelectionSet + 1)
                       (by omega) hleftChildValid hrightComposite.2.2
-                      hleftChildNormal hrightChildNormal
+                      hleftChildNormal hleftChildSub hrightChildNormal hrightChildSub
                       hleftChildNonempty hrightComposite.2.1 (by omega)
                   exact
                     NormalSelectionSetPairedPath.objectCompositePair
@@ -298,7 +312,7 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
           have hrightObservable :=
             normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
               rightParentType rightVariableDefinitions right hrightValid
-              hrightNormal hrightNonempty
+              hrightNormal hrightSub hrightNonempty
           cases hrightObservable with
           | objectLeaf hrightObjectPath =>
               rw [hrightNonObject] at hrightObjectPath
@@ -316,6 +330,8 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                   selectionSetNormal_inlineFragment_child_of_mem hrightNormal
                     hrightMem with
                 ⟨_htypeObject, hrightChildNormal⟩
+              have hrightChildSub :=
+                selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hrightSub hrightMem
               have hrightChildSize :=
                 selectionSet_size_inlineFragment_child_lt_of_mem
                   (selectionSet := right) hrightMem
@@ -323,10 +339,10 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                 ih
                   (SelectionSet.size left +
                     SelectionSet.size rightChildSelectionSet + 1)
-                  (by omega) hleftValid hrightChildValid hleftNormal
-                  hrightChildNormal hleftNonempty
-                  (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-                    hrightValid hrightMem)
+                  (by omega) hleftValid hrightChildValid hleftNormal hleftSub
+                  hrightChildNormal hrightChildSub hleftNonempty
+                  (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+                    hrightSub hrightMem)
                   (by omega)
               exact
                 NormalSelectionSetPairedPath.rightAbstract
@@ -352,6 +368,8 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
                 selectionSetNormal_inlineFragment_child_of_mem hleftNormal
                   hleftMem with
               ⟨_htypeObject, hleftChildNormal⟩
+            have hleftChildSub :=
+              selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hleftSub hleftMem
             have hleftChildSize :=
               selectionSet_size_inlineFragment_child_lt_of_mem
                 (selectionSet := left) hleftMem
@@ -359,10 +377,10 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
               ih
                 (SelectionSet.size leftChildSelectionSet +
                   SelectionSet.size right + 1)
-                (by omega) hleftChildValid hrightValid hleftChildNormal
-                hrightNormal
-                (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-                  hleftValid hleftMem)
+                (by omega) hleftChildValid hrightValid hleftChildNormal hleftChildSub
+                hrightNormal hrightSub
+                (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+                  hleftSub hleftMem)
                 hrightNonempty (by omega)
             exact
               NormalSelectionSetPairedPath.leftAbstract hleftNonObject
@@ -377,16 +395,18 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
       -> selectionSetNormal schema leftParentType left
+      -> selectionSetSubselectionsNonempty schema leftParentType left
       -> selectionSetNormal schema rightParentType right
+      -> selectionSetSubselectionsNonempty schema rightParentType right
       -> left ≠ []
       -> right ≠ []
       -> NormalSelectionSetPairedPath schema leftParentType rightParentType
           left right := by
-  intro hleftValid hrightValid hleftNormal hrightNormal hleftNonempty
+  intro hleftValid hrightValid hleftNormal hleftSub hrightNormal hrightSub hleftNonempty
     hrightNonempty
   exact normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
     (SelectionSet.size left + SelectionSet.size right + 1)
-    hleftValid hrightValid hleftNormal hrightNormal hleftNonempty
+    hleftValid hrightValid hleftNormal hleftSub hrightNormal hrightSub hleftNonempty
     hrightNonempty (by omega)
 
 end GroundTypeNormalization

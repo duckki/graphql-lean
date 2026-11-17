@@ -3,7 +3,7 @@
 [`GraphQL.Schema`](../GraphQL/Schema.lean) defines raw type-system syntax and
 lookup helpers. [`GraphQL.SchemaWellFormedness`](../GraphQL/SchemaWellFormedness.lean)
 states the schema validity assumptions used by proofs. The target is the
-[GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
+[GraphQL September 2026 Edition](https://spec.graphql.org/September2026/).
 See [operations](operations.md) for executable syntax and validation,
 [execution](execution.md) for runtime behavior, and the
 [conformance summary](spec-conformance.md) for coverage and exclusions.
@@ -51,7 +51,7 @@ return covariance and compatibility with an inherited field's arguments.
 `possibleObjectFieldDefinitionsImplement` requires fields declared on a parent
 type to have compatible definitions on every possible object type. Return types
 are related by `Schema.outputTypeSubtype`, following the spec's
-[interface implementation rules](https://spec.graphql.org/September2025/#sec-Objects).
+[interface implementation rules](https://spec.graphql.org/September2026/#sec-Objects).
 An object field returning `String!` can implement an interface field returning
 `String`; strengthening is also permitted recursively within lists.
 

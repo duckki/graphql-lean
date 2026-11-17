@@ -1,11 +1,14 @@
 import GraphQL.Schema
 
 /-! GraphQL operation representation
-Spec reference: GraphQL September 2025.
+Spec reference: GraphQL September 2026.
 - 2.3-2.4 Documents and Operations: this file models a single query-like operation, not
   a full executable document with multiple operations or operation kinds.
 - 2.5-2.9 Selection Sets, Fields, Arguments, Aliases, and inline fragments: selection
-  syntax is represented structurally, with aliases encoded as `responseName`.
+  syntax is represented structurally, with aliases encoded as `responseName`. A selection
+  set may be empty (`{ Selection* }`); a field with no subselections stores `[]`, so an
+  absent selection set and an empty `{}` share one representation (see
+  `GraphQL.Validation`).
 - 2.10-2.13 Values, Variables, Type References, and Directives: variables and only the
   built-in executable directives `@skip` and `@include` are modeled.
 - Layering note: this core operation syntax is fragment-free. Named fragment definitions

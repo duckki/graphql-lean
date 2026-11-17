@@ -57,6 +57,7 @@ def PathLocalSupportValidNormal (schema : Schema)
               parentType memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
             ∧ selectionSetNormal schema parentType memberSelectionSet
+            ∧ selectionSetSubselectionsNonempty schema parentType memberSelectionSet
 
 def PathLocalSelectionSetCurrentContext
     (selectionSet currentSelectionSet : List Selection)
@@ -69,25 +70,27 @@ theorem PathLocalCurrentRuntimeSound.of_valid_normal
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> PathLocalCurrentRuntimeSound schema (parentType, selectionSet) := by
-  intro hvalid hfree hnormal targetParent targetField runtimeType
+  intro hvalid hfree hnormal hsub targetParent targetField runtimeType
     targetArguments targetFieldDefinition hlookup hcomposite hnonObject
     hruntime
   exact
     abstractRuntimeForFieldDeep?_some_include_of_valid_normal
-      hvalid hfree hnormal hlookup hcomposite hnonObject hruntime
+      hvalid hfree hnormal hsub hlookup hcomposite hnonObject hruntime
 
 theorem PathLocalSelectionSetHeadReady.of_valid_normal_self
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {parentType : Name} {selectionSet : List Selection}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> PathLocalSelectionSetHeadReady schema parentType selectionSet selectionSet := by
-  intro hvalid hnormal responseName fieldName arguments directives
+  intro hvalid hnormal hsub responseName fieldName arguments directives
     childSelectionSet fieldDefinition hmem hlookup hcomposite hnonObject
   exact
     abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
-      hvalid hnormal hmem hlookup hcomposite hnonObject
+      hvalid hnormal hsub hmem hlookup hcomposite hnonObject
 
 theorem
     abstractRuntimeForFieldHeadDeep?_member_flatten_promote_some_of_valid_normal_members
@@ -100,7 +103,8 @@ theorem
             Validation.selectionSetValid schema variableDefinitions
               currentParent memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
-            ∧ selectionSetNormal schema currentParent memberSelectionSet)
+            ∧ selectionSetNormal schema currentParent memberSelectionSet
+            ∧ selectionSetSubselectionsNonempty schema currentParent memberSelectionSet)
       -> selectionSet ∈ members
       -> schema.lookupField currentParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
@@ -145,8 +149,8 @@ theorem
                     Validation.selectionSetValid schema variableDefinitions
                       currentParent memberSelectionSet
                     ∧ selectionSetDirectiveFree memberSelectionSet
-                    ∧ selectionSetNormal schema currentParent
-                      memberSelectionSet := by
+                    ∧ selectionSetNormal schema currentParent memberSelectionSet
+                    ∧ selectionSetSubselectionsNonempty schema currentParent memberSelectionSet := by
             intro memberSelectionSet hmember
             exact hmembers memberSelectionSet
               (List.mem_cons_of_mem head hmember)
@@ -345,14 +349,15 @@ theorem PathLocalSelectionSetCurrentContext.headReady_of_valid_normal
       -> PathLocalSelectionSetCurrentContext selectionSet currentSelectionSet
       -> Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> PathLocalSelectionSetHeadReady schema parentType currentSelectionSet
           selectionSet := by
-  intro hsound hcontext hvalid hnormal
+  intro hsound hcontext hvalid hnormal hsub
   rcases hcontext with ⟨pref, suff, hcurrent⟩
   subst currentSelectionSet
   exact PathLocalSelectionSetHeadReady.append_context_of_sound
     (by simpa using hsound)
-    (PathLocalSelectionSetHeadReady.of_valid_normal_self hvalid hnormal)
+    (PathLocalSelectionSetHeadReady.of_valid_normal_self hvalid hnormal hsub)
 
 theorem PathLocalSelectionSetCurrentContext.trans {inner middle outer : List Selection}
     : PathLocalSelectionSetCurrentContext inner middle
@@ -641,13 +646,14 @@ theorem PathLocalCurrentRuntimeSound.append_valid_normal_left
     : Validation.selectionSetValid schema variableDefinitions currentParent left
       -> selectionSetDirectiveFree left
       -> selectionSetNormal schema currentParent left
+      -> selectionSetSubselectionsNonempty schema currentParent left
       -> PathLocalCurrentRuntimeSound schema (currentParent, right)
       -> PathLocalCurrentRuntimeSound schema (currentParent, left ++ right) := by
-  intro hleftValid hleftFree hleftNormal hrightSound targetParent
+  intro hleftValid hleftFree hleftNormal hleftSub hrightSound targetParent
     targetField runtimeType targetArguments targetFieldDefinition hlookup
     hcomposite hnonObject hruntime
   exact abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_right
-    hleftValid hleftFree hleftNormal
+    hleftValid hleftFree hleftNormal hleftSub
     (by
       intro rightRuntime hrightRuntime
       exact
@@ -665,7 +671,8 @@ theorem PathLocalCurrentRuntimeSound.flatten_valid_normal_members
             Validation.selectionSetValid schema variableDefinitions
               currentParent memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
-            ∧ selectionSetNormal schema currentParent memberSelectionSet)
+            ∧ selectionSetNormal schema currentParent memberSelectionSet
+            ∧ selectionSetSubselectionsNonempty schema currentParent memberSelectionSet)
       -> PathLocalCurrentRuntimeSound schema (currentParent, List.flatten members) := by
   intro hmembers targetParent targetField runtimeType targetArguments
     targetFieldDefinition hlookup hcomposite hnonObject hruntime
@@ -683,13 +690,14 @@ theorem PathLocalSupportValidNormal.of_valid_normal_self
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> PathLocalSupportValidNormal schema parentType selectionSet := by
-  intro hvalid hfree hnormal
+  intro hvalid hfree hnormal hsub
   refine ⟨[selectionSet], by simp, ?_⟩
   intro memberSelectionSet hmember
   simp at hmember
   subst memberSelectionSet
-  exact ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+  exact ⟨variableDefinitions, hvalid, hfree, hnormal, hsub⟩
 
 theorem PathLocalSupportValidNormal.sound
     {schema : Schema} {parentType : Name}
@@ -711,6 +719,7 @@ theorem pathLocalCompositeFieldRuntime_of_valid_normal_support_context
     {fieldDefinition : FieldDefinition}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> PathLocalSupportValidNormal schema parentType currentSelectionSet
       -> PathLocalSelectionSetCurrentContext selectionSet currentSelectionSet
       -> Selection.field responseName fieldName arguments directives childSelectionSet
@@ -731,7 +740,7 @@ theorem pathLocalCompositeFieldRuntime_of_valid_normal_support_context
             ∧ schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType runtimeType
               = true) := by
-  intro hvalid hnormal hsupport hcontext hmem hlookup hcomposite
+  intro hvalid hnormal hsub hsupport hcontext hmem hlookup hcomposite
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
   · exact ⟨
@@ -750,7 +759,7 @@ theorem pathLocalCompositeFieldRuntime_of_valid_normal_support_context
         PathLocalSelectionSetHeadReady schema parentType
           currentSelectionSet selectionSet :=
       PathLocalSelectionSetCurrentContext.headReady_of_valid_normal
-        hsupport.sound hcontext hvalid hnormal
+        hsupport.sound hcontext hvalid hnormal hsub
     rcases
         hready responseName fieldName arguments directives childSelectionSet
           fieldDefinition hmem hlookup hcomposite hnonObject with
@@ -769,7 +778,7 @@ theorem PathLocalSupportValidNormal.allFields_of_object
   rcases List.mem_flatten.mp hselectionMem with
     ⟨memberSelectionSet, hmember, hselectionInMember⟩
   rcases hmembers memberSelectionSet hmember with
-    ⟨_variableDefinitions, _hvalid, _hfree, hnormal⟩
+    ⟨_variableDefinitions, _hvalid, _hfree, hnormal, hsub⟩
   exact
     selectionSetNormal_allFields_of_object hnormal hobject selection
       hselectionInMember
@@ -780,16 +789,17 @@ theorem PathLocalSupportValidNormal.append_valid_normal_left
     : Validation.selectionSetValid schema variableDefinitions parentType left
       -> selectionSetDirectiveFree left
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> PathLocalSupportValidNormal schema parentType right
       -> PathLocalSupportValidNormal schema parentType (left ++ right) := by
-  intro hleftValid hleftFree hleftNormal hrightSupport
+  intro hleftValid hleftFree hleftNormal hleftSub hrightSupport
   rcases hrightSupport with ⟨rightMembers, hright, hrightMembers⟩
   subst right
   refine ⟨left :: rightMembers, by simp, ?_⟩
   intro memberSelectionSet hmember
   rcases List.mem_cons.mp hmember with hleft | hrightMember
   · subst memberSelectionSet
-    exact ⟨variableDefinitions, hleftValid, hleftFree, hleftNormal⟩
+    exact ⟨variableDefinitions, hleftValid, hleftFree, hleftNormal, hleftSub⟩
   · exact hrightMembers memberSelectionSet hrightMember
 
 theorem PathLocalSupportValidNormal.append
@@ -837,6 +847,7 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> schema.typeIncludesObjectBool parentType runtimeType = true
       -> objectTypeNameBool schema runtimeType = true
       -> PathLocalSupportValidNormal schema runtimeType
@@ -845,12 +856,12 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
   induction selectionSet with
   | nil =>
       intro variableDefinitions parentType runtimeType _hvalid _hfree
-        _hnormal _hinclude _hruntimeObject
+        _hnormal _hsub _hinclude _hruntimeObject
       refine ⟨[], by simp [runtimePrunedSelectionSet], ?_⟩
       intro memberSelectionSet hmember
       simp at hmember
   | cons selection rest ih =>
-      intro variableDefinitions parentType runtimeType hvalid hfree hnormal
+      intro variableDefinitions parentType runtimeType hvalid hfree hnormal hsub
         hinclude hruntimeObject
       by_cases hparentObject : objectTypeNameBool schema parentType = true
       · have hruntimeEq : runtimeType = parentType :=
@@ -868,7 +879,7 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
         rw [hpruned]
         exact
           PathLocalSupportValidNormal.of_valid_normal_self hvalid hfree
-            hnormal
+            hnormal hsub
       · have htailValid :
             Validation.selectionSetValid schema variableDefinitions parentType
               rest :=
@@ -877,10 +888,12 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
           selectionSetDirectiveFree_tail hfree
         have htailNormal : selectionSetNormal schema parentType rest :=
           selectionSetNormal_tail hnormal
+        have htailSub : selectionSetSubselectionsNonempty schema parentType rest :=
+          selectionSetSubselectionsNonempty_tail hsub
         have htailSupport :
             PathLocalSupportValidNormal schema runtimeType
               (runtimePrunedSelectionSet schema runtimeType rest) :=
-          ih htailValid htailFree htailNormal hinclude hruntimeObject
+          ih htailValid htailFree htailNormal htailSub hinclude hruntimeObject
         have hparentObjectFalse :
             objectTypeNameBool schema parentType = false := by
           cases h : objectTypeNameBool schema parentType
@@ -925,6 +938,13 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
                             directives childSelectionSet ∈
                           Selection.inlineFragment (some typeCondition)
                             directives childSelectionSet :: rest)
+                  have hchildSubFacts :=
+                    selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hsub
+                      (by simp :
+                        Selection.inlineFragment (some typeCondition)
+                            directives childSelectionSet ∈
+                          Selection.inlineFragment (some typeCondition)
+                            directives childSelectionSet :: rest)
                   have hheadMem :
                       Selection.inlineFragment (some typeCondition)
                           directives childSelectionSet ∈
@@ -953,6 +973,10 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
                       selectionSetNormal schema typeCondition
                         childSelectionSet :=
                     hchildNormalFacts.2
+                  have hchildSub :
+                      selectionSetSubselectionsNonempty schema typeCondition
+                        childSelectionSet :=
+                    hchildSubFacts.2
                   have hchildAllFields :
                       selectionsAllFields childSelectionSet :=
                     selectionSetNormal_allFields_of_object hchildNormal
@@ -966,7 +990,7 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
                   simp [runtimePrunedSelectionSet, hincludes, hchildPruned]
                   exact
                     PathLocalSupportValidNormal.append_valid_normal_left
-                      hchildValid hchildFree hchildNormal htailSupport
+                      hchildValid hchildFree hchildNormal hchildSub htailSupport
                 · simpa [runtimePrunedSelectionSet, hincludes] using htailSupport
 
 theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
@@ -975,6 +999,7 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> schema.typeIncludesObjectBool parentType runtimeType = true
       -> objectTypeNameBool schema runtimeType = true
       -> PathLocalCurrentRuntimeSound schema
@@ -983,13 +1008,13 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
   induction selectionSet with
   | nil =>
       intro variableDefinitions parentType runtimeType _hvalid _hfree
-        _hnormal _hinclude _hruntimeObject
+        _hnormal _hsub _hinclude _hruntimeObject
       intro targetParent targetField runtimeType' targetArguments
         targetFieldDefinition _hlookup _hcomposite _hnonObject hruntime
       simp [runtimePrunedSelectionSet, abstractRuntimeForFieldDeep?]
         at hruntime
   | cons selection rest ih =>
-      intro variableDefinitions parentType runtimeType hvalid hfree hnormal
+      intro variableDefinitions parentType runtimeType hvalid hfree hnormal hsub
         hinclude hruntimeObject
       by_cases hparentObject : objectTypeNameBool schema parentType = true
       · have hruntimeEq : runtimeType = parentType :=
@@ -1006,7 +1031,7 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
             hallFields
         rw [hpruned]
         exact
-          PathLocalCurrentRuntimeSound.of_valid_normal hvalid hfree hnormal
+          PathLocalCurrentRuntimeSound.of_valid_normal hvalid hfree hnormal hsub
       · have htailValid :
             Validation.selectionSetValid schema variableDefinitions parentType
               rest :=
@@ -1015,11 +1040,13 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
           selectionSetDirectiveFree_tail hfree
         have htailNormal : selectionSetNormal schema parentType rest :=
           selectionSetNormal_tail hnormal
+        have htailSub : selectionSetSubselectionsNonempty schema parentType rest :=
+          selectionSetSubselectionsNonempty_tail hsub
         have htailSound :
             PathLocalCurrentRuntimeSound schema
               (runtimeType, runtimePrunedSelectionSet schema runtimeType
                 rest) :=
-          ih htailValid htailFree htailNormal hinclude hruntimeObject
+          ih htailValid htailFree htailNormal htailSub hinclude hruntimeObject
         have hparentObjectFalse :
             objectTypeNameBool schema parentType = false := by
           cases h : objectTypeNameBool schema parentType
@@ -1064,6 +1091,13 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
                             directives childSelectionSet ∈
                           Selection.inlineFragment (some typeCondition)
                             directives childSelectionSet :: rest)
+                  have hchildSubFacts :=
+                    selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hsub
+                      (by simp :
+                        Selection.inlineFragment (some typeCondition)
+                            directives childSelectionSet ∈
+                          Selection.inlineFragment (some typeCondition)
+                            directives childSelectionSet :: rest)
                   have hheadMem :
                       Selection.inlineFragment (some typeCondition)
                           directives childSelectionSet ∈
@@ -1092,6 +1126,10 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
                       selectionSetNormal schema typeCondition
                         childSelectionSet :=
                     hchildNormalFacts.2
+                  have hchildSub :
+                      selectionSetSubselectionsNonempty schema typeCondition
+                        childSelectionSet :=
+                    hchildSubFacts.2
                   have hchildAllFields :
                       selectionsAllFields childSelectionSet :=
                     selectionSetNormal_allFields_of_object hchildNormal
@@ -1106,7 +1144,7 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
                     hchildPruned]
                   exact
                     PathLocalCurrentRuntimeSound.append_valid_normal_left
-                      hchildValid hchildFree hchildNormal htailSound
+                      hchildValid hchildFree hchildNormal hchildSub htailSound
                 · simpa [runtimePrunedSelectionSet, hincludes] using htailSound
 
 theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
@@ -1119,6 +1157,7 @@ theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
         currentSelectionSet
       -> selectionSetDirectiveFree currentSelectionSet
       -> selectionSetNormal schema currentRuntimeType currentSelectionSet
+      -> selectionSetSubselectionsNonempty schema currentRuntimeType currentSelectionSet
       -> objectTypeNameBool schema currentRuntimeType = true
       -> objectTypeNameBool schema childRuntimeType = true
       -> schema.lookupField currentRuntimeType targetField = some targetFieldDefinition
@@ -1129,7 +1168,7 @@ theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
           ∈ fieldChildMembersByHeadAtRuntime schema currentRuntimeType
               childRuntimeType targetField targetArguments currentSelectionSet
       -> PathLocalCurrentRuntimeSound schema (childRuntimeType, memberSelectionSet) := by
-  intro hvalid hfree hnormal hcurrentObject hchildObject htargetLookup
+  intro hvalid hfree hnormal hsub hcurrentObject hchildObject htargetLookup
     hinclude hmember
   induction currentSelectionSet with
   | nil =>
@@ -1143,6 +1182,8 @@ theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
         selectionSetDirectiveFree_tail hfree
       have htailNormal : selectionSetNormal schema currentRuntimeType rest :=
         selectionSetNormal_tail hnormal
+      have htailSub : selectionSetSubselectionsNonempty schema currentRuntimeType rest :=
+        selectionSetSubselectionsNonempty_tail hsub
       cases selection with
       | field responseName fieldName arguments directives childSelectionSet =>
           classical
@@ -1161,7 +1202,7 @@ theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
                 simp
               rcases
                   selectionSetValid_field_lookup_leaf_or_composite_child
-                    hvalid hheadMem with
+                    hvalid hsub hheadMem with
                 ⟨fieldDefinition, hlookup, hkind⟩
               have hdefinitionEq :
                   fieldDefinition = targetFieldDefinition := by
@@ -1187,13 +1228,19 @@ theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
                       childSelectionSet :=
                   selectionSetNormal_field_child_of_mem_lookup hnormal
                     hheadMem htargetLookup
+                have hchildSub :
+                    selectionSetSubselectionsNonempty schema
+                      targetFieldDefinition.outputType.namedType
+                      childSelectionSet :=
+                  selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub
+                    hheadMem htargetLookup
                 exact
                   PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
-                    hcomposite.2.2 hchildFree hchildNormal hinclude
+                    hcomposite.2.2 hchildFree hchildNormal hchildSub hinclude
                     hchildObject
-            · exact ih htailValid htailFree htailNormal htail
+            · exact ih htailValid htailFree htailNormal htailSub htail
           · simp [fieldChildMembersByHeadAtRuntime, hfield] at hmember
-            exact ih htailValid htailFree htailNormal hmember
+            exact ih htailValid htailFree htailNormal htailSub hmember
       | inlineFragment typeCondition directives childSelectionSet =>
           have hallFields :
               selectionsAllFields
@@ -1220,6 +1267,7 @@ theorem
         currentSelectionSet
       -> selectionSetDirectiveFree currentSelectionSet
       -> selectionSetNormal schema currentRuntimeType currentSelectionSet
+      -> selectionSetSubselectionsNonempty schema currentRuntimeType currentSelectionSet
       -> objectTypeNameBool schema currentRuntimeType = true
       -> objectTypeNameBool schema childRuntimeType = true
       -> schema.lookupField currentRuntimeType targetField = some targetFieldDefinition
@@ -1233,7 +1281,7 @@ theorem
               childRuntimeType targetField targetArguments
               currentSelectionSet
           ) := by
-  intro hvalid hfree hnormal hcurrentObject hchildObject htargetLookup
+  intro hvalid hfree hnormal hsub hcurrentObject hchildObject htargetLookup
     hinclude
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
   exact PathLocalCurrentRuntimeSound.flatten
@@ -1241,7 +1289,7 @@ theorem
       intro memberSelectionSet hmember
       exact
         fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
-          hvalid hfree hnormal hcurrentObject hchildObject
+          hvalid hfree hnormal hsub hcurrentObject hchildObject
           htargetLookup hinclude hmember)
 
 theorem runtimePrunedSelectionSet_mem_fieldChildMembersByHeadAtRuntime_of_field_mem
@@ -1376,7 +1424,9 @@ theorem PathLocalSupportValidNormal.field_child_object_valid_normal_of_mem
           Validation.selectionSetValid schema variableDefinitions
             childRuntimeType childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema childRuntimeType childSelectionSet := by
+          ∧ selectionSetNormal schema childRuntimeType childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema childRuntimeType
+              childSelectionSet := by
   intro hsupport hfieldMem htargetLookup hchildObject houtputEq
   subst childRuntimeType
   rcases hsupport with ⟨members, hcurrent, hmembers⟩
@@ -1384,7 +1434,7 @@ theorem PathLocalSupportValidNormal.field_child_object_valid_normal_of_mem
   rcases List.mem_flatten.mp hfieldMem with
     ⟨memberSelectionSet, hmember, hfieldMemMember⟩
   rcases hmembers memberSelectionSet hmember with
-    ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+    ⟨variableDefinitions, hvalid, hfree, hnormal, hsub⟩
   have hchildValid :
       Validation.selectionSetValid schema variableDefinitions
         targetFieldDefinition.outputType.namedType childSelectionSet :=
@@ -1397,7 +1447,12 @@ theorem PathLocalSupportValidNormal.field_child_object_valid_normal_of_mem
         childSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hnormal hfieldMemMember
       htargetLookup
-  exact ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩
+  have hchildSub :
+      selectionSetSubselectionsNonempty schema targetFieldDefinition.outputType.namedType
+        childSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hfieldMemMember
+      htargetLookup
+  exact ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal, hchildSub⟩
 
 theorem PathLocalSupportValidNormal.field_child_valid_normal_of_mem_lookup
     {schema : Schema} {currentRuntimeType targetField responseName : Name}
@@ -1415,7 +1470,9 @@ theorem PathLocalSupportValidNormal.field_child_valid_normal_of_mem_lookup
           Validation.selectionSetValid schema variableDefinitions
             targetFieldDefinition.outputType.namedType childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
-          ∧ selectionSetNormal schema
+          ∧ selectionSetNormal schema targetFieldDefinition.outputType.namedType
+              childSelectionSet
+          ∧ selectionSetSubselectionsNonempty schema
               targetFieldDefinition.outputType.namedType childSelectionSet := by
   intro hsupport hfieldMem htargetLookup hcomposite
   rcases hsupport with ⟨members, hcurrent, hmembers⟩
@@ -1423,9 +1480,9 @@ theorem PathLocalSupportValidNormal.field_child_valid_normal_of_mem_lookup
   rcases List.mem_flatten.mp hfieldMem with
     ⟨memberSelectionSet, hmember, hfieldMemMember⟩
   rcases hmembers memberSelectionSet hmember with
-    ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+    ⟨variableDefinitions, hvalid, hfree, hnormal, hsub⟩
   rcases
-      selectionSetValid_field_lookup_leaf_or_composite_child hvalid
+      selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub
         hfieldMemMember with
     ⟨fieldDefinition, hlookup, hkind⟩
   have hdefinitionEq : fieldDefinition = targetFieldDefinition := by
@@ -1442,7 +1499,12 @@ theorem PathLocalSupportValidNormal.field_child_valid_normal_of_mem_lookup
           targetFieldDefinition.outputType.namedType childSelectionSet :=
       selectionSetNormal_field_child_of_mem_lookup hnormal hfieldMemMember
         htargetLookup
-    exact ⟨variableDefinitions, hcompositeKind.2.2, hchildFree, hchildNormal⟩
+    have hchildSub :
+        selectionSetSubselectionsNonempty schema
+          targetFieldDefinition.outputType.namedType childSelectionSet :=
+      selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hfieldMemMember
+        htargetLookup
+    exact ⟨variableDefinitions, hcompositeKind.2.2, hchildFree, hchildNormal, hchildSub⟩
 
 theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_object_output
     {ArgumentType : Type}
@@ -1484,7 +1546,7 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_object
   rcases
       hsupport.field_child_object_valid_normal_of_mem
         hfieldMem htargetLookup hchildObject rfl with
-    ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩
+    ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal, hchildSub⟩
   have hallFields : selectionsAllFields childSelectionSet :=
     selectionSetNormal_allFields_of_object hchildNormal hchildObject
   have hpruned :
@@ -1499,9 +1561,11 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_object
                   Validation.selectionSetValid schema variableDefinitions
                     targetFieldDefinition.outputType.namedType childSelectionSet
                   ∧ selectionSetDirectiveFree childSelectionSet
-                  ∧ selectionSetNormal schema
+                  ∧ selectionSetNormal schema targetFieldDefinition.outputType.namedType
+                      childSelectionSet
+                  ∧ selectionSetSubselectionsNonempty schema
                       targetFieldDefinition.outputType.namedType childSelectionSet
-            from ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩)
+            from ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal, hchildSub⟩)
 
 theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_abstract_output
     {ArgumentType : Type}
@@ -1542,13 +1606,13 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_abstra
       rcases
           hsupport.field_child_valid_normal_of_mem_lookup
             hfieldMem htargetLookup htargetComposite with
-        ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩
+        ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal, hchildSub⟩
       have hmemberSupport :
           PathLocalSupportValidNormal schema childRuntimeType
             (runtimePrunedSelectionSet schema childRuntimeType
               childSelectionSet) :=
         PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
-          hchildValid hchildFree hchildNormal hinclude hchildObject
+          hchildValid hchildFree hchildNormal hchildSub hinclude hchildObject
       simpa [hmemberEq] using hmemberSupport)
 
 theorem
@@ -1563,6 +1627,7 @@ theorem
         currentSelectionSet
       -> selectionSetDirectiveFree currentSelectionSet
       -> selectionSetNormal schema currentRuntimeType currentSelectionSet
+      -> selectionSetSubselectionsNonempty schema currentRuntimeType currentSelectionSet
       -> objectTypeNameBool schema currentRuntimeType = true
       -> objectTypeNameBool schema childRuntimeType = true
       -> Selection.field responseName targetField arguments directives childSelectionSet
@@ -1573,7 +1638,7 @@ theorem
           (fieldPairPathLocalNextSelectionSet schema currentRuntimeType
             childRuntimeType targetField targetArguments currentSelectionSet)
           childSelectionSet := by
-  intro hvalid hfree hnormal hcurrentObject hchildObject hmem
+  intro hvalid hfree hnormal hsub hcurrentObject hchildObject hmem
     htargetLookup houtputEq
   subst childRuntimeType
   have hinclude :
@@ -1591,6 +1656,11 @@ theorem
       selectionSetNormal schema targetFieldDefinition.outputType.namedType
         childSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hnormal hmem
+      htargetLookup
+  have hchildSub :
+      selectionSetSubselectionsNonempty schema targetFieldDefinition.outputType.namedType
+        childSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem
       htargetLookup
   have hallFields : selectionsAllFields childSelectionSet :=
     selectionSetNormal_allFields_of_object hchildNormal hchildObject
@@ -1626,7 +1696,7 @@ theorem
             targetFieldDefinition.outputType.namedType targetField
             targetArguments currentSelectionSet) :=
     PathLocalCurrentRuntimeSound.fieldPairPathLocalNextSelectionSet_of_valid_normal_object
-      hvalid hfree hnormal hcurrentObject hchildObject htargetLookup
+      hvalid hfree hnormal hsub hcurrentObject hchildObject htargetLookup
       hinclude
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
   exact PathLocalSelectionSetHeadReady.member_flatten_of_sound
@@ -1635,7 +1705,8 @@ theorem
         fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
         using hsoundNext)
     hmember
-    (PathLocalSelectionSetHeadReady.of_valid_normal_self hchildValid hchildNormal)
+    (PathLocalSelectionSetHeadReady.of_valid_normal_self hchildValid hchildNormal
+      hchildSub)
 
 theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1646,6 +1717,7 @@ theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_vali
         selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema normalParentType selectionSet
+      -> selectionSetSubselectionsNonempty schema normalParentType selectionSet
       -> schema.typeIncludesObjectBool normalParentType runtimeType = true
       -> objectTypeNameBool schema runtimeType = true
       -> Selection.inlineFragment (some runtimeType) directives bodySelectionSet
@@ -1653,7 +1725,7 @@ theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_vali
       -> PathLocalSelectionSetHeadReady schema runtimeType
           (runtimePrunedSelectionSet schema runtimeType selectionSet)
           bodySelectionSet := by
-  intro hvalid hfree hnormal hinclude hruntimeObject hmem
+  intro hvalid hfree hnormal hsub hinclude hruntimeObject hmem
   have hbodyValid :
       Validation.selectionSetValid schema variableDefinitions runtimeType
         bodySelectionSet :=
@@ -1661,6 +1733,9 @@ theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_vali
   have hbodyNormal :
       selectionSetNormal schema runtimeType bodySelectionSet :=
     (selectionSetNormal_inlineFragment_child_of_mem hnormal hmem).2
+  have hbodySub :
+      selectionSetSubselectionsNonempty schema runtimeType bodySelectionSet :=
+    (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hsub hmem).2
   have hbodyAllFields : selectionsAllFields bodySelectionSet :=
     selectionSetNormal_allFields_of_object hbodyNormal hruntimeObject
   have hbodyPruned :
@@ -1691,7 +1766,7 @@ theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_vali
               Selection.inlineFragment (some runtimeType) directives
                 bodySelectionSet :: suff)) :=
     PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
-      hvalid hfree hnormal hinclude hruntimeObject
+      hvalid hfree hnormal hsub hinclude hruntimeObject
   have hsoundContext :
       PathLocalCurrentRuntimeSound schema
         (runtimeType,
@@ -1708,7 +1783,7 @@ theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_vali
     PathLocalSelectionSetHeadReady.append_context_of_sound
       hsoundContext
       (PathLocalSelectionSetHeadReady.of_valid_normal_self
-        hbodyValid hbodyNormal)
+        hbodyValid hbodyNormal hbodySub)
   simpa [hprunedContext] using hreadyContext
 
 theorem
@@ -1760,6 +1835,7 @@ theorem
         currentSelectionSet
       -> selectionSetDirectiveFree currentSelectionSet
       -> selectionSetNormal schema currentRuntimeType currentSelectionSet
+      -> selectionSetSubselectionsNonempty schema currentRuntimeType currentSelectionSet
       -> objectTypeNameBool schema currentRuntimeType = true
       -> objectTypeNameBool schema childRuntimeType = true
       -> Selection.field responseName targetField arguments directives childSelectionSet
@@ -1780,7 +1856,7 @@ theorem
           (fieldPairPathLocalNextSelectionSet schema currentRuntimeType
             childRuntimeType targetField targetArguments currentSelectionSet)
           bodySelectionSet := by
-  intro hvalid hfree hnormal hcurrentObject hchildObject hfieldMem
+  intro hvalid hfree hnormal hsub hcurrentObject hchildObject hfieldMem
     hbodyMem htargetLookup htargetComposite htargetNonObject
     hruntime hinclude
   have hchildNonempty : childSelectionSet ≠ [] := by
@@ -1798,6 +1874,11 @@ theorem
       selectionSetNormal schema targetFieldDefinition.outputType.namedType
         childSelectionSet :=
     selectionSetNormal_field_child_of_mem_lookup hnormal hfieldMem
+      htargetLookup
+  have hchildSub :
+      selectionSetSubselectionsNonempty schema targetFieldDefinition.outputType.namedType
+        childSelectionSet :=
+    selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hfieldMem
       htargetLookup
   have hmemberRoot :
       runtimePrunedSelectionSet schema childRuntimeType childSelectionSet ∈
@@ -1817,7 +1898,7 @@ theorem
             childRuntimeType targetField targetArguments
             currentSelectionSet) :=
     PathLocalCurrentRuntimeSound.fieldPairPathLocalNextSelectionSet_of_valid_normal_object
-      hvalid hfree hnormal hcurrentObject hchildObject htargetLookup
+      hvalid hfree hnormal hsub hcurrentObject hchildObject htargetLookup
       hinclude
   have hlocalReady :
       PathLocalSelectionSetHeadReady schema childRuntimeType
@@ -1825,7 +1906,7 @@ theorem
           childSelectionSet)
         bodySelectionSet :=
     PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_valid_normal
-      hchildValid hchildFree hchildNormal hinclude hchildObject hbodyMem
+      hchildValid hchildFree hchildNormal hchildSub hinclude hchildObject hbodyMem
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
   exact PathLocalSelectionSetHeadReady.selection_in_member_flatten_of_sound
     (by
@@ -3226,6 +3307,7 @@ theorem pathLocalCompositeFieldChildReady_of_valid_normal_support_context
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> objectTypeNameBool schema parentType = true
       -> PathLocalSupportValidNormal schema parentType currentSelectionSet
       -> PathLocalSelectionSetCurrentContext selectionSet currentSelectionSet
@@ -3262,11 +3344,11 @@ theorem pathLocalCompositeFieldChildReady_of_valid_normal_support_context
                     -> PathLocalSelectionSetCurrentContext bodySelectionSet
                         (fieldPairPathLocalNextSelectionSet schema parentType childRuntime
                           fieldName targetArguments currentSelectionSet))) := by
-  intro hschema hvalid hnormal hobject hsupport hcontext hmem hlookup
+  intro hschema hvalid hnormal hsub hobject hsupport hcontext hmem hlookup
     hcomposite
   rcases
       pathLocalCompositeFieldRuntime_of_valid_normal_support_context
-        hvalid hnormal hsupport hcontext hmem hlookup hcomposite with
+        hvalid hnormal hsub hsupport hcontext hmem hlookup hcomposite with
     ⟨childRuntime, hruntime, hinclude⟩
   have hchildObject : objectTypeNameBool schema childRuntime = true :=
     objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
@@ -3364,6 +3446,7 @@ theorem pathLocalCompositeFieldResponsePathReady_of_valid_normal_support_context
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> objectTypeNameBool schema parentType = true
       -> PathLocalSupportValidNormal schema parentType currentSelectionSet
       -> PathLocalSelectionSetCurrentContext selectionSet currentSelectionSet
@@ -3398,7 +3481,7 @@ theorem pathLocalCompositeFieldResponsePathReady_of_valid_normal_support_context
                   -> PathLocalSelectionSetCurrentContext bodySelectionSet
                       (fieldPairPathLocalNextSelectionSet schema parentType
                         childRuntime fieldName targetArguments currentSelectionSet)) := by
-  intro hschema hvalid hnormal hparentObject hsupport hcontext hmem hlookup
+  intro hschema hvalid hnormal hsub hparentObject hsupport hcontext hmem hlookup
     hcomposite hpath
   have hchildNormal :
       selectionSetNormal schema fieldDefinition.outputType.namedType

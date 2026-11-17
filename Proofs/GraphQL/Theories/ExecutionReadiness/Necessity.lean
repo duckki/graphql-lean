@@ -240,7 +240,6 @@ private theorem deadOperation_valid
     rfl,
     ⟨.object rootType, rfl, trivial⟩,
     by simp [deadOperation, Validation.variableDefinitionsValid],
-    by decide,
     ?_,
     ?_,
     by simp [deadOperation, Validation.operationVariablesUsed]
@@ -269,7 +268,6 @@ private theorem argumentOperation_valid
     rfl,
     ⟨.object rootType, rfl, trivial⟩,
     by simp [argumentOperation, Validation.variableDefinitionsValid],
-    by decide,
     ?_,
     ?_,
     by simp [argumentOperation, Validation.operationVariablesUsed]

@@ -30,7 +30,7 @@ import GraphQL.Theories.QueryInclusion
 import GraphQL.Theories.QueryInclusionSemantics
 
 /-!
-Spec reference: GraphQL September 2025.
+Spec reference: GraphQL September 2026.
 - 2 Language, 3 Type System, 5 Validation, 6 Execution, and 7 Response: this root module
   re-exports the partial GraphQL formalization modules.
 - This root module intentionally imports only public definition surfaces. Import `Proofs`

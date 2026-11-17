@@ -88,6 +88,7 @@ theorem
           -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
                 targetFieldDefinition,
@@ -124,7 +125,7 @@ theorem
   intro hschema parentType variableDefinitions selectionSet fuel targetParent
     leftField rightField leftArguments rightArguments responseName fieldName
     arguments directives childSelectionSet fieldDefinition hvalid hcoercion hfree
-    hnormal hobject hpromote hheadPromote hfuel hmem hlookup hleaf hTypeNames
+    hnormal hsub hobject hpromote hheadPromote hfuel hmem hlookup hleaf hTypeNames
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
@@ -138,7 +139,7 @@ theorem
         (SelectionSet.size selectionSet + 1) parentType
         variableDefinitions selectionSet fuel parentType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left (by omega) hfuel hvalid hcoercionPossible hfree hnormal
+        FieldPairProbeTag.left (by omega) hfuel hvalid hcoercionPossible hfree hnormal hsub
         hinclude hpromote hheadPromote with
     ⟨leftFields, leftErrors, hleftResponse⟩
   rcases
@@ -147,7 +148,7 @@ theorem
         (SelectionSet.size selectionSet + 1) parentType
         variableDefinitions selectionSet fuel parentType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.right (by omega) hfuel hvalid hcoercionPossible hfree hnormal
+        FieldPairProbeTag.right (by omega) hfuel hvalid hcoercionPossible hfree hnormal hsub
         hinclude hpromote hheadPromote with
     ⟨rightFields, rightErrors, hrightResponse⟩
   have hdataNot :
@@ -168,7 +169,7 @@ theorem
       schema rootSelectionSet variableValues hschema parentType
       variableDefinitions selectionSet fuel parentType targetParent
       leftField rightField leftArguments rightArguments hvalid hcoercion hfree
-      hnormal hobject hinclude hpromote hheadPromote hfuel hmem hlookup
+      hnormal hsub hobject hinclude hpromote hheadPromote hfuel hmem hlookup
       hleaf
   refine ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
     hleftResponse, hrightResponse, ?_⟩
@@ -191,6 +192,7 @@ theorem
           -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
                 targetFieldDefinition,
@@ -238,7 +240,7 @@ theorem
   intro hschema parentType variableDefinitions selectionSet fuel targetParent
     leftField rightField leftArguments rightArguments responseName fieldName
     arguments directives childSelectionSet fieldDefinition runtimeType
-    hvalid hcoercion hfree hnormal hobject hpromote hheadPromote hfuel hmem hlookup
+    hvalid hcoercion hfree hnormal hsub hobject hpromote hheadPromote hfuel hmem hlookup
     hruntime hchildWitness hTypeNames
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
@@ -267,7 +269,7 @@ theorem
         (SelectionSet.size selectionSet + 1) parentType
         variableDefinitions selectionSet fuel parentType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left (by omega) hfuel hvalid hcoercionPossible hfree hnormal
+        FieldPairProbeTag.left (by omega) hfuel hvalid hcoercionPossible hfree hnormal hsub
         hinclude hpromote hheadPromote with
     ⟨leftFields, leftErrors, hleftResponse⟩
   rcases
@@ -276,7 +278,7 @@ theorem
         (SelectionSet.size selectionSet + 1) parentType
         variableDefinitions selectionSet fuel parentType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.right (by omega) hfuel hvalid hcoercionPossible hfree hnormal
+        FieldPairProbeTag.right (by omega) hfuel hvalid hcoercionPossible hfree hnormal hsub
         hinclude hpromote hheadPromote with
     ⟨rightFields, rightErrors, hrightResponse⟩
   have hleftFieldOk :
@@ -303,7 +305,7 @@ theorem
         schema rootSelectionSet variableValues hschema parentType
         variableDefinitions selectionSet fuel parentType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left hfuel hvalid hcoercion hfree hnormal hobject hinclude
+        FieldPairProbeTag.left hfuel hvalid hcoercion hfree hnormal hsub hobject hinclude
         hpromote hheadPromote
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
@@ -329,7 +331,7 @@ theorem
         schema rootSelectionSet variableValues hschema parentType
         variableDefinitions selectionSet fuel parentType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.right hfuel hvalid hcoercion hfree hnormal hobject hinclude
+        FieldPairProbeTag.right hfuel hvalid hcoercion hfree hnormal hsub hobject hinclude
         hpromote hheadPromote
   have hfieldCoercion :
       (Execution.coerceArgumentValues schema variableValues
@@ -375,6 +377,7 @@ theorem taggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body
               normalParentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema normalParentType selectionSet
+          -> selectionSetSubselectionsNonempty schema normalParentType selectionSet
           -> objectTypeNameBool schema normalParentType = false
           -> objectTypeNameBool schema runtimeType = true
           -> schema.typeIncludesObjectBool normalParentType runtimeType = true
@@ -412,7 +415,7 @@ theorem taggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body
                 leftField rightField leftArguments rightArguments selectionSet := by
   intro hschema normalParentType variableDefinitions selectionSet fuel
     runtimeType targetParent leftField rightField leftArguments
-    rightArguments bodySelectionSet hvalid hcoercion hfree hnormal hnonObject
+    rightArguments bodySelectionSet hvalid hcoercion hfree hnormal hsub hnonObject
     hruntimeObject hinclude hpromote hheadPromote hfuel hinlineMem
     hbodyWitness hTypeNames
   rcases
@@ -421,7 +424,7 @@ theorem taggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body
         (SelectionSet.size selectionSet + 1) normalParentType
         variableDefinitions selectionSet fuel runtimeType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.left (by omega) hfuel hvalid hcoercion hfree hnormal
+        FieldPairProbeTag.left (by omega) hfuel hvalid hcoercion hfree hnormal hsub
         hinclude hpromote hheadPromote with
     ⟨leftFields, leftErrors, hleftResponse⟩
   rcases
@@ -430,7 +433,7 @@ theorem taggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body
         (SelectionSet.size selectionSet + 1) normalParentType
         variableDefinitions selectionSet fuel runtimeType targetParent
         leftField rightField leftArguments rightArguments
-        FieldPairProbeTag.right (by omega) hfuel hvalid hcoercion hfree hnormal
+        FieldPairProbeTag.right (by omega) hfuel hvalid hcoercion hfree hnormal hsub
         hinclude hpromote hheadPromote with
     ⟨rightFields, rightErrors, hrightResponse⟩
   rcases List.mem_iff_append.mp hinlineMem with

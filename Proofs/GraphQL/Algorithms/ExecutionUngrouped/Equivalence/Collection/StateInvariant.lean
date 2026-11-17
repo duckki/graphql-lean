@@ -281,7 +281,7 @@ mutual
           rcases hselectionSet.2 with hleaf | hcomposite
           · rw [hleaf.2]
             simp [selectionSetArgumentsNodup]
-          · exact selectionSetArgumentsNodup_of_selectionSetValid hcomposite.2.2
+          · exact selectionSetArgumentsNodup_of_selectionSetValid hcomposite.2
     | inlineFragment typeCondition directives selectionSet =>
         cases typeCondition with
         | none =>

@@ -161,11 +161,8 @@ mutual
         .inlineFragment none directives selectionSet,
         hvalid, hinlined => by
         simp [selectionValid] at hvalid
-        rcases hvalid with ⟨hdirectives, hnonempty, hselectionSet⟩
+        rcases hvalid with ⟨hdirectives, hselectionSet⟩
         simp [Semantics.selectionInlined] at hinlined
-        have htranslatedNonempty :
-            Translate.reduceSelectionSet selectionSet ≠ [] :=
-          reduceSelectionSet_nonempty_of_inlined hnonempty hinlined
         have htranslatedValid :
             GraphQL.Validation.selectionSetValid schema variableDefinitions
               parentType (Translate.reduceSelectionSet selectionSet) :=
@@ -173,18 +170,15 @@ mutual
         simp [Translate.reduceSelection,
           GraphQL.Validation.selectionSetValid,
           GraphQL.Validation.selectionValid]
-        exact ⟨hdirectives, htranslatedNonempty,
+        exact ⟨hdirectives,
           by simpa [GraphQL.Validation.selectionSetValid] using htranslatedValid⟩
     | schema, variableDefinitions, parentType,
         .inlineFragment (some typeCondition) directives selectionSet,
         hvalid, hinlined => by
         simp [selectionValid] at hvalid
         rcases hvalid with
-          ⟨hdirectives, hcomposite, hoverlap, hnonempty, hselectionSet⟩
+          ⟨hdirectives, hcomposite, hoverlap, hselectionSet⟩
         simp [Semantics.selectionInlined] at hinlined
-        have htranslatedNonempty :
-            Translate.reduceSelectionSet selectionSet ≠ [] :=
-          reduceSelectionSet_nonempty_of_inlined hnonempty hinlined
         have htranslatedValid :
             GraphQL.Validation.selectionSetValid schema variableDefinitions
               typeCondition
@@ -193,7 +187,7 @@ mutual
         simp [Translate.reduceSelection,
           GraphQL.Validation.selectionSetValid,
           GraphQL.Validation.selectionValid]
-        exact ⟨hdirectives, hcomposite, hoverlap, htranslatedNonempty,
+        exact ⟨hdirectives, hcomposite, hoverlap,
           by simpa [GraphQL.Validation.selectionSetValid] using htranslatedValid⟩
     | _schema, _variableDefinitions, _parentType,
         .fragmentSpread _fragmentName _directives, _hvalid, hinlined => by
@@ -254,10 +248,8 @@ mutual
               Translate.reduceSelectionSet]⟩
         | inr hcomposite =>
             right
-            rcases hcomposite with
-              ⟨hcompositeType, hnonempty, hselectionSetValid⟩
+            rcases hcomposite with ⟨hcompositeType, hselectionSetValid⟩
             exact ⟨hcompositeType,
-              reduceSelectionSet_nonempty_of_inlined hnonempty hinlined,
               selectionSetValid_toSpec_of_inlined hselectionSetValid hinlined⟩
 end
 
@@ -633,15 +625,13 @@ theorem operationDefinitionValid_toSpec_of_inlined
   rcases hvalid with
     ⟨hroot, hrootComposite, hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
-      _hfragmentDefinitionsValid, hselectionNonempty, hselectionValid, hmerge,
-      hvariablesUsed⟩
+      _hfragmentDefinitionsValid, hselectionValid, hmerge, hvariablesUsed⟩
   rw [hfragments] at hselectionValid hmerge
   simp [Translate.reduceOperation,
     GraphQL.Validation.operationDefinitionValid]
   exact ⟨
     hrootComposite,
     hvariables,
-    reduceSelectionSet_nonempty_of_inlined hselectionNonempty hselectionInlined,
     selectionSetValid_toSpec_of_inlined hselectionValid hselectionInlined,
     fieldsInSetCanMerge_toSpec_of_inlined hselectionInlined hmerge,
     by

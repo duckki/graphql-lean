@@ -97,7 +97,6 @@ theorem sourceOperation_valid
     rfl,
     ⟨.object (queryType (.nonNull (.named "String"))), rfl, trivial⟩,
     by simp [operation, Validation.variableDefinitionsValid],
-    by decide,
     ?_,
     ?_,
     by simp [operation, Validation.operationVariablesUsed]

@@ -152,10 +152,9 @@ theorem literal_operation_valid
       arguments := [{ name := "a", value := payload.toInputValue }]
       outputType := .named "JSON"
       selectionSet := [] }
-  refine ⟨rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨rfl, ?_, ?_, ?_, ?_, ?_⟩
   · exact ⟨_, rfl, trivial⟩
   · simp [operation, Validation.variableDefinitionsValid]
-  · simp [operation]
   · unfold Validation.selectionSetValid
     intro selection member
     cases List.mem_singleton.mp member

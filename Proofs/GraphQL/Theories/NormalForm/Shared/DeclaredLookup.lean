@@ -46,7 +46,7 @@ mutual
           ⟨definition, hlookup, _, hchildren⟩
         refine ⟨definition, hlookup, ?_⟩
         unfold Validation.fieldSelectionSetValid at hchildren
-        rcases hchildren.2 with ⟨_, rfl⟩ | ⟨_, _, hchildren⟩
+        rcases hchildren.2 with ⟨_, rfl⟩ | ⟨_, hchildren⟩
         · simp [selectionSetDeclaredLookupReady]
         · exact selectionSetDeclaredLookupReady_of_valid schema definitions
             definition.outputType.namedType children hchildren

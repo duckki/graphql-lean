@@ -26,15 +26,16 @@ text. Runtime input preparation is a separate execution concern.
 ## Operation validity
 
 `Validation.operationDefinitionValid` combines the query kind, a composite root,
-variable-definition validity, a nonempty root selection set, recursive selection
-validity, field-merge compatibility, and the all-variables-used check.
+variable-definition validity, recursive selection validity, field-merge
+compatibility, and the all-variables-used check.
 `SchemaWellFormedness.schemaWellFormed` is a separate assumption; in particular,
 it requires the query root to be an object.
 
 Recursive validation checks field lookup, argument and directive validity,
 variable/input-type compatibility, leaf/composite subselection shape, and fragment
 applicability. Variable compatibility includes the nullable-variable exception
-for a non-null default. Root and composite selection sets must be nonempty.
+for a non-null default. Selection sets may be empty (`{ Selection* }`); `[]` reads as
+absent on a leaf field and as `{}` on a composite field, fragment, or operation.
 The modeled value checks are not a full input-coercion implementation.
 
 Shared field lookup permits `__typename` directly on objects, interfaces, and

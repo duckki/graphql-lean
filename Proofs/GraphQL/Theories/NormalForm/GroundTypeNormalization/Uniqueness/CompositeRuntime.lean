@@ -26,13 +26,15 @@ theorem fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
     {fieldDefinition : FieldDefinition}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> (∀ memberSelectionSet,
             memberSelectionSet ∈ members
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   memberSelectionSet
                 ∧ selectionSetDirectiveFree memberSelectionSet
-                ∧ selectionSetNormal schema parentType memberSelectionSet)
+                ∧ selectionSetNormal schema parentType memberSelectionSet
+                ∧ selectionSetSubselectionsNonempty schema parentType memberSelectionSet)
       -> selectionSet ∈ members
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
@@ -54,7 +56,7 @@ theorem fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
             ∧ schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType runtimeType
               = true) := by
-  intro hvalid hnormal hmembers hmember hmem hlookup hcomposite
+  intro hvalid hnormal hsub hmembers hmember hmem hlookup hcomposite
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
   · exact ⟨
@@ -70,7 +72,7 @@ theorem fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
       · contradiction
     rcases
         abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
-          hvalid hnormal hmem hlookup hcomposite hnonObject with
+          hvalid hnormal hsub hmem hlookup hcomposite hnonObject with
       ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
     rcases
         abstractRuntimeForFieldDeep?_member_framed_promote_some_of_valid_normal_members
@@ -92,6 +94,7 @@ theorem fieldHeadCompositeRuntime_of_valid_normal_mem
     {fieldDefinition : FieldDefinition}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
@@ -112,7 +115,7 @@ theorem fieldHeadCompositeRuntime_of_valid_normal_mem
             ∧ schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType runtimeType
               = true) := by
-  intro hvalid hnormal hmem hlookup hcomposite hheadPromote
+  intro hvalid hnormal hsub hmem hlookup hcomposite hheadPromote
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
   · exact ⟨
@@ -128,7 +131,7 @@ theorem fieldHeadCompositeRuntime_of_valid_normal_mem
       · contradiction
     rcases
         abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
-          hvalid hnormal hmem hlookup hcomposite hnonObject with
+          hvalid hnormal hsub hmem hlookup hcomposite hnonObject with
       ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
     rcases
         hheadPromote parentType fieldName arguments localRuntimeType
@@ -144,6 +147,7 @@ theorem fieldCompositeSelectedChildRuntime_of_valid_normal_mem
     {fieldDefinition : FieldDefinition}
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
@@ -161,7 +165,7 @@ theorem fieldCompositeSelectedChildRuntime_of_valid_normal_mem
             ∧ schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType runtimeType
               = true) := by
-  intro hvalid hnormal hmem hlookup hcomposite
+  intro hvalid hnormal hsub hmem hlookup hcomposite
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
   · exact ⟨
@@ -177,7 +181,7 @@ theorem fieldCompositeSelectedChildRuntime_of_valid_normal_mem
       · contradiction
     rcases
         firstInlineFragmentTypeCondition?_some_of_valid_normal_abstract_field_mem_lookup
-          hvalid hnormal hmem hlookup hcomposite hnonObject with
+          hvalid hnormal hsub hmem hlookup hcomposite hnonObject with
       ⟨runtimeType, hruntime, hinclude⟩
     exact ⟨runtimeType, Or.inr ⟨hcomposite, hnonObject, hruntime⟩, hinclude⟩
 

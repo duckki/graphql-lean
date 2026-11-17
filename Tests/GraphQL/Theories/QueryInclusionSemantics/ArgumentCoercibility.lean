@@ -322,8 +322,6 @@ private theorem operationValid (responseName : Name)
   constructor
   · simp [Validation.variableDefinitionsValid, exampleOperation]
   constructor
-  · cbv <;> simp
-  constructor
   · unfold Validation.selectionSetValid
     intro selection hmem
     simp only [exampleOperation, List.mem_singleton] at hmem
@@ -336,8 +334,6 @@ private theorem operationValid (responseName : Name)
     constructor
     · exact ⟨"Query", by exact List.mem_cons_self,
       by exact List.mem_cons_self⟩
-    constructor
-    · cbv <;> simp
     unfold Validation.selectionSetValid
     intro field hfield
     simp only [List.mem_singleton] at hfield

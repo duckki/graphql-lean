@@ -1,7 +1,7 @@
 import GraphQL.Operation
 
 /-! GraphQL query execution semantics
-Spec reference: GraphQL September 2025.
+Spec reference: GraphQL September 2026.
 - 6.1-6.2 Executing Requests and Operations: this module executes the modeled single
   query-like operation, not full request validation/coercion or mutation/subscription
   modes.

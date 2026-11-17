@@ -22,7 +22,7 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
       -> normalizeOperationUniqueUpToReordering schema left right := by
   intro hnormalUnique hschema hleftValid hrightValid hleftCoercion hrightCoercion
     hleftTypes hrightTypes hleftFree hrightFree hleftShapes hrightShapes
-    hleftFields hrightFields hdefinitions hsem
+    hleftFields hrightFields hleftSourceSub hrightSourceSub hdefinitions hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (normalizeOperation schema left) :=
@@ -47,6 +47,14 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
       : operationNormal schema (normalizeOperation schema right) := by
     simpa [normalizeOperationNormal]
       using normalizeOperation_normal schema right hschema hrightValid
+  have hleftNormalizedSub :
+      operationSubselectionsNonempty schema (normalizeOperation schema left) :=
+    normalizeOperation_subselectionsNonempty schema left hschema hleftValid
+      hleftCoercion hleftFree hleftFields hleftSourceSub
+  have hrightNormalizedSub :
+      operationSubselectionsNonempty schema (normalizeOperation schema right) :=
+    normalizeOperation_subselectionsNonempty schema right hschema hrightValid
+      hrightCoercion hrightFree hrightFields hrightSourceSub
   have hnormalizedDefinitions :
       variableDefinitionsSyntacticallyEquivalent
         (normalizeOperation schema left).variableDefinitions
@@ -86,7 +94,8 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
       hleftNormalizedFree hrightNormalizedFree
       (normalizeOperation_typenameFree schema left hleftTypes)
       (normalizeOperation_typenameFree schema right hrightTypes)
-      hleftNormalizedNormal hrightNormalizedNormal hnormalizedDefinitions hnormalizedSem
+      hleftNormalizedNormal hrightNormalizedNormal hleftNormalizedSub hrightNormalizedSub
+      hnormalizedDefinitions hnormalizedSem
 
 end GroundTypeNormalization
 

@@ -105,6 +105,8 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
     (hrightValid : Validation.operationDefinitionValid schema right)
     (hleftNormal : completeNormalOperation schema left)
     (hrightNormal : completeNormalOperation schema right)
+    (hleftSub : operationSubselectionsNonempty schema left)
+    (hrightSub : operationSubselectionsNonempty schema right)
     (hvariables : operationBoolVarsEquivalent left right)
     (hdefinitions
       : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
@@ -147,7 +149,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
         GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering
           (schema := schema) (left := left) (right := right) hschema
           hleftValid hrightValid hleftShape.2 hrightShape.2
-          hleftTypes hrightTypes hleftShape.1 hrightShape.1 hdefinitions hsemAll
+          hleftTypes hrightTypes hleftShape.1 hrightShape.1 hleftSub hrightSub hdefinitions hsemAll
       simpa [hleftVars] using hground.2
   | cons leftVar leftVariables =>
       cases hrightVars : operationBoolVars right with
@@ -173,6 +175,14 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                 (left.rootType schema) right.selectionSet := by
             simpa [hroot]
               using Validation.operationDefinitionValid_selectionSetValid hrightValid
+          have hleftSelectionSub :
+              selectionSetSubselectionsNonempty schema (left.rootType schema)
+                left.selectionSet := by
+            simpa [operationSubselectionsNonempty] using hleftSub
+          have hrightSelectionSub :
+              selectionSetSubselectionsNonempty schema (left.rootType schema)
+                right.selectionSet := by
+            simpa [operationSubselectionsNonempty, hroot] using hrightSub
           have hobject : objectTypeNameBool schema (left.rootType schema) = true :=
             GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
               hschema hleftValid
@@ -226,7 +236,8 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                       leftSelection rightSelection := by
             intro leftSelection hleftMem
             exact completeNormalSelection_has_match hschema
-              hleftSelectionValid hrightSelectionValid rfl hroot.symm rfl rfl
+              hleftSelectionValid hrightSelectionValid hleftSelectionSub
+              hrightSelectionSub rfl hroot.symm rfl rfl
               hleftVars hjoint hleftComplete
               hrightComplete hcaseLeftToRight hobject hselectionSem hleftMem
           have hrightTotal : ∀ rightSelection,
@@ -278,7 +289,8 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
               exact ⟨baseValues, hrightReady, hleftReady⟩
             intro rightSelection hrightMem
             exact completeNormalSelection_has_match hschema
-              hrightSelectionValid hleftSelectionValid hroot.symm rfl rfl rfl
+              hrightSelectionValid hleftSelectionValid hrightSelectionSub
+              hleftSelectionSub hroot.symm rfl rfl rfl
               hrightVars hjointReverse hrightComplete
               hleftComplete hcaseRightToLeft hobject
               hselectionSemReverse hrightMem
@@ -369,11 +381,11 @@ theorem complete_normal_operations_semanticallyEquivalent_equalUpToReordering
     : completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
         schema left right := by
   intro hschema hleftValid hrightValid hleftTypes hrightTypes hleftNormal hrightNormal
-    hdefinitions hvariables hsem
+    hleftSub hrightSub hdefinitions hvariables hsem
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
-      hschema hleftValid hrightValid hleftNormal hrightNormal hvariables
-      hdefinitions hleftTypes hrightTypes hsem
+      hschema hleftValid hrightValid hleftNormal hrightNormal hleftSub hrightSub
+      hvariables hdefinitions hleftTypes hrightTypes hsem
 
 end CompleteNormalization
 

@@ -1,7 +1,7 @@
 # Spec Conformance Summary
 
 The main model targets the
-[GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
+[GraphQL September 2026 Edition](https://spec.graphql.org/September2026/).
 A separate incremental-delivery model targets
 [PR #1110, revision 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec).
 
@@ -23,8 +23,9 @@ are documented in [schemas](schema.md), [operations](operations.md),
 - **Type-name introspection:** implicit `__typename: String!` on objects,
   interfaces, and unions, resolved from the concrete runtime object type.
 - **Operation validation:** field and argument validity, required arguments,
-  variable uses and input-type compatibility, selection shape and non-emptiness,
-  fragment applicability, and same-response-name merge compatibility.
+  variable uses and input-type compatibility, leaf and composite selection shape
+  (empty selection sets admitted), fragment applicability, and same-response-name
+  merge compatibility.
 - **Named fragments:** a separate fragment-aware layer with syntax, validation,
   execution, and inlining.
 - **Input preparation:** operation-variable defaults, argument materialization,
@@ -40,6 +41,9 @@ Input values are assumed already coerced and type-conformant where scalar
 semantics matter. Default materialization is covered; full input coercion and
 request-error handling are not. Execution is a finite, pure model with bounded
 recursion. Errors are represented by counts rather than detailed error objects.
+An absent selection set and an empty one, `{}`, share a representation, so a leaf
+field with `{}` and a composite field with no selection set, both invalid, cannot be
+expressed.
 
 Interface field implementations allow covariant return types, including
 nullable-to-non-null strengthening within lists. Normalization validity has

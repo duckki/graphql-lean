@@ -119,7 +119,7 @@ theorem selectionValid_inlineFragment_none_selectionSetValid
       -> selectionSetValid schema variableDefinitions parentType selectionSet := by
   intro hvalid
   simp [selectionValid] at hvalid
-  exact hvalid.2.2
+  exact hvalid.2
 
 theorem selectionValid_inlineFragment_some_selectionSetValid
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -130,7 +130,7 @@ theorem selectionValid_inlineFragment_some_selectionSetValid
       -> selectionSetValid schema variableDefinitions typeCondition selectionSet := by
   intro hvalid
   simp [selectionValid] at hvalid
-  exact hvalid.2.2.2.2
+  exact hvalid.2.2.2
 
 theorem fieldSelectionSetValid_outputType
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -164,7 +164,7 @@ theorem fieldSelectionSetValid_composite_child
             simp [TypeDefinition.isLeafType, TypeDefinition.isCompositeType]
               at hleafDefinition hcompositeDefinition)
   | inr hchild =>
-      exact hchild.2.2
+      exact hchild.2
 
 theorem selectionSetValid_append
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -275,12 +275,6 @@ theorem operationDefinitionValid_selectionSetValid
       -> selectionSetValid schema operation.variableDefinitions
           (operation.rootType schema) operation.selectionSet := by
   intro hvalid
-  exact hvalid.2.2.2.2.1
-
-theorem operationDefinitionValid_selectionSet_nonempty
-    {schema : Schema} {operation : Operation}
-    : operationDefinitionValid schema operation -> operation.selectionSet ≠ [] := by
-  intro hvalid
   exact hvalid.2.2.2.1
 
 theorem operationDefinitionValid_fieldsInSetCanMerge
@@ -289,13 +283,13 @@ theorem operationDefinitionValid_fieldsInSetCanMerge
       -> FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
           operation.selectionSet := by
   intro hvalid
-  exact hvalid.2.2.2.2.2.1
+  exact hvalid.2.2.2.2.1
 
 theorem operationDefinitionValid_operationVariablesUsed
     {schema : Schema} {operation : Operation}
     : operationDefinitionValid schema operation -> operationVariablesUsed operation := by
   intro hvalid
-  exact hvalid.2.2.2.2.2.2
+  exact hvalid.2.2.2.2.2
 
 end Validation
 

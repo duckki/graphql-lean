@@ -28,7 +28,7 @@ theorem fieldSelectionSetValid_child_of_nonempty
   simp [Validation.fieldSelectionSetValid] at hvalid
   rcases hvalid with ⟨_houtput, hleaf | hcomposite⟩
   · exact False.elim (hnonempty hleaf.2)
-  · exact ⟨hcomposite.1, hcomposite.2.2⟩
+  · exact ⟨hcomposite.1, hcomposite.2⟩
 
 theorem fieldSelectionSetValid_child_of_composite
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -36,14 +36,13 @@ theorem fieldSelectionSetValid_child_of_composite
     : Validation.fieldSelectionSetValid schema variableDefinitions
         fieldDefinition selectionSet
       -> schema.isCompositeType fieldDefinition.outputType.namedType
-      -> selectionSet ≠ []
-          ∧ Validation.selectionSetValid schema variableDefinitions
-              fieldDefinition.outputType.namedType selectionSet := by
+      -> Validation.selectionSetValid schema variableDefinitions
+          fieldDefinition.outputType.namedType selectionSet := by
   intro hvalid hcomposite
   simp [Validation.fieldSelectionSetValid] at hvalid
   rcases hvalid with ⟨_houtput, hleaf | hchild⟩
   · exact False.elim (isLeafType_not_isCompositeType hleaf.1 hcomposite)
-  · exact ⟨hchild.2.1, hchild.2.2⟩
+  · exact hchild.2
 
 theorem fieldDefinition_namedType_eq_of_fieldReturnType?
     {schema : Schema} {parentType fieldName returnType : Name}
@@ -172,12 +171,10 @@ theorem selectionSetValid_field_children_of_diff {schema : Schema}
     rcases hnonempty with hleftNonempty | hrightNonempty
     · exact (fieldSelectionSetValid_child_of_nonempty hleftFieldValid hleftNonempty).1
     · exact (fieldSelectionSetValid_child_of_nonempty hrightFieldValid hrightNonempty).1
-  rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
-      hcomposite with
-    ⟨_hleftNonempty, hleftChildValid⟩
-  rcases fieldSelectionSetValid_child_of_composite hrightFieldValid
-      hcomposite with
-    ⟨_hrightNonempty, hrightChildValid⟩
+  have hleftChildValid :=
+    fieldSelectionSetValid_child_of_composite hleftFieldValid hcomposite
+  have hrightChildValid :=
+    fieldSelectionSetValid_child_of_composite hrightFieldValid hcomposite
   refine ⟨fieldDefinition, hlookup, hnamedType, ?_, ?_⟩
   · simpa [hnamedType] using hleftChildValid
   · simpa [hnamedType] using hrightChildValid
@@ -208,20 +205,163 @@ theorem selectionSetValid_inlineFragment_some_child_of_mem
   exact Validation.selectionValid_inlineFragment_some_selectionSetValid
     (selectionSetValid_selectionValid_of_mem hvalid hmem)
 
-theorem selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-    {schema : Schema} {variableDefinitions : List VariableDefinition}
-    {parentType typeCondition : Name}
+theorem selectionSetSubselectionsNonempty_iff
+    {schema : Schema} {parentType : Name} {selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      <-> ∀ selection,
+            selection ∈ selectionSet
+            -> selectionSubselectionsNonempty schema parentType selection := by
+  unfold selectionSetSubselectionsNonempty
+  exact Iff.rfl
+
+theorem selectionSetSubselectionsNonempty_of_mem
+    {schema : Schema} {parentType : Name} {selection : Selection}
+    {selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> selection ∈ selectionSet
+      -> selectionSubselectionsNonempty schema parentType selection := by
+  intro hnonempty hmem
+  exact selectionSetSubselectionsNonempty_iff.mp hnonempty selection hmem
+
+theorem selectionSetSubselectionsNonempty_of_subset
+    {schema : Schema} {parentType : Name} {smaller larger : List Selection}
+    : (∀ selection, selection ∈ smaller -> selection ∈ larger)
+      -> selectionSetSubselectionsNonempty schema parentType larger
+      -> selectionSetSubselectionsNonempty schema parentType smaller := by
+  intro hsubset hlarger
+  exact selectionSetSubselectionsNonempty_iff.mpr fun selection hselection =>
+    selectionSetSubselectionsNonempty_of_mem hlarger (hsubset selection hselection)
+
+theorem selectionSetSubselectionsNonempty_nil {schema : Schema} {parentType : Name}
+    : selectionSetSubselectionsNonempty schema parentType [] := by
+  exact selectionSetSubselectionsNonempty_iff.mpr fun selection hselection => by
+    cases hselection
+
+theorem selectionSetSubselectionsNonempty_tail
+    {schema : Schema} {parentType : Name} {selection : Selection}
+    {selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType (selection :: selectionSet)
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet := by
+  intro hnonempty
+  exact selectionSetSubselectionsNonempty_of_subset
+    (fun candidate hcandidate => List.mem_cons_of_mem selection hcandidate) hnonempty
+
+theorem selectionSetSubselectionsNonempty_append
+    {schema : Schema} {parentType : Name} {left right : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType (left ++ right) := by
+  intro hleft hright
+  refine selectionSetSubselectionsNonempty_iff.mpr fun selection hselection => ?_
+  rcases List.mem_append.mp hselection with hmem | hmem
+  · exact selectionSetSubselectionsNonempty_of_mem hleft hmem
+  · exact selectionSetSubselectionsNonempty_of_mem hright hmem
+
+theorem selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+    {schema : Schema} {parentType : Name} {typeCondition : Option Name}
     {directives : List DirectiveApplication}
     {childSelectionSet selectionSet : List Selection}
-    : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
-      -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.inlineFragment typeCondition directives childSelectionSet
           ∈ selectionSet
       -> childSelectionSet ≠ [] := by
-  intro hvalid hmem
-  have hselectionValid :=
-    selectionSetValid_selectionValid_of_mem hvalid hmem
-  simp [Validation.selectionValid] at hselectionValid
-  exact hselectionValid.2.2.2.1
+  intro hnonempty hmem
+  have hselection := selectionSetSubselectionsNonempty_of_mem hnonempty hmem
+  simp only [selectionSubselectionsNonempty] at hselection
+  exact hselection.1
+
+theorem selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem
+    {schema : Schema} {parentType typeCondition : Name}
+    {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
+          ∈ selectionSet
+      -> selectionSetSubselectionsNonempty schema typeCondition childSelectionSet := by
+  intro hnonempty hmem
+  have hselection := selectionSetSubselectionsNonempty_of_mem hnonempty hmem
+  simp only [selectionSubselectionsNonempty, Option.getD_some] at hselection
+  exact hselection.2
+
+theorem selectionSetSubselectionsNonempty_inlineFragment_none_child_of_mem
+    {schema : Schema} {parentType : Name}
+    {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.inlineFragment none directives childSelectionSet ∈ selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType childSelectionSet := by
+  intro hnonempty hmem
+  have hselection := selectionSetSubselectionsNonempty_of_mem hnonempty hmem
+  simp only [selectionSubselectionsNonempty, Option.getD_none] at hselection
+  exact hselection.2
+
+theorem selectionSetSubselectionsNonempty_field_child_parts_of_mem_lookup
+    {schema : Schema} {parentType responseName fieldName : Name}
+    {arguments : List Argument} {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    {fieldDefinition : FieldDefinition}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.field responseName fieldName arguments directives childSelectionSet
+          ∈ selectionSet
+      -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> (schema.isCompositeType fieldDefinition.outputType.namedType
+            -> childSelectionSet ≠ [])
+          ∧ selectionSetSubselectionsNonempty schema
+              fieldDefinition.outputType.namedType childSelectionSet := by
+  intro hnonempty hmem hlookup
+  have hselection := selectionSetSubselectionsNonempty_of_mem hnonempty hmem
+  simpa [selectionSubselectionsNonempty, hlookup] using hselection
+
+theorem selectionSetSubselectionsNonempty_field_child_of_mem_lookup
+    {schema : Schema} {parentType responseName fieldName : Name}
+    {arguments : List Argument} {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    {fieldDefinition : FieldDefinition}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.field responseName fieldName arguments directives childSelectionSet
+          ∈ selectionSet
+      -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> selectionSetSubselectionsNonempty schema
+          fieldDefinition.outputType.namedType childSelectionSet := by
+  intro hnonempty hmem hlookup
+  exact (selectionSetSubselectionsNonempty_field_child_parts_of_mem_lookup hnonempty hmem
+          hlookup).2
+
+theorem selectionSetSubselectionsNonempty_field_child_nonempty_of_mem_lookup
+    {schema : Schema} {parentType responseName fieldName : Name}
+    {arguments : List Argument} {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    {fieldDefinition : FieldDefinition}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.field responseName fieldName arguments directives childSelectionSet
+          ∈ selectionSet
+      -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> schema.isCompositeType fieldDefinition.outputType.namedType
+      -> childSelectionSet ≠ [] := by
+  intro hnonempty hmem hlookup hcomposite
+  exact (selectionSetSubselectionsNonempty_field_child_parts_of_mem_lookup hnonempty hmem
+          hlookup).1
+    hcomposite
+
+theorem selectionSetSubselectionsNonempty_field_child_of_mem_returnType
+    {schema : Schema} {parentType responseName fieldName returnType : Name}
+    {arguments : List Argument} {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.field responseName fieldName arguments directives childSelectionSet
+          ∈ selectionSet
+      -> schema.fieldReturnType? parentType fieldName = some returnType
+      -> selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
+  intro hnonempty hmem hreturnType
+  cases hlookup : schema.lookupField parentType fieldName with
+  | none =>
+      simp [Schema.fieldReturnType?, hlookup] at hreturnType
+  | some fieldDefinition =>
+      have hnamedType : fieldDefinition.outputType.namedType = returnType := by
+        simpa [Schema.fieldReturnType?, hlookup] using hreturnType
+      subst returnType
+      exact (selectionSetSubselectionsNonempty_field_child_parts_of_mem_lookup hnonempty
+              hmem hlookup).2
 
 theorem selectionSetValid_inlineFragment_some_typesOverlap_of_mem
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -337,6 +477,52 @@ theorem field_child_inlineFragment_child_valid_free_normal
     hinclude,
     hinlineNormal
   ⟩
+
+theorem selectionSetSubselectionsNonempty_append_left
+    {schema : Schema} {parentType : Name} {left right : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType (left ++ right)
+      -> selectionSetSubselectionsNonempty schema parentType left := by
+  exact selectionSetSubselectionsNonempty_of_subset
+    (fun selection hselection => List.mem_append_left right hselection)
+
+theorem selectionSetSubselectionsNonempty_append_right
+    {schema : Schema} {parentType : Name} {left right : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType (left ++ right)
+      -> selectionSetSubselectionsNonempty schema parentType right := by
+  exact selectionSetSubselectionsNonempty_of_subset
+    (fun selection hselection => List.mem_append_right left hselection)
+
+theorem selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem
+    {schema : Schema} {parentType typeCondition : Name}
+    {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
+          ∈ selectionSet
+      -> childSelectionSet ≠ []
+          ∧ selectionSetSubselectionsNonempty schema typeCondition childSelectionSet := by
+  intro hnonempty hmem
+  exact ⟨
+    selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem hnonempty hmem,
+    selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hnonempty hmem⟩
+
+theorem selectionSetSubselectionsNonempty_field_child_of_mem_with_returnType
+    {schema : Schema} {parentType responseName fieldName : Name}
+    {arguments : List Argument} {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    : selectionSetSubselectionsNonempty schema parentType selectionSet
+      -> selectionSetNormal schema parentType selectionSet
+      -> Selection.field responseName fieldName arguments directives childSelectionSet
+          ∈ selectionSet
+      -> ∃ returnType,
+          schema.fieldReturnType? parentType fieldName = some returnType
+          ∧ selectionSetSubselectionsNonempty schema returnType childSelectionSet := by
+  intro hnonempty hnormal hmem
+  rcases selectionSetNormal_field_child_of_mem_with_returnType hnormal hmem with
+    ⟨returnType, hreturnType, _hchildNormal⟩
+  exact ⟨returnType, hreturnType,
+    selectionSetSubselectionsNonempty_field_child_of_mem_returnType hnonempty hmem
+      hreturnType⟩
 
 end GroundTypeNormalization
 

@@ -8,17 +8,6 @@ namespace GraphQL
 
 namespace NormalForm
 
--- Strong proof-facing form used by the existing preservation proofs: whenever the
--- normalizer is asked to process a nonempty selection set in a concrete scope, that
--- selection set contains a feasible field for that scope and recursively satisfies the
--- operation-level type-condition feasibility predicate in that scope.
-def selectionSetsTypeConditionFeasibleInEveryNormalizerScope (schema : Schema) : Prop :=
-  ∀ parentType selectionSet,
-    selectionSet ≠ []
-    -> GroundTypeNormalization.selectionSetContainsTypeConditionFeasibleField
-          schema [parentType] selectionSet
-        ∧ selectionSetTypeConditionFeasible schema parentType [parentType] selectionSet
-
 namespace GroundTypeNormalization
 
 theorem selectionSetTypeConditionFeasible_tail
@@ -1037,18 +1026,6 @@ theorem normalizeSelectionSet_ne_nil_of_contains (schema : Schema)
             schema hobject hstack
         simp [hfalse] at hoverlapTrue
       · simpa [normalizeSelectionSet, hfalse] using hrest hobject hrestReady htail
-
-theorem normalizeSelectionSet_ne_nil_of_everyNormalizerScope
-    (schema : Schema)
-    (hfeasibleAll : selectionSetsTypeConditionFeasibleInEveryNormalizerScope schema)
-    : ∀ parentType selectionSet,
-        schema.objectType parentType
-        -> selectionSetSemanticsReady schema parentType selectionSet
-        -> selectionSet ≠ []
-        -> normalizeSelectionSet schema parentType selectionSet ≠ [] := by
-  intro parentType selectionSet hobject hready hnonempty
-  exact normalizeSelectionSet_ne_nil_of_contains schema parentType selectionSet
-    hobject hready (hfeasibleAll parentType selectionSet hnonempty).1
 
 end GroundTypeNormalization
 

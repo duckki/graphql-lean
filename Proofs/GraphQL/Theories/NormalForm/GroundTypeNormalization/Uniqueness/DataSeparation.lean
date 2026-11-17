@@ -502,6 +502,7 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
     : Validation.selectionSetValid schema leftVariableDefinitions currentParent left
       -> selectionSetDirectiveFree left
       -> selectionSetNormal schema currentParent left
+      -> selectionSetSubselectionsNonempty schema currentParent left
       -> (∀ rightRuntimeType,
             abstractRuntimeForFieldHeadDeep? schema targetParent targetField
                 targetArguments currentParent right
@@ -519,7 +520,7 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
       -> schema.typeIncludesObjectBool
             targetFieldDefinition.outputType.namedType runtimeType
           = true := by
-  intro hleftValid hleftFree hleftNormal hrightInclude htargetLookup
+  intro hleftValid hleftFree hleftNormal hleftSub hrightInclude htargetLookup
     htargetComposite htargetNonObject happendedRuntime
   induction left generalizing currentParent runtimeType with
   | nil =>
@@ -557,7 +558,7 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                   simpa [hcondition.1, hcondition.2.1] using htargetLookup
                 rcases
                     firstInlineFragmentTypeCondition?_some_of_valid_normal_abstract_field_mem_lookup
-                      hleftValid hleftNormal hheadMem hheadLookup
+                      hleftValid hleftNormal hleftSub hheadMem hheadLookup
                       htargetComposite htargetNonObject with
                   ⟨candidateRuntimeType, hcandidateRuntime,
                     hcandidateInclude⟩
@@ -582,11 +583,11 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                     simpa [abstractRuntimeForFieldHeadDeep?, hcurrent, hrestAppend]
                       using happendedRuntime
                   subst runtimeType
-                  exact
-                    ih (Validation.selectionSetValid_tail hleftValid)
-                      (selectionSetDirectiveFree_tail hleftFree)
-                      (selectionSetNormal_tail hleftNormal) hrightInclude
-                      hrestAppend
+                  exact ih (Validation.selectionSetValid_tail hleftValid)
+                    (selectionSetDirectiveFree_tail hleftFree)
+                    (selectionSetNormal_tail hleftNormal)
+                    (selectionSetSubselectionsNonempty_tail hleftSub) hrightInclude
+                    hrestAppend
               | none =>
                   cases hlookup : schema.lookupField currentParent fieldName with
                   | none =>
@@ -621,9 +622,15 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                             childSelectionSet :=
                         selectionSetNormal_field_child_of_mem_lookup
                           hleftNormal hheadMem hlookup
+                      have hchildSub :
+                          selectionSetSubselectionsNonempty schema
+                            fieldDefinition.outputType.namedType
+                            childSelectionSet :=
+                        selectionSetSubselectionsNonempty_field_child_of_mem_lookup
+                          hleftSub hheadMem hlookup
                       exact
                         abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal
-                          hchildValid hchildFree hchildNormal htargetLookup
+                          hchildValid hchildFree hchildNormal hchildSub htargetLookup
                           htargetComposite htargetNonObject hchildRuntime
       | inlineFragment typeCondition directives childSelectionSet =>
           cases typeCondition with
@@ -661,11 +668,11 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                     simpa [abstractRuntimeForFieldHeadDeep?, hrestAppend]
                       using happendedRuntime
                   subst runtimeType
-                  exact
-                    ih (Validation.selectionSetValid_tail hleftValid)
-                      (selectionSetDirectiveFree_tail hleftFree)
-                      (selectionSetNormal_tail hleftNormal) hrightInclude
-                      hrestAppend
+                  exact ih (Validation.selectionSetValid_tail hleftValid)
+                    (selectionSetDirectiveFree_tail hleftFree)
+                    (selectionSetNormal_tail hleftNormal)
+                    (selectionSetSubselectionsNonempty_tail hleftSub) hrightInclude
+                    hrestAppend
               | none =>
                   have hchildRuntime :
                       abstractRuntimeForFieldHeadDeep? schema targetParent
@@ -688,9 +695,14 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                         childSelectionSet :=
                     (selectionSetNormal_inlineFragment_child_of_mem
                       hleftNormal hheadMem).2
+                  have hchildSub :
+                      selectionSetSubselectionsNonempty schema typeCondition
+                        childSelectionSet :=
+                    (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem
+                      hleftSub hheadMem).2
                   exact
                     abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal
-                      hchildValid hchildFree hchildNormal htargetLookup
+                      hchildValid hchildFree hchildNormal hchildSub htargetLookup
                       htargetComposite htargetNonObject hchildRuntime
 
 theorem abstractRuntimeForFieldHeadDeep?_join_some_include_of_valid_normal_members
@@ -705,7 +717,8 @@ theorem abstractRuntimeForFieldHeadDeep?_join_some_include_of_valid_normal_membe
             Validation.selectionSetValid schema variableDefinitions
               currentParent selectionSet
             ∧ selectionSetDirectiveFree selectionSet
-            ∧ selectionSetNormal schema currentParent selectionSet)
+            ∧ selectionSetNormal schema currentParent selectionSet
+            ∧ selectionSetSubselectionsNonempty schema currentParent selectionSet)
       -> schema.lookupField targetParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
@@ -722,7 +735,7 @@ theorem abstractRuntimeForFieldHeadDeep?_join_some_include_of_valid_normal_membe
       simp [abstractRuntimeForFieldHeadDeep?] at hruntime
   | cons selectionSet rest ih =>
       rcases hmembers selectionSet (by simp) with
-        ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+        ⟨variableDefinitions, hvalid, hfree, hnormal, hsub⟩
       have hrestMembers :
           ∀ restSelectionSet,
             restSelectionSet ∈ rest ->
@@ -730,7 +743,8 @@ theorem abstractRuntimeForFieldHeadDeep?_join_some_include_of_valid_normal_membe
                 Validation.selectionSetValid schema variableDefinitions
                   currentParent restSelectionSet
                 ∧ selectionSetDirectiveFree restSelectionSet
-                ∧ selectionSetNormal schema currentParent restSelectionSet := by
+                ∧ selectionSetNormal schema currentParent restSelectionSet
+                ∧ selectionSetSubselectionsNonempty schema currentParent restSelectionSet := by
         intro restSelectionSet hmem
         exact hmembers restSelectionSet
           (List.mem_cons_of_mem selectionSet hmem)
@@ -745,7 +759,7 @@ theorem abstractRuntimeForFieldHeadDeep?_join_some_include_of_valid_normal_membe
         (left := selectionSet)
         (right := List.flatten rest)
         (targetFieldDefinition := targetFieldDefinition)
-        hvalid hfree hnormal
+        hvalid hfree hnormal hsub
         (by
           intro rightRuntimeType hrightRuntime
           exact ih hrestMembers hrightRuntime)
@@ -763,7 +777,8 @@ theorem
             Validation.selectionSetValid schema variableDefinitions
               currentParent memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
-            ∧ selectionSetNormal schema currentParent memberSelectionSet)
+            ∧ selectionSetNormal schema currentParent memberSelectionSet
+            ∧ selectionSetSubselectionsNonempty schema currentParent memberSelectionSet)
       -> selectionSet ∈ members
       -> schema.lookupField targetParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
@@ -809,8 +824,8 @@ theorem
                     Validation.selectionSetValid schema variableDefinitions
                       currentParent memberSelectionSet
                     ∧ selectionSetDirectiveFree memberSelectionSet
-                    ∧ selectionSetNormal schema currentParent
-                      memberSelectionSet := by
+                    ∧ selectionSetNormal schema currentParent memberSelectionSet
+                    ∧ selectionSetSubselectionsNonempty schema currentParent memberSelectionSet := by
             intro memberSelectionSet hmember
             exact hmembers memberSelectionSet
               (List.mem_cons_of_mem head hmember)
@@ -852,7 +867,9 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema currentParent left
+      -> selectionSetSubselectionsNonempty schema currentParent left
       -> selectionSetNormal schema currentParent right
+      -> selectionSetSubselectionsNonempty schema currentParent right
       -> schema.lookupField targetParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
@@ -863,12 +880,12 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
       -> schema.typeIncludesObjectBool
             targetFieldDefinition.outputType.namedType runtimeType
           = true := by
-  intro hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal
+  intro hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub
     htargetLookup htargetComposite htargetNonObject happendedRuntime
   induction left generalizing currentParent runtimeType with
   | nil =>
       exact abstractRuntimeForFieldDeep?_some_include_of_valid_normal hrightValid
-        hrightFree hrightNormal htargetLookup htargetComposite htargetNonObject
+        hrightFree hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
         (by simpa [abstractRuntimeForFieldDeep?] using happendedRuntime)
   | cons head tail ih =>
       cases head with
@@ -889,11 +906,11 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                   simpa [abstractRuntimeForFieldDeep?, hmatch, hrestAppend]
                     using happendedRuntime
                 subst runtimeType
-                exact
-                  ih (Validation.selectionSetValid_tail hleftValid)
-                    hrightValid (selectionSetDirectiveFree_tail hleftFree)
-                    (selectionSetNormal_tail hleftNormal) hrightNormal
-                    hrestAppend
+                exact ih (Validation.selectionSetValid_tail hleftValid) hrightValid
+                  (selectionSetDirectiveFree_tail hleftFree)
+                  (selectionSetNormal_tail hleftNormal)
+                  (selectionSetSubselectionsNonempty_tail hleftSub) hrightNormal hrightSub
+                  hrestAppend
             | none =>
                 cases hlookup : schema.lookupField currentParent fieldName with
                 | none =>
@@ -926,9 +943,15 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                           childSelectionSet :=
                       selectionSetNormal_field_child_of_mem_lookup
                         hleftNormal hheadMem hlookup
+                    have hchildSub :
+                        selectionSetSubselectionsNonempty schema
+                          fieldDefinition.outputType.namedType
+                          childSelectionSet :=
+                      selectionSetSubselectionsNonempty_field_child_of_mem_lookup
+                        hleftSub hheadMem hlookup
                     exact
                       abstractRuntimeForFieldDeep?_some_include_of_valid_normal
-                        hchildValid hchildFree hchildNormal htargetLookup
+                        hchildValid hchildFree hchildNormal hchildSub htargetLookup
                         htargetComposite htargetNonObject hchildRuntime
           · cases hfirst : firstInlineFragmentTypeCondition? childSelectionSet with
             | some headRuntimeType =>
@@ -941,7 +964,7 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                   simpa [hparts.1, hparts.2] using htargetLookup
                 rcases
                     firstInlineFragmentTypeCondition?_some_of_valid_normal_abstract_field_mem_lookup
-                      hleftValid hleftNormal hheadMem hheadLookup
+                      hleftValid hleftNormal hleftSub hheadMem hheadLookup
                       htargetComposite htargetNonObject with
                   ⟨candidateRuntimeType, hcandidateRuntime,
                     hcandidateInclude⟩
@@ -964,11 +987,11 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                       simpa [abstractRuntimeForFieldDeep?, hmatch, hfirst, hrestAppend]
                         using happendedRuntime
                     subst runtimeType
-                    exact
-                      ih (Validation.selectionSetValid_tail hleftValid)
-                        hrightValid (selectionSetDirectiveFree_tail hleftFree)
-                        (selectionSetNormal_tail hleftNormal) hrightNormal
-                        hrestAppend
+                    exact ih (Validation.selectionSetValid_tail hleftValid) hrightValid
+                      (selectionSetDirectiveFree_tail hleftFree)
+                      (selectionSetNormal_tail hleftNormal)
+                      (selectionSetSubselectionsNonempty_tail hleftSub) hrightNormal
+                      hrightSub hrestAppend
                 | none =>
                     cases hlookup : schema.lookupField currentParent fieldName with
                     | none =>
@@ -1003,9 +1026,15 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                               childSelectionSet :=
                           selectionSetNormal_field_child_of_mem_lookup
                             hleftNormal hheadMem hlookup
+                        have hchildSub :
+                            selectionSetSubselectionsNonempty schema
+                              fieldDefinition.outputType.namedType
+                              childSelectionSet :=
+                          selectionSetSubselectionsNonempty_field_child_of_mem_lookup
+                            hleftSub hheadMem hlookup
                         exact
                           abstractRuntimeForFieldDeep?_some_include_of_valid_normal
-                            hchildValid hchildFree hchildNormal
+                            hchildValid hchildFree hchildNormal hchildSub
                             htargetLookup htargetComposite
                             htargetNonObject hchildRuntime
       | inlineFragment typeCondition directives childSelectionSet =>
@@ -1043,11 +1072,11 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                     simpa [abstractRuntimeForFieldDeep?, hrestAppend]
                       using happendedRuntime
                   subst runtimeType
-                  exact
-                    ih (Validation.selectionSetValid_tail hleftValid)
-                      hrightValid (selectionSetDirectiveFree_tail hleftFree)
-                      (selectionSetNormal_tail hleftNormal) hrightNormal
-                      hrestAppend
+                  exact ih (Validation.selectionSetValid_tail hleftValid) hrightValid
+                    (selectionSetDirectiveFree_tail hleftFree)
+                    (selectionSetNormal_tail hleftNormal)
+                    (selectionSetSubselectionsNonempty_tail hleftSub) hrightNormal
+                    hrightSub hrestAppend
               | none =>
                   have hchildRuntime :
                       abstractRuntimeForFieldDeep? schema targetParent
@@ -1073,9 +1102,14 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                         childSelectionSet :=
                     (selectionSetNormal_inlineFragment_child_of_mem
                       hleftNormal hheadMem).2
+                  have hchildSub :
+                      selectionSetSubselectionsNonempty schema typeCondition
+                        childSelectionSet :=
+                    (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem
+                      hleftSub hheadMem).2
                   exact
                     abstractRuntimeForFieldDeep?_some_include_of_valid_normal
-                      hchildValid hchildFree hchildNormal htargetLookup
+                      hchildValid hchildFree hchildNormal hchildSub htargetLookup
                       htargetComposite htargetNonObject hchildRuntime
 
 theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_right
@@ -1087,6 +1121,7 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
     : Validation.selectionSetValid schema leftVariableDefinitions currentParent left
       -> selectionSetDirectiveFree left
       -> selectionSetNormal schema currentParent left
+      -> selectionSetSubselectionsNonempty schema currentParent left
       -> (∀ rightRuntimeType,
             abstractRuntimeForFieldDeep? schema targetParent targetField
                 currentParent right
@@ -1104,7 +1139,7 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
       -> schema.typeIncludesObjectBool
             targetFieldDefinition.outputType.namedType runtimeType
           = true := by
-  intro hleftValid hleftFree hleftNormal hrightInclude htargetLookup
+  intro hleftValid hleftFree hleftNormal hleftSub hrightInclude htargetLookup
     htargetComposite htargetNonObject happendedRuntime
   induction left generalizing currentParent runtimeType with
   | nil =>
@@ -1129,11 +1164,11 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                   simpa [abstractRuntimeForFieldDeep?, hmatch, hrestAppend]
                     using happendedRuntime
                 subst runtimeType
-                exact
-                  ih (Validation.selectionSetValid_tail hleftValid)
-                    (selectionSetDirectiveFree_tail hleftFree)
-                    (selectionSetNormal_tail hleftNormal) hrightInclude
-                    hrestAppend
+                exact ih (Validation.selectionSetValid_tail hleftValid)
+                  (selectionSetDirectiveFree_tail hleftFree)
+                  (selectionSetNormal_tail hleftNormal)
+                  (selectionSetSubselectionsNonempty_tail hleftSub) hrightInclude
+                  hrestAppend
             | none =>
                 cases hlookup : schema.lookupField currentParent fieldName with
                 | none =>
@@ -1166,9 +1201,15 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                           childSelectionSet :=
                       selectionSetNormal_field_child_of_mem_lookup
                         hleftNormal hheadMem hlookup
+                    have hchildSub :
+                        selectionSetSubselectionsNonempty schema
+                          fieldDefinition.outputType.namedType
+                          childSelectionSet :=
+                      selectionSetSubselectionsNonempty_field_child_of_mem_lookup
+                        hleftSub hheadMem hlookup
                     exact
                       abstractRuntimeForFieldDeep?_some_include_of_valid_normal
-                        hchildValid hchildFree hchildNormal htargetLookup
+                        hchildValid hchildFree hchildNormal hchildSub htargetLookup
                         htargetComposite htargetNonObject hchildRuntime
           · cases hfirst : firstInlineFragmentTypeCondition? childSelectionSet with
             | some headRuntimeType =>
@@ -1181,7 +1222,7 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                   simpa [hparts.1, hparts.2] using htargetLookup
                 rcases
                     firstInlineFragmentTypeCondition?_some_of_valid_normal_abstract_field_mem_lookup
-                      hleftValid hleftNormal hheadMem hheadLookup
+                      hleftValid hleftNormal hleftSub hheadMem hheadLookup
                       htargetComposite htargetNonObject with
                   ⟨candidateRuntimeType, hcandidateRuntime,
                     hcandidateInclude⟩
@@ -1204,11 +1245,11 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                       simpa [abstractRuntimeForFieldDeep?, hmatch, hfirst, hrestAppend]
                         using happendedRuntime
                     subst runtimeType
-                    exact
-                      ih (Validation.selectionSetValid_tail hleftValid)
-                        (selectionSetDirectiveFree_tail hleftFree)
-                        (selectionSetNormal_tail hleftNormal) hrightInclude
-                        hrestAppend
+                    exact ih (Validation.selectionSetValid_tail hleftValid)
+                      (selectionSetDirectiveFree_tail hleftFree)
+                      (selectionSetNormal_tail hleftNormal)
+                      (selectionSetSubselectionsNonempty_tail hleftSub) hrightInclude
+                      hrestAppend
                 | none =>
                     cases hlookup : schema.lookupField currentParent fieldName with
                     | none =>
@@ -1243,9 +1284,15 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                               childSelectionSet :=
                           selectionSetNormal_field_child_of_mem_lookup
                             hleftNormal hheadMem hlookup
+                        have hchildSub :
+                            selectionSetSubselectionsNonempty schema
+                              fieldDefinition.outputType.namedType
+                              childSelectionSet :=
+                          selectionSetSubselectionsNonempty_field_child_of_mem_lookup
+                            hleftSub hheadMem hlookup
                         exact
                           abstractRuntimeForFieldDeep?_some_include_of_valid_normal
-                            hchildValid hchildFree hchildNormal
+                            hchildValid hchildFree hchildNormal hchildSub
                             htargetLookup htargetComposite
                             htargetNonObject hchildRuntime
       | inlineFragment typeCondition directives childSelectionSet =>
@@ -1283,11 +1330,11 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                     simpa [abstractRuntimeForFieldDeep?, hrestAppend]
                       using happendedRuntime
                   subst runtimeType
-                  exact
-                    ih (Validation.selectionSetValid_tail hleftValid)
-                      (selectionSetDirectiveFree_tail hleftFree)
-                      (selectionSetNormal_tail hleftNormal) hrightInclude
-                      hrestAppend
+                  exact ih (Validation.selectionSetValid_tail hleftValid)
+                    (selectionSetDirectiveFree_tail hleftFree)
+                    (selectionSetNormal_tail hleftNormal)
+                    (selectionSetSubselectionsNonempty_tail hleftSub) hrightInclude
+                    hrestAppend
               | none =>
                   have hchildRuntime :
                       abstractRuntimeForFieldDeep? schema targetParent
@@ -1313,9 +1360,14 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                         childSelectionSet :=
                     (selectionSetNormal_inlineFragment_child_of_mem
                       hleftNormal hheadMem).2
+                  have hchildSub :
+                      selectionSetSubselectionsNonempty schema typeCondition
+                        childSelectionSet :=
+                    (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem
+                      hleftSub hheadMem).2
                   exact
                     abstractRuntimeForFieldDeep?_some_include_of_valid_normal
-                      hchildValid hchildFree hchildNormal htargetLookup
+                      hchildValid hchildFree hchildNormal hchildSub htargetLookup
                       htargetComposite htargetNonObject hchildRuntime
 
 theorem abstractRuntimeForFieldDeep?_join_some_include_of_valid_normal_members
@@ -1329,7 +1381,8 @@ theorem abstractRuntimeForFieldDeep?_join_some_include_of_valid_normal_members
             Validation.selectionSetValid schema variableDefinitions
               currentParent selectionSet
             ∧ selectionSetDirectiveFree selectionSet
-            ∧ selectionSetNormal schema currentParent selectionSet)
+            ∧ selectionSetNormal schema currentParent selectionSet
+            ∧ selectionSetSubselectionsNonempty schema currentParent selectionSet)
       -> schema.lookupField targetParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
@@ -1346,7 +1399,7 @@ theorem abstractRuntimeForFieldDeep?_join_some_include_of_valid_normal_members
       simp [abstractRuntimeForFieldDeep?] at hruntime
   | cons selectionSet rest ih =>
       rcases hmembers selectionSet (by simp) with
-        ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+        ⟨variableDefinitions, hvalid, hfree, hnormal, hsub⟩
       have hrestMembers :
           ∀ restSelectionSet,
             restSelectionSet ∈ rest ->
@@ -1354,7 +1407,8 @@ theorem abstractRuntimeForFieldDeep?_join_some_include_of_valid_normal_members
                 Validation.selectionSetValid schema variableDefinitions
                   currentParent restSelectionSet
                 ∧ selectionSetDirectiveFree restSelectionSet
-                ∧ selectionSetNormal schema currentParent restSelectionSet := by
+                ∧ selectionSetNormal schema currentParent restSelectionSet
+                ∧ selectionSetSubselectionsNonempty schema currentParent restSelectionSet := by
         intro restSelectionSet hmem
         exact hmembers restSelectionSet (List.mem_cons_of_mem selectionSet hmem)
       exact abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_right
@@ -1367,7 +1421,7 @@ theorem abstractRuntimeForFieldDeep?_join_some_include_of_valid_normal_members
         (left := selectionSet)
         (right := List.flatten rest)
         (targetFieldDefinition := targetFieldDefinition)
-        hvalid hfree hnormal
+        hvalid hfree hnormal hsub
         (by
           intro rightRuntimeType hrightRuntime
           exact ih hrestMembers hrightRuntime)
@@ -1385,7 +1439,8 @@ theorem abstractRuntimeForFieldDeep?_member_framed_promote_some_of_valid_normal_
             Validation.selectionSetValid schema variableDefinitions
               currentParent memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
-            ∧ selectionSetNormal schema currentParent memberSelectionSet)
+            ∧ selectionSetNormal schema currentParent memberSelectionSet
+            ∧ selectionSetSubselectionsNonempty schema currentParent memberSelectionSet)
       -> selectionSet ∈ members
       -> schema.lookupField targetParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
@@ -1428,8 +1483,8 @@ theorem abstractRuntimeForFieldDeep?_member_framed_promote_some_of_valid_normal_
                     Validation.selectionSetValid schema variableDefinitions
                       currentParent memberSelectionSet
                     ∧ selectionSetDirectiveFree memberSelectionSet
-                    ∧ selectionSetNormal schema currentParent
-                      memberSelectionSet := by
+                    ∧ selectionSetNormal schema currentParent memberSelectionSet
+                    ∧ selectionSetSubselectionsNonempty schema currentParent memberSelectionSet := by
             intro memberSelectionSet hmember
             exact hmembers memberSelectionSet
               (List.mem_cons_of_mem head hmember)
@@ -1468,7 +1523,9 @@ theorem abstractRuntimeForFieldDeep?_append_left_promote_some_of_valid_normal
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema currentParent left
+      -> selectionSetSubselectionsNonempty schema currentParent left
       -> selectionSetNormal schema currentParent right
+      -> selectionSetSubselectionsNonempty schema currentParent right
       -> schema.lookupField targetParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
@@ -1482,7 +1539,7 @@ theorem abstractRuntimeForFieldDeep?_append_left_promote_some_of_valid_normal
           ∧ schema.typeIncludesObjectBool
               targetFieldDefinition.outputType.namedType runtimeType
             = true := by
-  intro hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal
+  intro hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub
     htargetLookup htargetComposite htargetNonObject hlocalRuntime
   rcases
       abstractRuntimeForFieldDeep?_append_some_left_exists
@@ -1492,8 +1549,8 @@ theorem abstractRuntimeForFieldDeep?_append_left_promote_some_of_valid_normal
     runtimeType,
     happendedRuntime,
     abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
-      hleftValid hrightValid hleftFree hrightFree hleftNormal
-      hrightNormal htargetLookup htargetComposite htargetNonObject
+      hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+      hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
       happendedRuntime
   ⟩
 
@@ -1508,7 +1565,9 @@ theorem abstractRuntimeForFieldDeep?_append_right_promote_some_of_valid_normal
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema currentParent left
+      -> selectionSetSubselectionsNonempty schema currentParent left
       -> selectionSetNormal schema currentParent right
+      -> selectionSetSubselectionsNonempty schema currentParent right
       -> schema.lookupField targetParent targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
@@ -1522,7 +1581,7 @@ theorem abstractRuntimeForFieldDeep?_append_right_promote_some_of_valid_normal
           ∧ schema.typeIncludesObjectBool
               targetFieldDefinition.outputType.namedType runtimeType
             = true := by
-  intro hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal
+  intro hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub
     htargetLookup htargetComposite htargetNonObject hlocalRuntime
   rcases
       abstractRuntimeForFieldDeep?_append_some_right_exists
@@ -1532,8 +1591,8 @@ theorem abstractRuntimeForFieldDeep?_append_right_promote_some_of_valid_normal
     runtimeType,
     happendedRuntime,
     abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
-      hleftValid hrightValid hleftFree hrightFree hleftNormal
-      hrightNormal htargetLookup htargetComposite htargetNonObject
+      hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+      hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
       happendedRuntime
   ⟩
 
@@ -1550,7 +1609,9 @@ theorem left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> ∀ leftResponseName leftFieldName leftArguments leftDirectives
             leftChildSelectionSet,
@@ -1570,8 +1631,8 @@ theorem left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
                       - leafProbeFuel fieldDefinition.outputType)
                     parentType leftResponseName leftFieldName leftArguments
                     leftChildSelectionSet fieldDefinition := by
-  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject
+  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject
   have hfuel :
       selectionSetDeepProbeFuel schema parentType left
         ≤ selectionSetDeepProbeFuel schema parentType (left ++ right) :=
@@ -1599,8 +1660,8 @@ theorem left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
       htargetLookup htargetComposite htargetNonObject hlocalRuntime
     rcases
         abstractRuntimeForFieldDeep?_append_left_promote_some_of_valid_normal
-          hleftValid hrightValid hleftFree hrightFree hleftNormal
-          hrightNormal htargetLookup htargetComposite htargetNonObject
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+          hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
           hlocalRuntime with
       ⟨appendRuntimeType, happendRuntime, hinclude⟩
     exact
@@ -1613,13 +1674,11 @@ theorem left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   exact deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
-    schema [Selection.inlineFragment (some parentType) [] (left ++ right)]
-    objectRef variableValues hschema (SelectionSet.size left + 1)
-    parentType leftVariableDefinitions left
-    (selectionSetDeepProbeFuel schema parentType (left ++ right))
-    (by omega) hfuel hleftValid hleftCoercion hleftFree hleftNormal hobject hpromote
-    leftResponseName leftFieldName leftArguments leftDirectives
-    leftChildSelectionSet hmem
+    schema [Selection.inlineFragment (some parentType) [] (left ++ right)] objectRef
+    variableValues hschema (SelectionSet.size left + 1) parentType leftVariableDefinitions
+    left (selectionSetDeepProbeFuel schema parentType (left ++ right)) (by omega) hfuel
+    hleftValid hleftCoercion hleftFree hleftNormal hleftSub hobject hpromote
+    leftResponseName leftFieldName leftArguments leftDirectives leftChildSelectionSet hmem
 
 theorem right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
     {ObjectRef : Type}
@@ -1634,7 +1693,9 @@ theorem right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> ∀ rightResponseName rightFieldName rightArguments rightDirectives
             rightChildSelectionSet,
@@ -1654,8 +1715,8 @@ theorem right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
                       - leafProbeFuel fieldDefinition.outputType)
                     parentType rightResponseName rightFieldName rightArguments
                     rightChildSelectionSet fieldDefinition := by
-  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject
+  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject
   have hfuel :
       selectionSetDeepProbeFuel schema parentType right
         ≤ selectionSetDeepProbeFuel schema parentType (left ++ right) :=
@@ -1683,8 +1744,8 @@ theorem right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
       htargetLookup htargetComposite htargetNonObject hlocalRuntime
     rcases
         abstractRuntimeForFieldDeep?_append_right_promote_some_of_valid_normal
-          hleftValid hrightValid hleftFree hrightFree hleftNormal
-          hrightNormal htargetLookup htargetComposite htargetNonObject
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+          hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
           hlocalRuntime with
       ⟨appendRuntimeType, happendRuntime, hinclude⟩
     exact
@@ -1697,13 +1758,13 @@ theorem right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   exact deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
-    schema [Selection.inlineFragment (some parentType) [] (left ++ right)]
-    objectRef variableValues hschema (SelectionSet.size right + 1)
-    parentType rightVariableDefinitions right
-    (selectionSetDeepProbeFuel schema parentType (left ++ right))
-    (by omega) hfuel hrightValid hrightCoercion hrightFree hrightNormal hobject hpromote
-    rightResponseName rightFieldName rightArguments rightDirectives
-    rightChildSelectionSet hmem
+    schema [Selection.inlineFragment (some parentType) [] (left ++ right)] objectRef
+    variableValues hschema (SelectionSet.size right + 1) parentType
+    rightVariableDefinitions right
+    (selectionSetDeepProbeFuel schema parentType (left ++ right)) (by omega) hfuel
+    hrightValid hrightCoercion hrightFree hrightNormal hrightSub hobject hpromote
+    rightResponseName rightFieldName rightArguments rightDirectives rightChildSelectionSet
+    hmem
 
 theorem selectionSet_deepSuccessFieldOk_framed_of_valid_normal_members
     {ObjectRef : Type}
@@ -1720,7 +1781,8 @@ theorem selectionSet_deepSuccessFieldOk_framed_of_valid_normal_members
                 ∧ selectionSetArgumentsCoercible schema variableValues parentType
                     memberSelectionSet
                 ∧ selectionSetDirectiveFree memberSelectionSet
-                ∧ selectionSetNormal schema parentType memberSelectionSet)
+                ∧ selectionSetNormal schema parentType memberSelectionSet
+                ∧ selectionSetSubselectionsNonempty schema parentType memberSelectionSet)
       -> selectionSet ∈ members
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType (List.flatten members) ≤ fuel
@@ -1745,7 +1807,7 @@ theorem selectionSet_deepSuccessFieldOk_framed_of_valid_normal_members
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   rcases hmembers selectionSet hmember with
-    ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+    ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal, hsub⟩
   have hselectionFuel :
       selectionSetDeepProbeFuel schema parentType selectionSet ≤ fuel := by
     have hlocal :=
@@ -1782,15 +1844,15 @@ theorem selectionSet_deepSuccessFieldOk_framed_of_valid_normal_members
         (by
           intro memberSelectionSet hmemberSelectionSet
           rcases hmembers memberSelectionSet hmemberSelectionSet with
-            ⟨variableDefinitions, hvalid, _hcoercion, hfree, hnormal⟩
-          exact ⟨variableDefinitions, hvalid, hfree, hnormal⟩)
+            ⟨variableDefinitions, hvalid, _hcoercion, hfree, hnormal, hsub⟩
+          exact ⟨variableDefinitions, hvalid, hfree, hnormal, hsub⟩)
         hmember htargetLookup htargetComposite htargetNonObject
         hlocalRuntime
   rcases
       deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
         schema rootSelectionSet objectRef variableValues hschema
         (SelectionSet.size selectionSet + 1) parentType variableDefinitions
-        selectionSet fuel (by omega) hselectionFuel hvalid hcoercion hfree hnormal
+        selectionSet fuel (by omega) hselectionFuel hvalid hcoercion hfree hnormal hsub
         hobject hpromote responseName fieldName arguments directives
         childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hleafFuel, hready⟩
@@ -1816,7 +1878,9 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType (left ++ right) ≤ fuel
       -> ∀ responseName fieldName arguments directives childSelectionSet,
@@ -1836,8 +1900,8 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors) := by
-  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hfuel responseName fieldName arguments directives
+  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hfuel responseName fieldName arguments directives
     childSelectionSet hmem hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
@@ -1869,8 +1933,8 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_
       htargetLookup htargetComposite htargetNonObject hlocalRuntime
     rcases
         abstractRuntimeForFieldDeep?_append_left_promote_some_of_valid_normal
-          hleftValid hrightValid hleftFree hrightFree hleftNormal
-          hrightNormal htargetLookup htargetComposite htargetNonObject
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+          hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
           hlocalRuntime with
       ⟨appendRuntimeType, happendRuntime, hinclude⟩
     exact
@@ -1883,7 +1947,7 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_
         schema [Selection.inlineFragment (some parentType) [] (left ++ right)]
         objectRef variableValues hschema (SelectionSet.size left + 1)
         parentType leftVariableDefinitions left fuel
-        (by omega) hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hobject
+        (by omega) hleftFuel hleftValid hleftCoercion hleftFree hleftNormal hleftSub hobject
         hpromote responseName fieldName arguments directives
         childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hleafFuel, hready⟩
@@ -1910,7 +1974,9 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> selectionSetDeepProbeFuel schema parentType (left ++ right) ≤ fuel
       -> ∀ responseName fieldName arguments directives childSelectionSet,
@@ -1930,8 +1996,8 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors) := by
-  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hfuel responseName fieldName arguments directives
+  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hfuel responseName fieldName arguments directives
     childSelectionSet hmem hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
@@ -1963,8 +2029,8 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel
       htargetLookup htargetComposite htargetNonObject hlocalRuntime
     rcases
         abstractRuntimeForFieldDeep?_append_right_promote_some_of_valid_normal
-          hleftValid hrightValid hleftFree hrightFree hleftNormal
-          hrightNormal htargetLookup htargetComposite htargetNonObject
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+          hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
           hlocalRuntime with
       ⟨appendRuntimeType, happendRuntime, hinclude⟩
     exact
@@ -1977,7 +2043,7 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel
         schema [Selection.inlineFragment (some parentType) [] (left ++ right)]
         objectRef variableValues hschema (SelectionSet.size right + 1)
         parentType rightVariableDefinitions right fuel
-        (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal hobject
+        (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal hrightSub hobject
         hpromote responseName fieldName arguments directives
         childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hleafFuel, hready⟩
@@ -2004,7 +2070,9 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
@@ -2025,15 +2093,15 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors) := by
-  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject responseName fieldName arguments directives
+  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject responseName fieldName arguments directives
     childSelectionSet hmem hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       left_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
         objectRef variableValues hschema hleftValid hrightValid hleftCoercion hleftFree
-        hrightFree hleftNormal hrightNormal hobject responseName fieldName
+        hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject responseName fieldName
         arguments directives childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hfuel, hready⟩
   rcases
@@ -2060,7 +2128,9 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
@@ -2081,15 +2151,15 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors) := by
-  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject responseName fieldName arguments directives
+  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject responseName fieldName arguments directives
     childSelectionSet hmem hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   rcases
       right_selectionSet_deepFieldReadyWithRef_append_framed_of_valid_normal
         objectRef variableValues hschema hleftValid hrightValid hrightCoercion hleftFree
-        hrightFree hleftNormal hrightNormal hobject responseName fieldName
+        hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject responseName fieldName
         arguments directives childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hfuel, hready⟩
   rcases
@@ -2116,7 +2186,9 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> (∀ fieldDefinition,
             schema.lookupField parentType leftField = some fieldDefinition
@@ -2167,8 +2239,8 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors) := by
-  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftLeaf hrightLeaf hrightNotLeft responseName
+  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftLeaf hrightLeaf hrightNotLeft responseName
     fieldName arguments directives childSelectionSet hmem hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
@@ -2336,7 +2408,7 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
               (ProjectionResolverRef.root
                 (none : Option FieldPairProbeTag)))
             hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree
-            hleftNormal hrightNormal hobject responseName fieldName
+            hleftNormal hleftSub hrightNormal hrightSub hobject responseName fieldName
             arguments directives childSelectionSet hmem with
         ⟨responseValue, fieldErrors, hdeep⟩
       refine ⟨responseValue, fieldErrors, ?_⟩
@@ -2373,7 +2445,9 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> (∀ fieldDefinition,
             schema.lookupField parentType leftField = some fieldDefinition
@@ -2424,8 +2498,8 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
                     selectionSet := childSelectionSet
                   }]
                 = .ok ([(responseName, responseValue)], fieldErrors) := by
-  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftLeaf hrightLeaf hrightNotLeft responseName
+  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftLeaf hrightLeaf hrightNotLeft responseName
     fieldName arguments directives childSelectionSet hmem hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
@@ -2592,7 +2666,7 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
               (ProjectionResolverRef.root
                 (none : Option FieldPairProbeTag)))
             hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree
-            hleftNormal hrightNormal hobject responseName fieldName
+            hleftNormal hleftSub hrightNormal hrightSub hobject responseName fieldName
             arguments directives childSelectionSet hmem with
         ⟨responseValue, fieldErrors, hdeep⟩
       refine ⟨responseValue, fieldErrors, ?_⟩
@@ -2631,7 +2705,9 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> Selection.field responseName fieldName leftArguments leftDirectives
             leftChildSelectionSet
@@ -2650,8 +2726,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
               rightArguments)
       -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
           ¬ selectionSetsDataEquivalent schema parentType left right := by
-  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftMem hrightMem hleafOfLookup hargumentsDiff hTypeNames
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftMem hrightMem hleafOfLookup hargumentsDiff hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
@@ -2845,13 +2921,13 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
     (leafProbeResponseValue_not_semanticEquivalent_of_ne
       fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
     (left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_targets
-      variableValues fieldName fieldName leftArguments rightArguments
-      hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
-      hrightNormal hobject hleafOfLookup hleafOfLookup hrightNotLeft)
+      variableValues fieldName fieldName leftArguments rightArguments hschema hleftValid
+      hrightValid hleftCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal
+      hrightSub hobject hleafOfLookup hleafOfLookup hrightNotLeft)
     (right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_targets
-      variableValues fieldName fieldName leftArguments rightArguments
-      hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
-      hrightNormal hobject hleafOfLookup hleafOfLookup hrightNotLeft)
+      variableValues fieldName fieldName leftArguments rightArguments hschema hleftValid
+      hrightValid hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal
+      hrightSub hobject hleafOfLookup hleafOfLookup hrightNotLeft)
 
 theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_leaf
     {schema : Schema}
@@ -2869,7 +2945,9 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> Selection.field responseName leftFieldName leftArguments leftDirectives
             leftChildSelectionSet
@@ -2888,8 +2966,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
       -> leftFieldName ≠ rightFieldName
       -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
           ¬ selectionSetsDataEquivalent schema parentType left right := by
-  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftMem hrightMem hleftLeafOfLookup
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftMem hrightMem hleftLeafOfLookup
     hrightLeafOfLookup hfieldDiff hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
@@ -3056,12 +3134,12 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
     (left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_targets
       variableValues leftFieldName rightFieldName leftArguments
       rightArguments hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree
-      hleftNormal hrightNormal hobject hleftLeafOfLookup
+      hleftNormal hleftSub hrightNormal hrightSub hobject hleftLeafOfLookup
       hrightLeafOfLookup hrightNotLeft)
     (right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_targets
       variableValues leftFieldName rightFieldName leftArguments
       rightArguments hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree
-      hleftNormal hrightNormal hobject hleftLeafOfLookup
+      hleftNormal hleftSub hrightNormal hrightSub hobject hleftLeafOfLookup
       hrightLeafOfLookup hrightNotLeft)
 
 theorem not_selectionSetsDataEquivalent_of_object_child_diff_singleton
@@ -3423,7 +3501,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = false
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet ∈ left
       -> typeCondition ∉ right.filterMap inlineFragmentTypeCondition?
@@ -3441,8 +3521,8 @@ theorem
                   PUnit.unit)
                 [] (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
                 typeCondition (.object typeCondition PUnit.unit) right).data := by
-  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hleftMem hrightNoTypeCondition hTypeNames
+  intro hschema hleftValid hrightValid hleftCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hnonObject hleftMem hrightNoTypeCondition hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hdirectives : directives = [] :=
@@ -3507,6 +3587,10 @@ theorem
         selectionSetNormal schema typeCondition childSelectionSet :=
       (selectionSetNormal_inlineFragment_child_of_mem hleftNormal
         hleftMemNil).2
+    have hbodySub :
+        selectionSetSubselectionsNonempty schema typeCondition childSelectionSet :=
+      (selectionSetSubselectionsNonempty_inlineFragment_child_pair_of_mem hleftSub
+        hleftMemNil).2
     have hbodyCoercion :
         selectionSetArgumentsCoercible schema variableValues typeCondition
           childSelectionSet :=
@@ -3552,13 +3636,13 @@ theorem
         htargetLookup htargetComposite htargetNonObject hlocalRuntime
       rcases
           abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_normal
-            hleftValid hleftFree hleftNormal hleftMemNil htargetLookup
+            hleftValid hleftFree hleftNormal hleftSub hleftMemNil htargetLookup
             htargetComposite htargetNonObject hlocalRuntime with
         ⟨leftRuntimeType, hleftRuntime, _hleftInclude⟩
       rcases
           abstractRuntimeForFieldDeep?_append_left_promote_some_of_valid_normal
-            hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal htargetLookup htargetComposite htargetNonObject
+            hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+            hrightNormal hrightSub htargetLookup htargetComposite htargetNonObject
             hleftRuntime with
         ⟨_appendedRuntimeType, happendedRuntime, happendedInclude⟩
       exact
@@ -3571,15 +3655,15 @@ theorem
         schema rootSelectionSet objectRef variableValues hschema
         (SelectionSet.size childSelectionSet + 1)
         typeCondition leftVariableDefinitions childSelectionSet fuel
-        (by omega) hbodyFuel hbodyValid hbodyCoercion hbodyFree hbodyNormal
+        (by omega) hbodyFuel hbodyValid hbodyCoercion hbodyFree hbodyNormal hbodySub
         htypeObjectBool hpromote bodyResponseName bodyFieldName
         bodyArguments bodyDirectives bodyChildSelectionSet hbodyFieldMem
   rcases
       executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_abstract_matching_inlineFragment_nonempty
         schema rootSelectionSet objectRef variableValues fuel hnonObject
         htypeObjectBool hleftFree hleftNormal hleftMemNil
-        (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-          hleftValid hleftMemNil)
+        (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+          hleftSub hleftMemNil)
         hleftBodyReady with
     ⟨leftResponseField, leftResponseFields, leftErrors, hleftResponse⟩
   have hrightCollect :
@@ -3624,7 +3708,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = false
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
           ∈ right
@@ -3643,8 +3729,8 @@ theorem
                   PUnit.unit)
                 [] (selectionSetDeepProbeFuel schema parentType (right ++ left) + 1)
                 typeCondition (.object typeCondition PUnit.unit) right).data := by
-  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hrightMem hleftNoTypeCondition hTypeNames hsemantic
+  intro hschema hleftValid hrightValid hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hnonObject hrightMem hleftNoTypeCondition hTypeNames hsemantic
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hswapped :=
@@ -3656,8 +3742,8 @@ theorem
       (left := right) (right := left)
       (typeCondition := typeCondition) (directives := directives)
       (childSelectionSet := childSelectionSet)
-      hschema hrightValid hleftValid hrightCoercion hrightFree hleftFree hrightNormal
-      hleftNormal hnonObject hrightMem hleftNoTypeCondition
+      hschema hrightValid hleftValid hrightCoercion hrightFree hleftFree hrightNormal hrightSub
+      hleftNormal hleftSub hnonObject hrightMem hleftNoTypeCondition
   exact hswapped
     (by
       simpa [Execution.ResponseValue.semanticEquivalent]
@@ -3679,15 +3765,17 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_left_responseName
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ left
       -> responseName ∉ right.filterMap Selection.responseName?
       -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
           ¬ selectionSetsDataEquivalent schema parentType left right := by
-  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hleftMem hrightNoResponseName hTypeNames
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hleftMem hrightNoResponseName hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
@@ -3719,7 +3807,7 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_left_responseName
       exact
         left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
           PUnit.unit variableValues source hschema hleftValid hrightValid
-          hleftCoercion hleftFree hrightFree hleftNormal hrightNormal hobject
+          hleftCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject
           responseName fieldName arguments directives childSelectionSet
           hmem)
     (by
@@ -3728,7 +3816,7 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_left_responseName
       exact
         right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
           PUnit.unit variableValues source hschema hleftValid hrightValid
-          hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hobject
+          hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject
           responseName fieldName arguments directives childSelectionSet
           hmem)
 
@@ -3747,15 +3835,17 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_right_responseNam
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ right
       -> responseName ∉ left.filterMap Selection.responseName?
       -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
           ¬ selectionSetsDataEquivalent schema parentType left right := by
-  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-    hrightNormal hobject hrightMem hleftNoResponseName hTypeNames
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub hobject hrightMem hleftNoResponseName hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   let rootSelectionSet :=
@@ -3787,7 +3877,7 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_right_responseNam
       exact
         left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
           PUnit.unit variableValues source hschema hleftValid hrightValid
-          hleftCoercion hleftFree hrightFree hleftNormal hrightNormal hobject
+          hleftCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject
           responseName fieldName arguments directives childSelectionSet
           hmem)
     (by
@@ -3796,7 +3886,7 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_right_responseNam
       exact
         right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
           PUnit.unit variableValues source hschema hleftValid hrightValid
-          hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hobject
+          hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject
           responseName fieldName arguments directives childSelectionSet
           hmem)
 

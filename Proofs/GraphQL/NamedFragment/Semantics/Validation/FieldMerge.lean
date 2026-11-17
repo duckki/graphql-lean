@@ -197,8 +197,7 @@ theorem inlineOperation_fieldMerge_of_valid
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
-      _hfragmentDefinitionsValid, _hselectionNonempty, _hselectionValid, hmerge,
-      _hvariablesUsed⟩
+      _hfragmentDefinitionsValid, _hselectionValid, hmerge, _hvariablesUsed⟩
   cases operation with
   | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
       cases operationType
@@ -239,8 +238,8 @@ theorem inlineOperation_valid_of_selectionSetValid
   rcases hvalid with
     ⟨_hroot, hrootComposite, hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
-      _hfragmentDefinitionsValid, _hselectionNonempty, _originalSelectionValid,
-      _originalMerge, hvariablesUsed⟩
+      _hfragmentDefinitionsValid, _originalSelectionValid, _originalMerge,
+      hvariablesUsed⟩
   rcases inlineOperation_fragmentSideConditions schema operation with
     ⟨hfragmentNamesUnique, hfragmentsAcyclic, hallFragmentDefinitionsUsed,
       hallFragmentDefinitionsValid⟩
@@ -259,8 +258,6 @@ theorem inlineOperation_valid_of_selectionSetValid
   · exact hallFragmentDefinitionsUsed
   constructor
   · exact hallFragmentDefinitionsValid
-  constructor
-  · exact inlineOperation_selectionSet_nonempty_of_valid hvalidOriginal
   constructor
   · exact hselectionValid
   constructor

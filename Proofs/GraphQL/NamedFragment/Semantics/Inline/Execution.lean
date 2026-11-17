@@ -584,7 +584,7 @@ theorem executeQueryWithFuel_toSpec_inlineOperation
   | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
       rcases hvalid with
         ⟨_hoperationType, _hrootComposite, _hvariables, hunique, hacyclic,
-          _hfragmentsUsed, hall, _hselectionNonempty, hselectionValid,
+          _hfragmentsUsed, hall, hselectionValid,
           _hfieldsMerge, _hvariablesUsed⟩
       cases operationType
       cases source with

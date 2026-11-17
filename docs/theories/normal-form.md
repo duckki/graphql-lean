@@ -170,8 +170,9 @@ generated case wrappers, while other variables remain in a surviving branch.
 `completeNormalizeOperation_operationVariablesUsed` therefore derives the
 normalized all-variables-used property from input validity and feasibility.
 
-First, GraphQL operation validity rejects syntactically empty selection sets,
-but a syntactically nonempty selection set can be semantically empty for a
+First, GraphQL operation validity admits syntactically empty selection sets,
+`{}`, on composite fields, inline fragments, and the operation root, and a
+syntactically nonempty selection set can also be semantically empty for a
 particular scope. For example, all child selections of a composite field may be
 under infeasible type-condition stacks.
 
@@ -212,10 +213,12 @@ type Query {
 
 `A` overlaps `I` because `A` implements `I`, and `I` overlaps `B` because `B`
 implements `I`, but the intersection of `A` and `B` is empty. Execution never
-reaches `data` for any runtime object returned by `f`, but normalization may
-drop the infeasible scopes and therefore expose an empty composite child
-selection set. `operationTypeConditionFeasible` rules this out for ground
-normalization by requiring every field stack to be feasible. The mode-free
+reaches `data` for any runtime object returned by `f`, and normalization drops
+the infeasible scopes, leaving `{ f {} }`. That empty child selection set is valid,
+but a variable used only in the dropped field's arguments would no longer be used,
+which Spec 5.8.4 rejects. `operationTypeConditionFeasible` rules this out for ground
+normalization by requiring every field stack to be feasible; selection-shape and
+field-merge validity of the normalized operation do not depend on it. The mode-free
 `operationBoolTypeConditionFeasible` strengthens that condition for complete
 normalization: all selection paths have feasible type conditions, every
 selection has a compatible Boolean case, and every case admitted by a surviving
@@ -306,11 +309,15 @@ it intentionally does not compare variable types.
   It concludes `operationsEqualUpToReorderingWithCoercion`, comparing
   directive-free ground-normal siblings up to reordering for every supplied variable
   environment.
+  Both operations must satisfy `operationSubselectionsNonempty`, the September 2025 rule
+  that inline fragments and composite fields have non-empty selection sets; without it,
+  an empty inline fragment makes two different normal operations equivalent.
 - `NormalForm.normalizeOperationUniqueUpToReordering` is witnessed by
   `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness`.
   Both source operations satisfy the same output-shape agreement and other
-  preconditions as ground-normalization validity.
+  preconditions as ground-normalization validity. They must also satisfy
+  `operationSubselectionsNonempty`, which normalization preserves.
 - `NormalForm.completeNormalOperationsSemanticallyEquivalentEqualUpToReordering` is
   witnessed by `complete_normal_operations_semanticallyEquivalent_equalUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
@@ -320,6 +327,7 @@ it intentionally does not compare variable types.
   Boolean-support equivalence is an explicit premise: an unresolvable condition
   variable behaves like `false` during field collection, so execution equivalence
   alone cannot detect a one-sided support variable whose branch bodies coincide.
+  As in the ground case, both operations must satisfy `operationSubselectionsNonempty`.
   Its semantic premise is likewise restricted to complete Boolean environments.
   Ordinary validity and complete normality imply possible-type field validity,
   which supplies joint argument-coercion witnesses for every Boolean case. No
@@ -337,10 +345,10 @@ it intentionally does not compare variable types.
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
   It uses the same possible-type, output-shape agreement, and Boolean/type-condition
-  feasibility assumptions as
-  complete-normalization validity, and compares operations with equivalent Boolean
-  variable support. Its semantic premise is restricted to complete Boolean
-  environments, matching the soundness conclusion, so the two directions together
+  feasibility assumptions as complete-normalization validity, plus
+  `operationSubselectionsNonempty`, and compares operations with
+  equivalent Boolean variable support. Its semantic premise is restricted to complete
+  Boolean environments, matching the soundness conclusion, so the two directions together
   characterize exactly that fragment of the semantics. Joint Boolean-case argument
   coercibility is derived from possible-type field validity and equivalent variable
   definitions; callers do not need to provide a separate coercibility premise.

@@ -98,12 +98,10 @@ theorem selectionSetValid_field_children_of_observable_trace {schema : Schema}
     rcases hnonempty with hleftNonempty | hrightNonempty
     · exact (fieldSelectionSetValid_child_of_nonempty hleftFieldValid hleftNonempty).1
     · exact (fieldSelectionSetValid_child_of_nonempty hrightFieldValid hrightNonempty).1
-  rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
-      hcomposite with
-    ⟨_hleftNonempty, hleftChildValid⟩
-  rcases fieldSelectionSetValid_child_of_composite hrightFieldValid
-      hcomposite with
-    ⟨_hrightNonempty, hrightChildValid⟩
+  have hleftChildValid :=
+    fieldSelectionSetValid_child_of_composite hleftFieldValid hcomposite
+  have hrightChildValid :=
+    fieldSelectionSetValid_child_of_composite hrightFieldValid hcomposite
   refine ⟨fieldDefinition, hlookup, hnamedType, ?_, ?_⟩
   · simpa [hnamedType] using hleftChildValid
   · simpa [hnamedType] using hrightChildValid
@@ -138,7 +136,9 @@ theorem object_child_observable_trace_separator_of_split_separator
         -> selectionSetDirectiveFree leftChildSelectionSet
         -> selectionSetDirectiveFree rightChildSelectionSet
         -> selectionSetNormal schema returnType leftChildSelectionSet
+        -> selectionSetSubselectionsNonempty schema returnType leftChildSelectionSet
         -> selectionSetNormal schema returnType rightChildSelectionSet
+        -> selectionSetSubselectionsNonempty schema returnType rightChildSelectionSet
         -> NormalSelectionSetDiffObservableTrace schema returnType
             leftChildSelectionSet rightChildSelectionSet childPath
         -> ¬ selectionSetsDataEquivalent schema parentType left right)
@@ -147,7 +147,9 @@ theorem object_child_observable_trace_separator_of_split_separator
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> ∀ {returnType responseName fieldName : Name}
             {leftArguments rightArguments : List Argument}
             {leftDirectives rightDirectives : List DirectiveApplication}
@@ -164,8 +166,8 @@ theorem object_child_observable_trace_separator_of_split_separator
           -> NormalSelectionSetDiffObservableTrace schema returnType
               leftChildSelectionSet rightChildSelectionSet childPath
           -> ¬ selectionSetsDataEquivalent schema parentType left right := by
-  intro hsplit hleftValid hrightValid hleftFree hrightFree hleftNormal
-    hrightNormal returnType responseName fieldName leftArguments
+  intro hsplit hleftValid hrightValid hleftFree hrightFree hleftNormal hleftSub
+    hrightNormal hrightSub returnType responseName fieldName leftArguments
     rightArguments leftDirectives rightDirectives leftChildSelectionSet
     rightChildSelectionSet childPath hreturnType hleftMem hrightMem
     harguments htrace
@@ -197,6 +199,17 @@ theorem object_child_observable_trace_separator_of_split_separator
       exact Option.some.inj hcandidateReturnType.symm
     subst candidateReturnType
     exact hcandidateNormal
+  have hleftChildSub :
+      selectionSetSubselectionsNonempty schema returnType leftChildSelectionSet := by
+    rcases
+        selectionSetSubselectionsNonempty_field_child_of_mem_with_returnType hleftSub hleftNormal
+          hleftMem with
+      ⟨candidateReturnType, hcandidateReturnType, hcandidateSub⟩
+    have hcandidateEq : candidateReturnType = returnType := by
+      rw [hreturnType] at hcandidateReturnType
+      exact Option.some.inj hcandidateReturnType.symm
+    subst candidateReturnType
+    exact hcandidateSub
   have hrightChildNormal :
       selectionSetNormal schema returnType rightChildSelectionSet := by
     rcases
@@ -208,6 +221,17 @@ theorem object_child_observable_trace_separator_of_split_separator
       exact Option.some.inj hcandidateReturnType.symm
     subst candidateReturnType
     exact hcandidateNormal
+  have hrightChildSub :
+      selectionSetSubselectionsNonempty schema returnType rightChildSelectionSet := by
+    rcases
+        selectionSetSubselectionsNonempty_field_child_of_mem_with_returnType hrightSub hrightNormal
+          hrightMem with
+      ⟨candidateReturnType, hcandidateReturnType, hcandidateSub⟩
+    have hcandidateEq : candidateReturnType = returnType := by
+      rw [hreturnType] at hcandidateReturnType
+      exact Option.some.inj hcandidateReturnType.symm
+    subst candidateReturnType
+    exact hcandidateSub
   rcases List.mem_iff_append.mp hleftMem with
     ⟨leftPref, leftSuffix, hleftEq⟩
   rcases List.mem_iff_append.mp hrightMem with
@@ -216,8 +240,8 @@ theorem object_child_observable_trace_separator_of_split_separator
   subst rightDirectives
   exact
     hsplit hlookup hnamedType hleftEq hrightEq harguments hleftChildValid
-      hrightChildValid hleftChildFree hrightChildFree hleftChildNormal
-      hrightChildNormal htrace
+      hrightChildValid hleftChildFree hrightChildFree hleftChildNormal hleftChildSub
+      hrightChildNormal hrightChildSub htrace
 
 theorem
     not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_separators
@@ -311,7 +335,9 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> NormalSelectionSetDiffObservableTrace schema parentType left right responsePath
       -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
@@ -319,7 +345,7 @@ theorem
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
     hargumentsCompositeLeft hchild hcoercionReflects hschema hleftValid hrightValid
     hleftCoercion hrightCoercion
-    hleftFree hrightFree hleftNormal hrightNormal hobject htrace hTypeNames
+    hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject htrace hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   have hcoercedArgumentsDiff
@@ -337,18 +363,18 @@ theorem
   | objectLeftResponseName _hobjectDiff hleftMem hrightNoResponseName =>
       exact
         not_selectionSetsDataEquivalent_of_valid_normal_object_left_responseName_diff
-          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-          hrightNormal hobject hleftMem hrightNoResponseName
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+          hrightNormal hrightSub hobject hleftMem hrightNoResponseName
   | objectRightResponseName _hobjectDiff hrightMem hleftNoResponseName =>
       exact
         not_selectionSetsDataEquivalent_of_valid_normal_object_right_responseName_diff
-          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-          hrightNormal hobject hrightMem hleftNoResponseName
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub
+          hrightNormal hrightSub hobject hrightMem hleftNoResponseName
   | objectFieldNameLeaf _hobjectDiff hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf hfieldNameDiff =>
       exact not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_leaf
         hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-        hleftNormal hrightNormal hobject hleftMem hrightMem
+        hleftNormal hleftSub hrightNormal hrightSub hobject hleftMem hrightMem
         (by
           intro candidate hcandidate
           rw [hleftLookup] at hcandidate
@@ -380,7 +406,7 @@ theorem
       hargumentsDiff =>
       exact not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_leaf
         hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-        hleftNormal hrightNormal hobject hleftMem hrightMem
+        hleftNormal hleftSub hrightNormal hrightSub hobject hleftMem hrightMem
         (by
           intro candidate hcandidate
           rw [hlookup] at hcandidate
@@ -530,7 +556,9 @@ theorem
             -> selectionSetDirectiveFree leftChildSelectionSet
             -> selectionSetDirectiveFree rightChildSelectionSet
             -> selectionSetNormal schema returnType leftChildSelectionSet
+            -> selectionSetSubselectionsNonempty schema returnType leftChildSelectionSet
             -> selectionSetNormal schema returnType rightChildSelectionSet
+            -> selectionSetSubselectionsNonempty schema returnType rightChildSelectionSet
             -> NormalSelectionSetDiffObservableTrace schema returnType
                 leftChildSelectionSet rightChildSelectionSet childPath
             -> ¬ selectionSetsDataEquivalent schema parentType left right)
@@ -543,14 +571,16 @@ theorem
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
+      -> selectionSetSubselectionsNonempty schema parentType left
       -> selectionSetNormal schema parentType right
+      -> selectionSetSubselectionsNonempty schema parentType right
       -> objectTypeNameBool schema parentType = true
       -> NormalSelectionSetDiffObservableTrace schema parentType left right responsePath
       -> ∀ (_hTypeNames : selectionSetTypenameFree (left ++ right) := by typename_free),
           ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
     hargumentsCompositeLeft hchildSplit hcoercionReflects hschema hleftValid hrightValid
-    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hobject htrace hTypeNames
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hleftSub hrightNormal hrightSub hobject htrace hTypeNames
   have hleftTypes := selectionSetTypenameFree_append_left hTypeNames
   have hrightTypes := selectionSetTypenameFree_append_right hTypeNames
   apply
@@ -570,7 +600,7 @@ theorem
         (rightVariableDefinitions := rightVariableDefinitions)
         (parentType := parentType) (left := left) (right := right)
         hchildSplit hleftValid hrightValid hleftFree hrightFree hleftNormal
-        hrightNormal
+        hleftSub hrightNormal hrightSub
   · exact hcoercionReflects
   · exact hschema
   · exact hleftValid
@@ -580,7 +610,9 @@ theorem
   · exact hleftFree
   · exact hrightFree
   · exact hleftNormal
+  · exact hleftSub
   · exact hrightNormal
+  · exact hrightSub
   · exact hobject
   · exact htrace
 

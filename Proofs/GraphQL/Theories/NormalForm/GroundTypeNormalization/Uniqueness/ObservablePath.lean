@@ -57,9 +57,10 @@ theorem normalSelectionSetObservableLeaf_of_valid_normal_nonempty (schema : Sche
     : ∀ parentType variableDefinitions (selectionSet : List Selection),
         Validation.selectionSetValid schema variableDefinitions parentType selectionSet
         -> selectionSetNormal schema parentType selectionSet
+        -> selectionSetSubselectionsNonempty schema parentType selectionSet
         -> selectionSet ≠ []
         -> NormalSelectionSetObservableLeaf schema parentType selectionSet
-  | parentType, variableDefinitions, selectionSet, hvalid, hnormal,
+  | parentType, variableDefinitions, selectionSet, hvalid, hnormal, hsub,
       hnonempty => by
       by_cases hparentObject : objectTypeNameBool schema parentType = true
       · rcases
@@ -68,7 +69,7 @@ theorem normalSelectionSetObservableLeaf_of_valid_normal_nonempty (schema : Sche
           ⟨responseName, fieldName, arguments, directives,
             childSelectionSet, hmem⟩
         rcases
-          selectionSetValid_field_lookup_leaf_or_composite_child hvalid
+          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub
             hmem with
           ⟨fieldDefinition, hlookup, hkind⟩
         rcases hkind with hleaf | hcomposite
@@ -80,6 +81,11 @@ theorem normalSelectionSetObservableLeaf_of_valid_normal_nonempty (schema : Sche
                 childSelectionSet :=
             selectionSetNormal_field_child_of_mem_lookup hnormal hmem
               hlookup
+          have hchildSub :
+              selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+                childSelectionSet :=
+            selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem
+              hlookup
           have hchildSize :
               SelectionSet.size childSelectionSet <
                 SelectionSet.size selectionSet :=
@@ -89,7 +95,7 @@ theorem normalSelectionSetObservableLeaf_of_valid_normal_nonempty (schema : Sche
                 fieldDefinition.outputType.namedType childSelectionSet :=
             normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
               fieldDefinition.outputType.namedType variableDefinitions
-              childSelectionSet hcomposite.2.2 hchildNormal
+              childSelectionSet hcomposite.2.2 hchildNormal hchildSub
               hcomposite.2.1
           exact
             NormalSelectionSetObservableLeaf.objectChild hparentObject hmem
@@ -119,6 +125,8 @@ theorem normalSelectionSetObservableLeaf_of_valid_normal_nonempty (schema : Sche
             rcases selectionSetNormal_inlineFragment_child_of_mem hnormal
                 hmem with
               ⟨_htypeObject, hchildNormal⟩
+            have hchildSub :=
+              selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hsub hmem
             have hchildValid :
                 Validation.selectionSetValid schema variableDefinitions
                   typeCondition childSelectionSet :=
@@ -135,9 +143,9 @@ theorem normalSelectionSetObservableLeaf_of_valid_normal_nonempty (schema : Sche
                   childSelectionSet :=
               normalSelectionSetObservableLeaf_of_valid_normal_nonempty schema
                 typeCondition variableDefinitions childSelectionSet
-                hchildValid hchildNormal
-                (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-                  hvalid hmem)
+                hchildValid hchildNormal hchildSub
+                (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+                  hsub hmem)
             exact
               NormalSelectionSetObservableLeaf.abstractInlineFragment
                 hparentAbstract hmem hchildPath

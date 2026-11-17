@@ -19,7 +19,7 @@ theorem
     {schema : Schema} {left right : Operation}
     : normalOperationsSemanticallyEquivalentEqualUpToReordering schema left right := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftTypes hrightTypes
-    hleftNormal hrightNormal hdefinitions hsem
+    hleftNormal hrightNormal hleftSub hrightSub hdefinitions hsem
   have hroot :
       left.rootType schema = right.rootType schema :=
     operation_rootType_eq_of_operationDefinitionValid hleftValid hrightValid
@@ -58,6 +58,14 @@ theorem
     have hrightSelectionNormal :
         selectionSetNormal schema (left.rootType schema) right.selectionSet := by
       simpa [operationNormal, hroot] using hrightNormal
+    have hleftSelectionSub :
+        selectionSetSubselectionsNonempty schema (left.rootType schema)
+          left.selectionSet := by
+      simpa [operationSubselectionsNonempty] using hleftSub
+    have hrightSelectionSub :
+        selectionSetSubselectionsNonempty schema (left.rootType schema)
+          right.selectionSet := by
+      simpa [operationSubselectionsNonempty, hroot] using hrightSub
     have hobject :
         objectTypeNameBool schema (left.rootType schema) = true :=
       operation_root_objectTypeNameBool_of_wf_valid hschema hleftValid
@@ -65,7 +73,8 @@ theorem
       CompleteNormalization.validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
         hvalues hschema hleftSelectionValid hrightSelectionValid
         hleftCoercion hrightCoercion hleftFree
-        hrightFree hleftSelectionNormal hrightSelectionNormal hobject
+        hrightFree hleftSelectionNormal hleftSelectionSub hrightSelectionNormal
+        hrightSelectionSub hobject
     intro ObjectRef resolvers fuel source hsource
     rcases hsource with ⟨runtimeType, ref, hsource, hinclude⟩
     have hleftRoot :

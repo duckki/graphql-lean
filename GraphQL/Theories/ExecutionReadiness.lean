@@ -470,7 +470,7 @@ def CheckExecutionErrorComplete (schema : Schema) (operation : Operation) : Prop
 -- Proposed schema constraints for error-free execution
 -----------------------------------------------------------------------------------------
 
--- Proposed strengthening of schema validation, separate from September 2025
+-- Proposed strengthening of schema validation, separate from September 2026
 -- schemaWellFormed. An implementation preserves the presence of interface argument
 -- defaults; their values may differ. This applies to nullable and non-null arguments.
 -- Related proposal: https://github.com/graphql/graphql-spec/issues/1121 (option 3).
@@ -536,7 +536,7 @@ def schemaCompositeFieldTypesInhabited (schema : Schema) : Prop :=
 -- Proposed schema-level soundness statement: every valid operation admits some
 -- zero-error executeQuery configuration, without separate operation-readiness premises.
 -- Resolver and variable witnesses may depend on the operation. The schema constraints
--- remain proposed extensions of September 2025 schema validation.
+-- remain proposed extensions of September 2026 schema validation.
 -- Proof witness: `GraphQL.schemaExecution_sound`
 -- in `Proofs/GraphQL/Theories/ExecutionReadiness/SchemaConstraints.lean`.
 def SchemaExecutionSound (schema : Schema) : Prop :=

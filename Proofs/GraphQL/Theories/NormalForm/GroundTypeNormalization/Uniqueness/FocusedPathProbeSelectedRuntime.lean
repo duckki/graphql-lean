@@ -501,6 +501,7 @@ theorem
     : NormalSelectionSetObservableResponsePath schema parentType selectionSet responsePath
       -> Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> ∃ runtimeType,
           schema.typeIncludesObjectBool parentType runtimeType = true
           ∧ ∀ currentSelectionSet,
@@ -511,7 +512,7 @@ theorem
   | objectLeaf hobject hmem hlookup hleaf =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition
-      intro _hvalid _hnormal
+      intro _hvalid _hnormal _hsub
       exact ⟨
         pathParentType,
         typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
@@ -522,13 +523,13 @@ theorem
   | objectChild hobject hmem hlookup hcomposite hchildPath ih =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition childPath
-      intro hvalid hnormal
+      intro hvalid hnormal hsub
       have hchildNonempty : childSelectionSet ≠ [] :=
         normalSelectionSetResponsePath_selectionSet_nonempty
           (NormalSelectionSetObservableResponsePath.to_responsePath
             hchildPath)
       rcases
-          selectionSetValid_field_lookup_leaf_or_composite_child hvalid
+          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub
             hmem with
         ⟨candidateDefinition, hcandidateLookup, hkind⟩
       have hcandidateEq : candidateDefinition = fieldDefinition := by
@@ -539,10 +540,14 @@ theorem
           selectionSetNormal schema fieldDefinition.outputType.namedType
             childSelectionSet :=
         selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+      have hchildSub :
+          selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+            childSelectionSet :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
       rcases hkind with hleaf | hchildValidAndComposite
       · exact False.elim (hchildNonempty hleaf.2)
       · rcases
-            ih hchildValidAndComposite.2.2 hchildNormal with
+            ih hchildValidAndComposite.2.2 hchildNormal hchildSub with
           ⟨childRuntime, _hchildInclude, hchildObservable⟩
         exact ⟨
           pathParentType,
@@ -558,13 +563,15 @@ theorem
   | abstractInlineFragment hnonObject hmem hchildPath ih =>
       rename_i pathParentType typeCondition directives childSelectionSet
         pathSelectionSet childPath
-      intro hvalid hnormal
+      intro hvalid hnormal hsub
       have hchildValid :
           Validation.selectionSetValid schema variableDefinitions
             typeCondition childSelectionSet :=
         selectionSetValid_inlineFragment_some_child_of_mem hvalid hmem
       rcases selectionSetNormal_inlineFragment_child_of_mem hnormal hmem with
         ⟨htypeObject, hchildNormal⟩
+      have hchildSub :=
+        selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hsub hmem
       have hoverlap : schema.typesOverlap pathParentType typeCondition :=
         selectionSetValid_inlineFragment_some_typesOverlap_of_mem hvalid
           hmem
@@ -577,7 +584,7 @@ theorem
           objectTypeNameBool schema typeCondition = true :=
         objectTypeNameBool_eq_true_of_objectType_forNormality schema
           htypeObject
-      rcases ih hchildValid hchildNormal with
+      rcases ih hchildValid hchildNormal hchildSub with
         ⟨childRuntime, _hchildInclude, hchildObservable⟩
       have hruntimeEq : childRuntime = typeCondition :=
         pathLocalSelectionSetObservableLeafAtSelectedRuntime_runtime_eq_of_object
@@ -599,6 +606,7 @@ theorem
     : NormalSelectionSetObservableResponsePath schema parentType selectionSet responsePath
       -> Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> ∃ runtimeType fieldSpine,
           schema.typeIncludesObjectBool parentType runtimeType = true
           ∧ ∀ currentSelectionSet,
@@ -610,7 +618,7 @@ theorem
   | objectLeaf hobject hmem hlookup hleaf =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition
-      intro _hvalid _hnormal
+      intro _hvalid _hnormal _hsub
       exact ⟨
         pathParentType,
         [{
@@ -627,13 +635,13 @@ theorem
   | objectChild hobject hmem hlookup hcomposite hchildPath ih =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition childPath
-      intro hvalid hnormal
+      intro hvalid hnormal hsub
       have hchildNonempty : childSelectionSet ≠ [] :=
         normalSelectionSetResponsePath_selectionSet_nonempty
           (NormalSelectionSetObservableResponsePath.to_responsePath
             hchildPath)
       rcases
-          selectionSetValid_field_lookup_leaf_or_composite_child hvalid
+          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub
             hmem with
         ⟨candidateDefinition, hcandidateLookup, hkind⟩
       have hcandidateEq : candidateDefinition = fieldDefinition := by
@@ -644,10 +652,14 @@ theorem
           selectionSetNormal schema fieldDefinition.outputType.namedType
             childSelectionSet :=
         selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+      have hchildSub :
+          selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+            childSelectionSet :=
+        selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
       rcases hkind with hleaf | hchildValidAndComposite
       · exact False.elim (hchildNonempty hleaf.2)
       · rcases
-            ih hchildValidAndComposite.2.2 hchildNormal with
+            ih hchildValidAndComposite.2.2 hchildNormal hchildSub with
           ⟨childRuntime, childSpine, _hchildInclude,
             hchildObservable⟩
         exact ⟨
@@ -671,13 +683,15 @@ theorem
   | abstractInlineFragment hnonObject hmem hchildPath ih =>
       rename_i pathParentType typeCondition directives childSelectionSet
         pathSelectionSet childPath
-      intro hvalid hnormal
+      intro hvalid hnormal hsub
       have hchildValid :
           Validation.selectionSetValid schema variableDefinitions
             typeCondition childSelectionSet :=
         selectionSetValid_inlineFragment_some_child_of_mem hvalid hmem
       rcases selectionSetNormal_inlineFragment_child_of_mem hnormal hmem with
         ⟨htypeObject, hchildNormal⟩
+      have hchildSub :=
+        selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hsub hmem
       have hoverlap : schema.typesOverlap pathParentType typeCondition :=
         selectionSetValid_inlineFragment_some_typesOverlap_of_mem hvalid
           hmem
@@ -690,7 +704,7 @@ theorem
           objectTypeNameBool schema typeCondition = true :=
         objectTypeNameBool_eq_true_of_objectType_forNormality schema
           htypeObject
-      rcases ih hchildValid hchildNormal with
+      rcases ih hchildValid hchildNormal hchildSub with
         ⟨childRuntime, childSpine, _hchildInclude, hchildObservable⟩
       have hruntimeEq : childRuntime = typeCondition :=
         pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_runtime_eq_of_object

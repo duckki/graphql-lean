@@ -451,6 +451,7 @@ theorem
               parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
                 targetFieldDefinition,
@@ -491,13 +492,13 @@ theorem
   | zero =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments tag
-        hsize _hfuel _hvalid _hcoercion _hfree _hnormal _hinclude _hpromote
+        hsize _hfuel _hvalid _hcoercion _hfree _hnormal _hsub _hinclude _hpromote
         _hheadPromote _hTypeNames
       omega
   | succ n ih =>
       intro parentType variableDefinitions selectionSet fuel sourceRuntimeType
         targetParent leftField rightField leftArguments rightArguments tag
-        hsize hfuel hvalid hcoercion hfree hnormal hinclude hpromote hheadPromote hTypeNames
+        hsize hfuel hvalid hcoercion hfree hnormal hsub hinclude hpromote hheadPromote hTypeNames
       have hsourceObject :
           objectTypeNameBool schema sourceRuntimeType = true :=
         objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
@@ -581,6 +582,10 @@ theorem
               selectionSetNormal schema fieldDefinition.outputType.namedType
                 childSelectionSet :=
             selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+          have hchildSub :
+              selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+                childSelectionSet :=
+            selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
           have hchildCoercion :
               selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
                 fieldDefinition.outputType.namedType childSelectionSet :=
@@ -611,7 +616,7 @@ theorem
               htargetNonObject hlocalRuntime
             rcases
                 abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_normal
-                  hvalid hfree hnormal hmem hlookup htargetLookup
+                  hvalid hfree hnormal hsub hmem hlookup htargetLookup
                   htargetComposite htargetNonObject hlocalRuntime with
               ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
             exact
@@ -646,7 +651,7 @@ theorem
                   childSelectionSet childFuel
                   fieldDefinition.outputType.namedType targetParent leftField
                   rightField leftArguments rightArguments tag hchildSize
-                  hchildFuel hchildValid hchildCoercion hchildFree hchildNormal
+                  hchildFuel hchildValid hchildCoercion hchildFree hchildNormal hchildSub
                   hchildInclude hchildPromote hchildHeadPromote with
               ⟨responseFields, errors, hchildResponse⟩
             have hchildFuelEq :
@@ -669,7 +674,7 @@ theorem
                 simp [h] at hreturnObject ⊢
             rcases
                 abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
-                  hvalid hnormal hmem hlookup hreturnComposite
+                  hvalid hnormal hsub hmem hlookup hreturnComposite
                   hreturnNonObject with
               ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
             rcases
@@ -680,7 +685,7 @@ theorem
             have hchildNonempty : childSelectionSet ≠ [] := by
               rcases
                   selectionSetValid_field_lookup_leaf_or_composite_child
-                    hvalid hmem with
+                    hvalid hsub hmem with
                 ⟨candidateDefinition, hcandidateLookup, hkind⟩
               have hdefinitionEq : candidateDefinition = fieldDefinition := by
                 rw [hlookup] at hcandidateLookup
@@ -700,7 +705,7 @@ theorem
                 ih fieldDefinition.outputType.namedType variableDefinitions
                   childSelectionSet childFuel runtimeType targetParent
                   leftField rightField leftArguments rightArguments tag
-                  hchildSize hchildFuel hchildValid hchildCoercion hchildFree hchildNormal
+                  hchildSize hchildFuel hchildValid hchildCoercion hchildFree hchildNormal hchildSub
                   hruntimeInclude hchildPromote hchildHeadPromote with
               ⟨responseFields, errors, hchildResponse⟩
             have hchildFuelEq :
@@ -741,6 +746,8 @@ theorem
         rcases selectionSetNormal_inlineFragment_child_of_mem hnormal
             hinlineMem with
           ⟨htypeObject, hbodyNormal⟩
+        have hbodySub :=
+          selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hsub hinlineMem
         have hbodyObject :
             objectTypeNameBool schema typeCondition = true :=
           objectTypeNameBool_eq_true_of_objectType_forNormality schema
@@ -790,7 +797,7 @@ theorem
             htargetNonObject hbodyLocalRuntime
           rcases
               abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_normal
-                hvalid hfree hnormal hinlineMem htargetLookup
+                hvalid hfree hnormal hsub hinlineMem htargetLookup
                 htargetComposite htargetNonObject hbodyLocalRuntime with
             ⟨childRuntimeType, hchildRuntime, _hchildInclude⟩
           exact
@@ -893,6 +900,12 @@ theorem
                 bodyChildSelectionSet :=
             selectionSetNormal_field_child_of_mem_lookup hbodyNormal
               hbodyFieldMem hbodyLookup
+          have hchildSub :
+              selectionSetSubselectionsNonempty schema
+                bodyFieldDefinition.outputType.namedType
+                bodyChildSelectionSet :=
+            selectionSetSubselectionsNonempty_field_child_of_mem_lookup hbodySub
+              hbodyFieldMem hbodyLookup
           have hchildCoercion :
               selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
                 bodyFieldDefinition.outputType.namedType bodyChildSelectionSet :=
@@ -924,7 +937,7 @@ theorem
               htargetNonObject hlocalRuntime
             rcases
                 abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_normal
-                  hbodyValid hbodyFree hbodyNormal hbodyFieldMem
+                  hbodyValid hbodyFree hbodyNormal hbodySub hbodyFieldMem
                   hbodyLookup htargetLookup htargetComposite
                   htargetNonObject hlocalRuntime with
               ⟨bodyRuntimeType, hbodyRuntime, _hbodyInclude⟩
@@ -963,7 +976,7 @@ theorem
                   bodyFieldDefinition.outputType.namedType targetParent
                   leftField rightField leftArguments rightArguments tag
                   hchildSize hchildFuel hchildValid hchildCoercion hchildFree
-                  hchildNormal hchildInclude hchildPromote
+                  hchildNormal hchildSub hchildInclude hchildPromote
                   hchildHeadPromote with
               ⟨responseFields, errors, hchildResponse⟩
             have hchildFuelEq :
@@ -986,7 +999,7 @@ theorem
                 simp [h] at hreturnObject ⊢
             rcases
                 abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
-                  hbodyValid hbodyNormal hbodyFieldMem hbodyLookup
+                  hbodyValid hbodyNormal hbodySub hbodyFieldMem hbodyLookup
                   hreturnComposite hreturnNonObject with
               ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
             rcases
@@ -998,7 +1011,7 @@ theorem
             have hchildNonempty : bodyChildSelectionSet ≠ [] := by
               rcases
                   selectionSetValid_field_lookup_leaf_or_composite_child
-                    hbodyValid hbodyFieldMem with
+                    hbodyValid hbodySub hbodyFieldMem with
                 ⟨candidateDefinition, hcandidateLookup, hkind⟩
               have hdefinitionEq :
                   candidateDefinition = bodyFieldDefinition := by
@@ -1021,7 +1034,7 @@ theorem
                   variableDefinitions bodyChildSelectionSet childFuel
                   runtimeType targetParent leftField rightField
                   leftArguments rightArguments tag hchildSize hchildFuel
-                  hchildValid hchildCoercion hchildFree hchildNormal hruntimeInclude
+                  hchildValid hchildCoercion hchildFree hchildNormal hchildSub hruntimeInclude
                   hchildPromote hchildHeadPromote with
               ⟨responseFields, errors, hchildResponse⟩
             have hchildFuelEq :
@@ -1051,6 +1064,7 @@ theorem
               parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
                 targetFieldDefinition,
@@ -1090,13 +1104,13 @@ theorem
                     : Execution.Response) := by
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments tag hvalid
-    hcoercion hfree hnormal hinclude hpromote hheadPromote hTypeNames
+    hcoercion hfree hnormal hsub hinclude hpromote hheadPromote hTypeNames
   exact executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
     schema rootSelectionSet variableValues hschema (SelectionSet.size selectionSet + 1)
     parentType variableDefinitions selectionSet
     (selectionSetDeepProbeFuel schema parentType selectionSet) sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments tag (by omega)
-    (by omega) hvalid hcoercion hfree hnormal hinclude hpromote hheadPromote
+    (by omega) hvalid hcoercion hfree hnormal hsub hinclude hpromote hheadPromote
 
 theorem
     executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
@@ -1113,6 +1127,7 @@ theorem
           -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
@@ -1158,7 +1173,7 @@ theorem
                     = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema parentType variableDefinitions selectionSet
     fuel sourceRuntimeType targetParent leftField rightField leftArguments
-    rightArguments tag hfuel hvalid hcoercion hfree hnormal hobject hinclude
+    rightArguments tag hfuel hvalid hcoercion hfree hnormal hsub hobject hinclude
     hpromote hheadPromote
   intro selectedResponse selectedField selectedArguments selectedDirectives selectedChildren selectedMem hTypeNames
   refine executeField_fieldPairProbe_tagged_object_field_ok_of_field_children schema
@@ -1233,6 +1248,10 @@ theorem
         selectionSetNormal schema fieldDefinition.outputType.namedType
           childSelectionSet :=
       selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
+    have hchildSub :
+        selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+          childSelectionSet :=
+      selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem hlookup
     have hchildCoercion :
         selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
           fieldDefinition.outputType.namedType childSelectionSet :=
@@ -1263,7 +1282,7 @@ theorem
         htargetNonObject hlocalRuntime
       rcases
           abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_normal
-            hvalid hfree hnormal hmem hlookup htargetLookup
+            hvalid hfree hnormal hsub hmem hlookup htargetLookup
             htargetComposite htargetNonObject hlocalRuntime with
         ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
       exact
@@ -1299,7 +1318,7 @@ theorem
             childSelectionSet childFuel
             fieldDefinition.outputType.namedType targetParent leftField
             rightField leftArguments rightArguments tag hchildSize
-            hchildFuel hchildValid hchildCoercion hchildFree hchildNormal hchildInclude
+            hchildFuel hchildValid hchildCoercion hchildFree hchildNormal hchildSub hchildInclude
             hchildPromote hchildHeadPromote with
         ⟨responseFields, errors, hchildResponse⟩
       have hchildFuelEq :
@@ -1322,7 +1341,7 @@ theorem
           simp [h] at hreturnObject ⊢
       rcases
                 abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
-            hvalid hnormal hmem hlookup hreturnComposite
+            hvalid hnormal hsub hmem hlookup hreturnComposite
             hreturnNonObject with
         ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
       rcases
@@ -1333,7 +1352,7 @@ theorem
       have hchildNonempty : childSelectionSet ≠ [] := by
         rcases
             selectionSetValid_field_lookup_leaf_or_composite_child
-              hvalid hmem with
+              hvalid hsub hmem with
           ⟨candidateDefinition, hcandidateLookup, hkind⟩
         have hdefinitionEq : candidateDefinition = fieldDefinition := by
           rw [hlookup] at hcandidateLookup
@@ -1356,7 +1375,7 @@ theorem
             fieldDefinition.outputType.namedType variableDefinitions
             childSelectionSet childFuel runtimeType targetParent leftField
             rightField leftArguments rightArguments tag hchildSize
-            hchildFuel hchildValid hchildCoercion hchildFree hchildNormal
+            hchildFuel hchildValid hchildCoercion hchildFree hchildNormal hchildSub
             hruntimeInclude hchildPromote hchildHeadPromote with
         ⟨responseFields, errors, hchildResponse⟩
       have hchildFuelEq :
@@ -1383,6 +1402,7 @@ theorem
           -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
+          -> selectionSetSubselectionsNonempty schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
@@ -1429,13 +1449,13 @@ theorem
                     = .ok ([(responseName, responseValue)], fieldErrors) := by
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments tag hvalid
-    hcoercion hfree hnormal hobject hinclude hpromote hheadPromote
+    hcoercion hfree hnormal hsub hobject hinclude hpromote hheadPromote
   intro responseName fieldName arguments directives childSelectionSet hmem hTypeNames
   exact executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
     schema rootSelectionSet variableValues hschema parentType variableDefinitions
     selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
     sourceRuntimeType targetParent leftField rightField leftArguments rightArguments tag
-    (by omega) hvalid hcoercion hfree hnormal hobject hinclude hpromote hheadPromote
+    (by omega) hvalid hcoercion hfree hnormal hsub hobject hinclude hpromote hheadPromote
     responseName fieldName arguments directives childSelectionSet hmem hTypeNames
 
 end GroundTypeNormalization

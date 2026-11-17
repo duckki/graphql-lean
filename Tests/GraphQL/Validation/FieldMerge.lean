@@ -182,7 +182,7 @@ theorem returnScopeQuery_canMerge
 
 theorem returnScopeQuery_valid
     : GraphQL.Validation.operationDefinitionValid returnScopeSchema returnScopeQuery := by
-  refine ⟨rfl, ?_, ?_, by simp [returnScopeQuery], ?_, returnScopeQuery_canMerge, ?_⟩
+  refine ⟨rfl, ?_, ?_, ?_, returnScopeQuery_canMerge, ?_⟩
   · exact ⟨.object { name := "Query", fields := [{ name := "user", outputType := .named "User" }] },
       by simp [returnScopeSchema, Operation.rootType, OperationType.rootType,
         Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,

@@ -185,7 +185,7 @@ private def scopedField : FieldMerge.ScopedField :=
   }
 
 private theorem valid : Validation.operationDefinitionValid schema op := by
-  refine ⟨rfl, ⟨.object query, rfl, trivial⟩, ?_, by decide, ?_, ?_, ?_⟩
+  refine ⟨rfl, ⟨.object query, rfl, trivial⟩, ?_, ?_, ?_, ?_⟩
   · simp [Validation.variableDefinitionsValid, op]
   · unfold Validation.selectionSetValid
     intro selection hmem

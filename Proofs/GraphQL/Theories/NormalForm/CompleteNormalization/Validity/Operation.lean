@@ -135,13 +135,12 @@ theorem completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
       -> operationBoolTypeConditionFeasible schema operation
+      -> operation.selectionSet ≠ []
       -> completeNormalizeRootSelectionSet schema
             (operationBoolVars operation) (operation.rootType schema)
             operation.selectionSet
           ≠ [] := by
-  intro hschema hoperation hboolFeasible
-  have hselectionSetNonempty : operation.selectionSet ≠ [] :=
-    Validation.operationDefinitionValid_selectionSet_nonempty hoperation
+  intro hschema hoperation hboolFeasible hselectionSetNonempty
   have hselectionSetCons :
       ∃ selection rest, operation.selectionSet = selection :: rest := by
     cases hselectionSet : operation.selectionSet with
@@ -275,12 +274,6 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
 theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operation)
     : NormalForm.completeNormalizeOperationValid schema operation := by
   intro hschema hoperation hfields hshapes hboolFeasible
-  have hnormalizedNonempty :
-      completeNormalizeRootSelectionSet schema
-        (operationBoolVars operation) (operation.rootType schema)
-        operation.selectionSet ≠ [] :=
-    completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible schema
-      operation hschema hoperation hboolFeasible
   have hbranchPairs :
       ∀ leftCase, leftCase ∈ allBoolCases (operationBoolVars operation) ->
         ∀ rightCase, rightCase ∈ allBoolCases (operationBoolVars operation) ->
@@ -316,7 +309,6 @@ theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operatio
       simpa [completeNormalizeOperation]
         using (Validation.operationDefinitionValid_variableDefinitionsValid
                 (operation := operation) hoperation),
-    by simpa [completeNormalizeOperation] using hnormalizedNonempty,
     by
       simpa [completeNormalizeOperation, Operation.rootType, OperationType.rootType]
         using completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible

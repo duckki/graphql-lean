@@ -80,11 +80,12 @@ theorem selectionSetDeepPromotionAvailable_of_preservesRuntime
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> selectionSetDeepPromotionPreservesRuntime schema rootSelectionSet
           parentType selectionSet
       -> selectionSetDeepPromotionAvailable schema rootSelectionSet parentType
           selectionSet := by
-  intro hvalid hfree hnormal hpreserve abstractTargetParent
+  intro hvalid hfree hnormal hsub hpreserve abstractTargetParent
     abstractTargetField targetRuntimeType targetFieldDefinition htargetLookup
     htargetComposite htargetNonObject hlocalRuntime
   exact ⟨
@@ -93,7 +94,7 @@ theorem selectionSetDeepPromotionAvailable_of_preservesRuntime
       targetFieldDefinition htargetLookup htargetComposite
       htargetNonObject hlocalRuntime,
     abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
-      hnormal htargetLookup htargetComposite htargetNonObject
+      hnormal hsub htargetLookup htargetComposite htargetNonObject
       hlocalRuntime
   ⟩
 
@@ -104,11 +105,12 @@ theorem selectionSetDeepHeadPromotionAvailable_of_preservesRuntime
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> selectionSetDeepHeadPromotionPreservesRuntime schema rootSelectionSet
           parentType selectionSet
       -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet parentType
           selectionSet := by
-  intro hvalid hfree hnormal hpreserve abstractTargetParent
+  intro hvalid hfree hnormal hsub hpreserve abstractTargetParent
     abstractTargetField targetArguments targetRuntimeType targetFieldDefinition
     htargetLookup htargetComposite htargetNonObject hlocalRuntime
   exact ⟨
@@ -117,7 +119,7 @@ theorem selectionSetDeepHeadPromotionAvailable_of_preservesRuntime
       targetRuntimeType targetFieldDefinition htargetLookup
       htargetComposite htargetNonObject hlocalRuntime,
     abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid
-      hfree hnormal htargetLookup htargetComposite htargetNonObject
+      hfree hnormal hsub htargetLookup htargetComposite htargetNonObject
       hlocalRuntime
   ⟩
 
@@ -171,10 +173,11 @@ theorem selectionSetDeepPromotionAvailable_single_framed
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> selectionSetDeepPromotionAvailable schema
           [Selection.inlineFragment (some parentType) [] selectionSet]
           parentType selectionSet := by
-  intro hvalid hfree hnormal
+  intro hvalid hfree hnormal hsub
   intro abstractTargetParent abstractTargetField targetRuntimeType
     targetFieldDefinition htargetLookup htargetComposite htargetNonObject
     hlocalRuntime
@@ -182,7 +185,7 @@ theorem selectionSetDeepPromotionAvailable_single_framed
     targetRuntimeType,
     abstractRuntimeForFieldDeep?_framed_exact hlocalRuntime,
     abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
-      hnormal htargetLookup htargetComposite htargetNonObject
+      hnormal hsub htargetLookup htargetComposite htargetNonObject
       hlocalRuntime
   ⟩
 
@@ -215,13 +218,14 @@ theorem selectionSetDeepHeadPromotionAvailable_single_framed
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> selectionSetDeepHeadPromotionAvailable schema
           [Selection.inlineFragment (some parentType) [] selectionSet]
           parentType selectionSet := by
-  intro hvalid hfree hnormal
+  intro hvalid hfree hnormal hsub
   exact
     selectionSetDeepHeadPromotionAvailable_of_preservesRuntime hvalid hfree
-      hnormal selectionSetDeepHeadPromotionPreservesRuntime_single_framed
+      hnormal hsub selectionSetDeepHeadPromotionPreservesRuntime_single_framed
 
 theorem selectionSetDeepPromotionAvailable_field_child_of_mem
     {schema : Schema} {rootSelectionSet : List Selection}
@@ -233,6 +237,7 @@ theorem selectionSetDeepPromotionAvailable_field_child_of_mem
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
@@ -240,13 +245,13 @@ theorem selectionSetDeepPromotionAvailable_field_child_of_mem
           selectionSet
       -> selectionSetDeepPromotionAvailable schema rootSelectionSet
           fieldDefinition.outputType.namedType childSelectionSet := by
-  intro hvalid hfree hnormal hmem hlookup hpromote
+  intro hvalid hfree hnormal hsub hmem hlookup hpromote
   intro abstractTargetParent abstractTargetField targetRuntimeType
     targetFieldDefinition htargetLookup htargetComposite htargetNonObject
     hlocalRuntime
   rcases
       abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_normal
-        hvalid hfree hnormal hmem hlookup htargetLookup htargetComposite
+        hvalid hfree hnormal hsub hmem hlookup htargetLookup htargetComposite
         htargetNonObject hlocalRuntime with
     ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
   exact
@@ -263,19 +268,20 @@ theorem selectionSetDeepPromotionAvailable_inlineFragment_child_of_mem
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
           ∈ selectionSet
       -> selectionSetDeepPromotionAvailable schema rootSelectionSet parentType
           selectionSet
       -> selectionSetDeepPromotionAvailable schema rootSelectionSet typeCondition
           childSelectionSet := by
-  intro hvalid hfree hnormal hmem hpromote
+  intro hvalid hfree hnormal hsub hmem hpromote
   intro abstractTargetParent abstractTargetField targetRuntimeType
     targetFieldDefinition htargetLookup htargetComposite htargetNonObject
     hlocalRuntime
   rcases
       abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_normal
-        hvalid hfree hnormal hmem htargetLookup htargetComposite
+        hvalid hfree hnormal hsub hmem htargetLookup htargetComposite
         htargetNonObject hlocalRuntime with
     ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
   exact
@@ -293,6 +299,7 @@ theorem selectionSetDeepHeadPromotionAvailable_field_child_of_mem
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
@@ -300,13 +307,13 @@ theorem selectionSetDeepHeadPromotionAvailable_field_child_of_mem
           selectionSet
       -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
           fieldDefinition.outputType.namedType childSelectionSet := by
-  intro hvalid hfree hnormal hmem hlookup hpromote
+  intro hvalid hfree hnormal hsub hmem hlookup hpromote
   intro abstractTargetParent abstractTargetField targetArguments
     targetRuntimeType targetFieldDefinition htargetLookup htargetComposite
     htargetNonObject hlocalRuntime
   rcases
       abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_normal
-        hvalid hfree hnormal hmem hlookup htargetLookup htargetComposite
+        hvalid hfree hnormal hsub hmem hlookup htargetLookup htargetComposite
         htargetNonObject hlocalRuntime with
     ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
   exact
@@ -323,19 +330,20 @@ theorem selectionSetDeepHeadPromotionAvailable_inlineFragment_child_of_mem
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
           ∈ selectionSet
       -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet parentType
           selectionSet
       -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
           typeCondition childSelectionSet := by
-  intro hvalid hfree hnormal hmem hpromote
+  intro hvalid hfree hnormal hsub hmem hpromote
   intro abstractTargetParent abstractTargetField targetArguments
     targetRuntimeType targetFieldDefinition htargetLookup htargetComposite
     htargetNonObject hlocalRuntime
   rcases
       abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_normal
-        hvalid hfree hnormal hmem htargetLookup htargetComposite
+        hvalid hfree hnormal hsub hmem htargetLookup htargetComposite
         htargetNonObject hlocalRuntime with
     ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
   exact
@@ -467,11 +475,12 @@ theorem normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
     : ∀ parentType variableDefinitions (selectionSet : List Selection),
         Validation.selectionSetValid schema variableDefinitions parentType selectionSet
         -> selectionSetNormal schema parentType selectionSet
+        -> selectionSetSubselectionsNonempty schema parentType selectionSet
         -> selectionSet ≠ []
         -> ∃ runtimeType,
             NormalSelectionSetObservableLeafAtRuntime schema parentType
               runtimeType selectionSet
-  | parentType, variableDefinitions, selectionSet, hvalid, hnormal,
+  | parentType, variableDefinitions, selectionSet, hvalid, hnormal, hsub,
       hnonempty => by
       by_cases hparentObject : objectTypeNameBool schema parentType = true
       · cases selectionSet with
@@ -494,7 +503,7 @@ theorem normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
                 childSelectionSet :: rest := by
           simp
         rcases
-          selectionSetValid_field_lookup_leaf_or_composite_child hvalid
+          selectionSetValid_field_lookup_leaf_or_composite_child hvalid hsub
             hmem with
           ⟨fieldDefinition, hlookup, hkind⟩
         rcases hkind with hleaf | hcomposite
@@ -507,6 +516,11 @@ theorem normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
                 childSelectionSet :=
             selectionSetNormal_field_child_of_mem_lookup hnormal hmem
               hlookup
+          have hchildSub :
+              selectionSetSubselectionsNonempty schema fieldDefinition.outputType.namedType
+                childSelectionSet :=
+            selectionSetSubselectionsNonempty_field_child_of_mem_lookup hsub hmem
+              hlookup
           have hchildSize :
               SelectionSet.size childSelectionSet <
                 SelectionSet.size
@@ -517,7 +531,7 @@ theorem normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
               normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
                 schema fieldDefinition.outputType.namedType
                 variableDefinitions childSelectionSet hcomposite.2.2
-                hchildNormal hcomposite.2.1 with
+                hchildNormal hchildSub hcomposite.2.1 with
             ⟨childRuntimeType, hchildObservable⟩
           have hruntime :
               ((objectTypeNameBool schema
@@ -595,6 +609,8 @@ theorem normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
             rcases selectionSetNormal_inlineFragment_child_of_mem hnormal
                 hmem with
               ⟨htypeObject, hchildNormal⟩
+            have hchildSub :=
+              selectionSetSubselectionsNonempty_inlineFragment_some_child_of_mem hsub hmem
             have htypeObjectBool :
                 objectTypeNameBool schema typeCondition = true :=
               objectTypeNameBool_eq_true_of_objectType_forNormality schema
@@ -621,9 +637,9 @@ theorem normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
             rcases
               normalSelectionSetObservableLeafAtRuntime_of_valid_normal_nonempty
                 schema typeCondition variableDefinitions childSelectionSet
-                hchildValid hchildNormal
-                (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
-                  hvalid hmem) with
+                hchildValid hchildNormal hchildSub
+                (selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem
+                  hsub hmem) with
             ⟨childRuntimeType, hchildObservable⟩
             exact
               ⟨typeCondition,
@@ -717,6 +733,7 @@ theorem inlineFragment_child_valid_free_normal_assumptions
     : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema parentType selectionSet
+      -> selectionSetSubselectionsNonempty schema parentType selectionSet
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
           ∈ selectionSet
       -> Validation.selectionSetValid schema variableDefinitions typeCondition
@@ -726,7 +743,7 @@ theorem inlineFragment_child_valid_free_normal_assumptions
           ∧ schema.typeIncludesObjectBool parentType typeCondition = true
           ∧ childSelectionSet ≠ []
           ∧ selectionSetNormal schema typeCondition childSelectionSet := by
-  intro hvalid hfree hnormal hmem
+  intro hvalid hfree hnormal hsub hmem
   have hchildValid :
       Validation.selectionSetValid schema variableDefinitions typeCondition
         childSelectionSet :=
@@ -746,7 +763,7 @@ theorem inlineFragment_child_valid_free_normal_assumptions
     hchildFree,
     htypeObject,
     hinclude,
-    selectionSetValid_inlineFragment_some_child_nonempty_of_mem hvalid hmem,
+    selectionSetSubselectionsNonempty_inlineFragment_child_nonempty_of_mem hsub hmem,
     hchildNormal
   ⟩
 

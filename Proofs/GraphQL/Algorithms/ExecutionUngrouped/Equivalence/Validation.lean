@@ -45,7 +45,7 @@ theorem selectionValid_field_selectionSetValid_of_lookup_nonempty
   rcases hselectionSet with ⟨_houtput, hshape⟩
   rcases hshape with hleaf | hcomposite
   · exact False.elim (hnonempty hleaf.2)
-  · exact hcomposite.2.2
+  · exact hcomposite.2
 
 theorem fieldSelectionSetValid_selectionSetValid
     (schema : Schema) (variableDefinitions : List VariableDefinition)
@@ -61,7 +61,7 @@ theorem fieldSelectionSetValid_selectionSetValid
     unfold selectionSetValid
     intro selection hselection
     simp at hselection
-  · exact hcomposite.2.2
+  · exact hcomposite.2
 
 theorem selectionSetValid_mergedFieldSelectionSet
     (schema : Schema) (variableDefinitions : List VariableDefinition)

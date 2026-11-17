@@ -179,7 +179,7 @@ counts for a Rust port.
 
 The proposed-schema section of `GraphQL/Theories/ExecutionReadiness.lean` describes
 two optional strengthenings of schema validation. They supplement the modeled
-September 2025 `schemaWellFormed` predicate.
+September 2026 `schemaWellFormed` predicate.
 
 `schemaInterfaceArgumentDefaultsPreserved` requires object and interface
 implementations to preserve the presence of defaults on inherited field arguments.

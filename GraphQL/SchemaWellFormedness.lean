@@ -1,7 +1,7 @@
 import GraphQL.Schema
 
 /-! Well-formedness of GraphQL schemas
-Spec reference: GraphQL September 2025.
+Spec reference: GraphQL September 2026.
 - 3.3 Schema and 3.4-3.12 Type System validation: this file separates raw schema syntax
   from schema well-formedness predicates. The spec describes these as validation rules;
   this module names the resulting schema invariants `WellFormed`.
