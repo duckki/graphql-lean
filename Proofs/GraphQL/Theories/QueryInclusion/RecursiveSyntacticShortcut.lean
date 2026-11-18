@@ -29,7 +29,8 @@ theorem syntacticFieldChildPossibleTypes_contains (schema : Schema)
     (hchild : childType ∈ schema.getPossibleTypes definition.outputType.namedType)
     : childType ∈ syntacticFieldChildPossibleTypes schema possibleTypes fieldName := by
   unfold syntacticFieldChildPossibleTypes
-  exact List.mem_flatMap.mpr ⟨parentType, hparent, by simp [hlookup, hchild]⟩
+  exact List.mem_eraseDups.mpr
+    (List.mem_flatMap.mpr ⟨parentType, hparent, by simp [hlookup, hchild]⟩)
 
 theorem syntacticFragmentChildPossibleTypes_contains (schema : Schema)
     (possibleTypes : List Name) (parentType runtimeType : Name)
