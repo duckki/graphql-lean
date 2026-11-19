@@ -110,7 +110,7 @@ private theorem responseFieldLE_trans {first second third : Name × ResponseValu
     : responseFieldLE first second
       -> responseFieldLE second third
       -> responseFieldLE first third := by
-  exact String.le_trans
+  exact Std.le_trans
 
 private theorem insertObjectFieldSorted_pairwise (field : Name × ResponseValue)
     : ∀ fields,
@@ -143,7 +143,7 @@ private theorem insertObjectFieldSorted_pairwise (field : Name × ResponseValue)
         constructor
         · intro restField hmem
           have hcandidateField : candidate.1 ≤ field.1 :=
-            (String.le_total field.1 candidate.1).resolve_left hle
+            (Std.le_total (a := field.1) (b := candidate.1)).resolve_left hle
           have hmem' :
               restField = field ∨ restField ∈ rest :=
             (ResponseKeys.ResponseValue.mem_insertObjectFieldSorted_iff
@@ -220,7 +220,7 @@ private theorem sortObjectFieldsByName_eq_of_perm_nodup
     · exact (sortObjectFieldsByName_perm left).mem_iff.mp hfirst
     · exact (sortObjectFieldsByName_perm right).mem_iff.mp hsecond
     · exact hperm
-    · exact String.le_antisymm hfirstSecond hsecondFirst
+    · exact Std.le_antisymm hfirstSecond hsecondFirst
   · exact sortObjectFieldsByName_pairwise left
   · exact sortObjectFieldsByName_pairwise right
   · exact (sortObjectFieldsByName_perm left).trans

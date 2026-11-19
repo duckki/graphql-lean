@@ -249,7 +249,7 @@ private theorem lookupInputObjectFieldValue?_insertObjectFieldSorted
         · by_cases hfield : field.1 = name
           · exact False.elim (hle (by
               rw [hfield, hcandidate]
-              exact String.le_refl name))
+              exact Std.le_refl name))
           · simp [lookupInputObjectFieldValue?, hcandidate, hfield]
         · simp [lookupInputObjectFieldValue?, hcandidate,
             lookupInputObjectFieldValue?_insertObjectFieldSorted field rest]

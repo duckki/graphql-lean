@@ -14,7 +14,7 @@ private theorem BooleanLiteral.BeforeOrEqual.name_le
   unfold BooleanLiteral.BeforeOrEqual BooleanLiteral.orderedBeforeOrEqual at hbefore
   split at hbefore <;> rename_i hnames
   · rw [beq_iff_eq.mp hnames]
-    exact String.le_refl _
+    exact Std.le_refl _
   · exact of_decide_eq_true hbefore
 
 private theorem BooleanLiteral.BeforeOrEqual.of_name_le_of_ne
@@ -30,7 +30,7 @@ private theorem BooleanLiteral.BeforeOrEqual.total (left right : BooleanLiteral)
   · cases left <;> cases right <;> simp_all [BooleanLiteral.BeforeOrEqual,
       BooleanLiteral.orderedBeforeOrEqual, BooleanLiteral.variableName,
       BooleanLiteral.requiredValue]
-  · rcases String.le_total left.variableName right.variableName with hleft | hright
+  · rcases Std.le_total (a := left.variableName) (b := right.variableName) with hleft | hright
     · exact Or.inl (BooleanLiteral.BeforeOrEqual.of_name_le_of_ne hleft hnames)
     · exact Or.inr (BooleanLiteral.BeforeOrEqual.of_name_le_of_ne hright
         (Ne.symm hnames))
@@ -39,10 +39,10 @@ private theorem BooleanLiteral.BeforeOrEqual.trans
     {left middle right : BooleanLiteral}
     (hleft : left.BeforeOrEqual middle) (hright : middle.BeforeOrEqual right)
     : left.BeforeOrEqual right := by
-  have hnames := String.le_trans hleft.name_le hright.name_le
+  have hnames := Std.le_trans hleft.name_le hright.name_le
   by_cases heq : left.variableName = right.variableName
   · have hleftMiddle : left.variableName = middle.variableName :=
-      String.le_antisymm hleft.name_le (heq ▸ hright.name_le)
+      Std.le_antisymm hleft.name_le (heq ▸ hright.name_le)
     have hmiddleRight : middle.variableName = right.variableName :=
       hleftMiddle.symm.trans heq
     cases left <;> cases middle <;> cases right <;>
@@ -55,7 +55,7 @@ private theorem BooleanLiteral.BeforeOrEqual.antisymm
     {left right : BooleanLiteral}
     (hleft : left.BeforeOrEqual right) (hright : right.BeforeOrEqual left)
     : left = right := by
-  have hnames := String.le_antisymm hleft.name_le hright.name_le
+  have hnames := Std.le_antisymm hleft.name_le hright.name_le
   cases left <;> cases right <;>
     simp_all [BooleanLiteral.BeforeOrEqual, BooleanLiteral.orderedBeforeOrEqual,
       BooleanLiteral.variableName, BooleanLiteral.requiredValue]
@@ -289,7 +289,7 @@ private theorem insertBooleanLiteral_variableNames_nodup
             rcases List.mem_cons.mp hcandidate with rfl | hrest
             · exact hnames hname.symm
             · apply hnames
-              exact String.le_antisymm (BooleanLiteral.BeforeOrEqual.name_le hbefore)
+              exact Std.le_antisymm (BooleanLiteral.BeforeOrEqual.name_le hbefore)
                 (hname ▸ (horderedParts.1 candidate hrest).name_le)
           · cases hrest : insertBooleanLiteral literal rest with
             | none => simp [hrest] at hinsert
