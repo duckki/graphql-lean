@@ -22,15 +22,24 @@ theorem filterSelectionSetBoolCase_typenameFree (boolCase : BoolCase)
                   (selectionSetTypenameFree_cons
                     (by rw [selectionTypenameFree]; exact ⟨hhead.1, selectionSetTypenameFree_nil⟩) hrest)
             | cons child children =>
-                cases hfiltered : filterSelectionSetBoolCase boolCase (child :: children) with
+                cases hfiltered
+                      : filterSelectionSetBoolCase boolCase (child :: children) with
                 | nil =>
-                    simpa only [filterSelectionSetBoolCase, hallow, Bool.true_eq, ↓reduceIte, hfiltered] using
-                      (selectionSetTypenameFree_cons
-                        (by rw [selectionTypenameFree]; exact ⟨hhead.1, selectionSetTypenameFree_nil⟩) hrest)
+                    simpa only [filterSelectionSetBoolCase, hallow, Bool.true_eq,
+                      ↓reduceIte, hfiltered]
+                      using (selectionSetTypenameFree_cons
+                              (by
+                                rw [selectionTypenameFree]; exact ⟨hhead.1, selectionSetTypenameFree_nil⟩)
+                              hrest)
                 | cons filteredChild filteredChildren =>
-                    simpa only [filterSelectionSetBoolCase, hallow, Bool.true_eq, ↓reduceIte, hfiltered] using
-                      (selectionSetTypenameFree_cons
-                        (by rw [selectionTypenameFree]; exact ⟨hhead.1, by simpa only [hfiltered] using hchildren⟩) hrest)
+                    simpa only [filterSelectionSetBoolCase, hallow, Bool.true_eq,
+                      ↓reduceIte, hfiltered]
+                      using (selectionSetTypenameFree_cons
+                              (by
+                                rw [selectionTypenameFree]; exact ⟨
+                                  hhead.1,
+                                  by simpa only [hfiltered] using hchildren
+                                ⟩) hrest)
           · simpa [filterSelectionSetBoolCase, hallow] using hrest
       | inlineFragment condition directives children =>
           rw [selectionTypenameFree] at hhead
@@ -39,9 +48,12 @@ theorem filterSelectionSetBoolCase_typenameFree (boolCase : BoolCase)
           · cases hfiltered : filterSelectionSetBoolCase boolCase children with
             | nil => simpa [filterSelectionSetBoolCase, hallow, hfiltered] using hrest
             | cons child children =>
-                simpa only [filterSelectionSetBoolCase, hallow, Bool.true_eq, ↓reduceIte, hfiltered] using
-                  (selectionSetTypenameFree_cons
-                    (by simpa only [selectionTypenameFree, hfiltered] using hchildren) hrest)
+                simpa only [filterSelectionSetBoolCase, hallow, Bool.true_eq, ↓reduceIte,
+                  hfiltered]
+                  using (selectionSetTypenameFree_cons
+                          (by
+                            simpa only [selectionTypenameFree, hfiltered] using hchildren)
+                          hrest)
           · simpa [filterSelectionSetBoolCase, hallow] using hrest
 termination_by selections => SelectionSet.size selections
 decreasing_by

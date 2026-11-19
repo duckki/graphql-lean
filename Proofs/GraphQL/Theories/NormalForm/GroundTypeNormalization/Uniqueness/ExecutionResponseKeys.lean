@@ -30,7 +30,8 @@ theorem executeSelectionSetAsResponse_eq_object_of_executeSelectionSet_ok
             parentType source selectionSet
           = ({ data := .object fields, errors := errors } : Execution.Response) := by
   intro hok
-  simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse, hok]
+  simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
+    hok]
 
 theorem executeSelectionSetAsResponse_eq_null_of_executeSelectionSet_error
     {schema : Schema} {resolvers : Execution.Resolvers ObjectRef}
@@ -46,7 +47,8 @@ theorem executeSelectionSetAsResponse_eq_null_of_executeSelectionSet_error
             parentType source selectionSet
           = ({ data := .null, errors := errors } : Execution.Response) := by
   intro herror
-  simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse, herror]
+  simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
+    herror]
 
 theorem executeField_ok_keys
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -188,12 +190,14 @@ theorem executeSelectionSetAsResponse_object_keys_eq_collectFields
         : Execution.executeSelectionSet schema resolvers variableValues fuel
             parentType source selectionSet with
   | error executionErrors =>
-      simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-        hresult] at hresponse
+      simp [Execution.executeSelectionSetAsResponse,
+        Execution.selectionSetResultToResponse, hresult]
+        at hresponse
   | ok result =>
       rcases result with ⟨outputFields, outputErrors⟩
-      simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-        hresult] at hresponse
+      simp [Execution.executeSelectionSetAsResponse,
+        Execution.selectionSetResultToResponse, hresult]
+        at hresponse
       unfold Execution.executeSelectionSet Execution.executeRootSelectionSet
         at hresult
       have hkeys := executeCollectedFields_ok_keys schema resolvers variableValues

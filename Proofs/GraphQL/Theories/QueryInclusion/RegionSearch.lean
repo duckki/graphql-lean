@@ -1407,7 +1407,8 @@ theorem executableGroupsIncludeBool_child_at_runtime
           have hchildObject : schema.objectType childRuntimeType :=
             SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
               fieldType.namedType childRuntimeType hchildRuntime
-          rw [selectionSetIncludesBoolWithFuel.eq_def, List.all_eq_true] at hchildSelectionCheck
+          rw [selectionSetIncludesBoolWithFuel.eq_def, List.all_eq_true]
+            at hchildSelectionCheck
           exact hchildSelectionCheck childRuntimeType
             (by
               have hself :=

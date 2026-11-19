@@ -174,10 +174,13 @@ theorem eagerRegistrationSnapshot_publicationRoots_live (queue : Kernel)
           | true =>
               let snapshot := eagerRegistrationSnapshot queue (.taskSuccess occurrence result)
               have prepared := fold_publicationRoots_live snapshot node.task.groups
-              have snapshotEq : snapshot =
-                  ((queue.putTaskNode { node with value := some result.value }).maybeIntegrateWork
-                    result.work (some occurrence)).1 := by
-                simp only [snapshot, eagerRegistrationSnapshot, found, healthy, ↓reduceIte]
+              have snapshotEq
+                  : snapshot
+                    = ((queue.putTaskNode
+                          { node with value := some result.value }).maybeIntegrateWork
+                        result.work (some occurrence)).1 := by
+                simp only [snapshot, eagerRegistrationSnapshot, found, healthy,
+                  ↓reduceIte]
               rw [snapshotEq] at prepared
               change (publicationRoots (queue.handleGraphEvent _).2).Subset
                 (snapshot.groupNodes.map (fun node => node.group.node.ref))
@@ -212,10 +215,12 @@ theorem eagerRegistrationSnapshot_publicationRoots_live (queue : Kernel)
       obtain ⟨group, groups, streams, carrier, _⟩ := mem_publicationRoots.mp published
       exact False.elim (queue.taskFailure_noGroupSuccess occurrence errors _ _ _ carrier)
   | streamSuccess stream =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamSuccess]
       split <;> intro key member <;> cases member
   | streamFailure stream errors =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamFailure]
       split <;> intro key member <;> cases member
 
 -----------------------------------------------------------------------------------------
@@ -279,7 +284,8 @@ theorem generatedSnapshot_publishedKeyTransfer {work inputs event occurrence}
   rw [beforeRaw] at rawCarrier
   obtain ⟨_, _, retired, _, uncancelled⟩ :=
     generated.replayGraphEvents_successfulCarrier_retiredHealthy valid accepted rawCarrier
-  rw [ReferenceWorkQueue.State.replayGraphEvents_append, ← beforeRaw] at retired uncancelled
+  rw [ReferenceWorkQueue.State.replayGraphEvents_append, ← beforeRaw]
+    at retired uncancelled
   have notice := conservation.retired_notice found stored held contributes live retired.2 uncancelled
   have dispatch := generatedReplay_dispatchProjection generated valid started
   exact ⟨notice, (congrArg (fun pair => pair.1.rootStreams) dispatch).symm ▸

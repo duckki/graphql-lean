@@ -655,8 +655,10 @@ private theorem spineSelectionIncludes_child
     | error =>
         simp [hcoercion] at hrightResolve
     | success coercedArguments =>
-        simpa [resolveFieldValue, Schema.lookupField_ne_typename_of_composite hlookup hcomposite,
-          spineResolvers, hlookup, hcoercion] using hrightResolve
+        simpa [resolveFieldValue,
+          Schema.lookupField_ne_typename_of_composite hlookup hcomposite, spineResolvers,
+          hlookup, hcoercion]
+          using hrightResolve
   subst rightResolved
   simp only [annotatedResponseValueIncludes] at hparentResponseIncludes
   rcases hparentResponseIncludes responseName
@@ -719,8 +721,10 @@ private theorem spineSelectionIncludes_child
     | error =>
         simp [hcoercion] at hleftResolve
     | success coercedArguments =>
-        simpa [resolveFieldValue, Schema.lookupField_ne_typename_of_composite hleftLookup' hcomposite,
-          spineResolvers, hleftLookup', hcoercion] using hleftResolve
+        simpa [resolveFieldValue,
+          Schema.lookupField_ne_typename_of_composite hleftLookup' hcomposite,
+          spineResolvers, hleftLookup', hcoercion]
+          using hleftResolve
   subst leftResolved
   rw [hleftResponse] at horiginMember
   simp only [List.mem_singleton] at horiginMember
@@ -821,8 +825,9 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
         hboolean hobject hleftReady hleftCoercion hleftInhabited hleftMerge hrightReady
         hrightCoercion hrightInhabited hrightMerge hincludes hdepth
       have hpossible := object_getPossibleTypes_eq_singleton schema hobject
-      simp only [selectionSetIncludesBoolWithFuel, selectionSetIncludesAtRuntimeBoolWithFuel,
-        hpossible, List.all_cons, List.all_nil, Bool.and_true]
+      simp only [selectionSetIncludesBoolWithFuel,
+        selectionSetIncludesAtRuntimeBoolWithFuel, hpossible, List.all_cons, List.all_nil,
+        Bool.and_true]
       apply List.all_eq_true.mpr
       intro rightGroup hrightGroup
       rcases rightGroup with ⟨rightName, rightFields⟩

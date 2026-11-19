@@ -122,11 +122,13 @@ theorem ExecutedWork.rawEventReplay_groupNotice_itemProducer_prefix
             (position + 1)).flatMap WorkQueueEvent.itemValues).length) := by
     simp only [List.take_add_one, selected, atEvent, Option.toList_some,
       List.flatMap_append, List.flatMap_singleton, List.length_append, count, Nat.add_assoc]
-  have size : (((initial.rawEventReplay received).2.take (index + 1)).flatMap
-      WorkQueueEvent.itemValues).length
-      = ((before ++ [event]).flatMap GraphEvent.itemPublications).length := by
-    rw [inclusive, (initial.replayGraphEvents before).handleGraphEvent_items_through_output
-      event atEvent]
+  have size
+      : (((initial.rawEventReplay received).2.take (index + 1)).flatMap
+          WorkQueueEvent.itemValues).length
+        = ((before ++ [event]).flatMap GraphEvent.itemPublications).length := by
+    rw [inclusive,
+      (initial.replayGraphEvents before).handleGraphEvent_items_through_output
+        event atEvent]
     have lengths := congrArg List.length exactItems
     rw [State.rawEventReplay_append] at lengths
     dsimp only at lengths

@@ -65,9 +65,11 @@ private theorem pending
       ∉ SharedOwnerFailure.failureG.recordTaskOutcome
           (ReferenceWorkQueue.GraphEvent.taskSettlements
             [SharedOwnerFailure.parentSuccess]) := by
-  simp [child, RejectedTaskCleanup.child, SharedOwnerFailure.heldProducer, SharedOwnerFailure.failureG,
-    SharedOwnerFailure.parentSuccess, ReferenceWorkQueue.GraphEvent.recordTaskOutcome,
-    ReferenceWorkQueue.GraphEvent.taskSettlements, ReferenceWorkQueue.GraphEvent.groupSuccesses,
+  simp [child, RejectedTaskCleanup.child, SharedOwnerFailure.heldProducer,
+    SharedOwnerFailure.failureG, SharedOwnerFailure.parentSuccess,
+    ReferenceWorkQueue.GraphEvent.recordTaskOutcome,
+    ReferenceWorkQueue.GraphEvent.taskSettlements,
+    ReferenceWorkQueue.GraphEvent.groupSuccesses,
     ReferenceWorkQueue.GraphEvent.groupFailures]
 
 private theorem owned

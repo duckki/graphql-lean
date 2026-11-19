@@ -205,8 +205,9 @@ theorem State.PublicationInventory.handleGraphEvents {queue : State}
     dsimp only
     split
     · refine ⟨added, ?_, final.unique, final.provenance, final.stored⟩
-      simpa only [List.flatMap_append, List.flatMap_singleton, WorkQueueEvent.objectValues,
-        List.append_nil] using values
+      simpa only [List.flatMap_append, List.flatMap_singleton,
+        WorkQueueEvent.objectValues, List.append_nil]
+        using values
     · exact ⟨added, values, final⟩
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

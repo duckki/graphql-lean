@@ -315,7 +315,8 @@ mutual
           have hr := completeStreamItems_regions schema resolvers variables fuel inner
             (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount (middle + 1)
-          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+            StateT.run_pure, id_pure_eq]
           apply Output.append (output_catchNull _ _ hl) _ hm
           exact Output.stream _ {ref := middle, path := path, label := usage.label} hr
   termination_by (fuel, 3, 0, 0)

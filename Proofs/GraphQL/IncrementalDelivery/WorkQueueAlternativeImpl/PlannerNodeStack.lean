@@ -92,7 +92,8 @@ private theorem run_pending (forest : Forest) (base : Nat) (parents : List Nat)
       rw [fuelEq]
       simp only [pending, List.cons_append, run]
       rw [childIH]
-      simp only [run, siblingIH, StackPlanning.exits, Forest.keys, List.length_cons, List.length_append]
+      simp only [run, siblingIH, StackPlanning.exits, Forest.keys, List.length_cons,
+        List.length_append]
       have counterEq : base + (children.keys.length + siblings.keys.length + 1)
           = base + 1 + children.keys.length + siblings.keys.length := by omega
       rw [counterEq]

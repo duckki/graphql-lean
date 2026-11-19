@@ -176,7 +176,8 @@ theorem completeValue_object_group_eq_spec_of_merged_child_state
       unfold ExecutionEquivalenceState.ungroupedProjectionResult at hchild
       unfold ExecutionEquivalenceState.specProjectionResult at hchild
       unfold ExecutionWindow.visitSubfieldsResult at hchild
-      simp only [hincludes, GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
+      simp only [hincludes,
+        GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, reuseOrCreateObject?]
       rw [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
       cases hvisit
@@ -291,7 +292,8 @@ theorem completeValue_object_group_aligned_of_merged_child_state
   | true =>
       unfold executeRootSelectionSet GraphQL.Execution.executeRootSelectionSet
         at hchild
-      simp only [hincludes, GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
+      simp only [hincludes,
+        GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, reuseOrCreateObject?]
       rw [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
       cases hvisit
@@ -1179,7 +1181,8 @@ theorem completeValue_single_field_eq_spec_of_guarded_child_states
                         GraphQL.Execution.completeValueList schema resolvers
                           variableValues childDepth inner [field] rest :=
                       ihValues
-                    simp [completeValueList, GraphQL.Execution.completeValueList, hhead, htail, GraphQL.Execution.Result.combine]
+                    simp [completeValueList, GraphQL.Execution.completeValueList, hhead,
+                      htail, GraphQL.Execution.Result.combine]
               simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
                 GraphQL.Execution.completeValue, reuseOrCreateList?, hlist,
                 catchBubbleAsNull, GraphQL.Execution.catchBubbleAsNull]
@@ -1319,7 +1322,8 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
                             exact ValueContainsObject.list (by simp [hmem]) hvalue
                       exact hchildren grandChildDepth runtimeType identity hlt
                         hcontainsCons hincludes
-                    simp [completeValueList, GraphQL.Execution.completeValueList, hhead, htail, GraphQL.Execution.Result.combine]
+                    simp [completeValueList, GraphQL.Execution.completeValueList, hhead,
+                      htail, GraphQL.Execution.Result.combine]
               simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
                 GraphQL.Execution.completeValue, reuseOrCreateList?, hlist,
                 catchBubbleAsNull, GraphQL.Execution.catchBubbleAsNull]

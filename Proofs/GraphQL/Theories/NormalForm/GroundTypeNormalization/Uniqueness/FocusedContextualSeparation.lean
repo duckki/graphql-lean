@@ -3331,9 +3331,14 @@ theorem
           executeSelectionSet_inlineFragment_some_directiveFree_apply_flatten
             schema resolvers variableValues fuel typeCondition typeCondition
             (.object typeCondition ref) supportChildSelectionSet [] happly
-      exact ⟨supportFields, supportErrors, by
-        simpa [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-          hsupportMiddle, hsupportFlatten] using hsupportChildResponse⟩
+      exact ⟨
+        supportFields,
+        supportErrors,
+        by
+          simpa [Execution.executeSelectionSetAsResponse,
+            Execution.selectionSetResultToResponse, hsupportMiddle, hsupportFlatten]
+            using hsupportChildResponse
+      ⟩
     · have hcollect :
           Execution.collectFields schema variableValues typeCondition
             (.object typeCondition ref) supportSelectionSet = [] :=
@@ -3342,10 +3347,14 @@ theorem
           (executionParentType := typeCondition)
           (runtimeType := typeCondition) ref hnonObject hsupportFree
           hsupportNormal htypeMem
-      exact ⟨[], 0, by
-        simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-          Execution.executeSelectionSet, Execution.executeRootSelectionSet,
-          hcollect, Execution.executeCollectedFields]⟩
+      exact ⟨
+        [],
+        0,
+        by
+          simp [Execution.executeSelectionSetAsResponse,
+            Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
+            Execution.executeRootSelectionSet, hcollect, Execution.executeCollectedFields]
+      ⟩
   · intro hsemantic
     exact hchildNot (by
       simpa [leftSelectionSet, rightSelectionSet, hleftResponse,

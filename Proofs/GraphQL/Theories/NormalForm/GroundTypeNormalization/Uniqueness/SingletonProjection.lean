@@ -99,20 +99,20 @@ theorem executeSelectionSetAsResponse_singleton_field_eq_executeField
               selectionSet := childSelectionSet
             }] with
   | error errors =>
-      simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-        Execution.executeSelectionSet, Execution.executeRootSelectionSet,
-        Execution.collectFields, Execution.collectSelection,
-        Execution.selectionDirectivesAllowBool,
-        Execution.mergeExecutableGroups, Execution.executeCollectedFields,
-        hfield, Execution.Result.combine]
+      simp [Execution.executeSelectionSetAsResponse,
+        Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
+        Execution.executeRootSelectionSet, Execution.collectFields,
+        Execution.collectSelection, Execution.selectionDirectivesAllowBool,
+        Execution.mergeExecutableGroups, Execution.executeCollectedFields, hfield,
+        Execution.Result.combine]
   | ok result =>
       rcases result with ⟨fields, errors⟩
-      simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-        Execution.executeSelectionSet, Execution.executeRootSelectionSet,
-        Execution.collectFields, Execution.collectSelection,
-        Execution.selectionDirectivesAllowBool,
-        Execution.mergeExecutableGroups, Execution.executeCollectedFields,
-        hfield, Execution.Result.combine]
+      simp [Execution.executeSelectionSetAsResponse,
+        Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
+        Execution.executeRootSelectionSet, Execution.collectFields,
+        Execution.collectSelection, Execution.selectionDirectivesAllowBool,
+        Execution.mergeExecutableGroups, Execution.executeCollectedFields, hfield,
+        Execution.Result.combine]
 
 theorem executeSelectionSet_normal_object_field_head_eq_combine
     {ObjectRef : Type} (schema : Schema)

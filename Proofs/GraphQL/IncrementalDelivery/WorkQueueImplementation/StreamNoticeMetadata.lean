@@ -72,7 +72,8 @@ theorem State.StreamsSatisfy.drainReadyGroups_notices {queue : State} {property}
               · exact registry.finishGroupSuccess_output node event first
               · apply ih _ ?_ event later
                 intro stream stored
-                rw [State.startNewWork_streams, State.finishGroupSuccess_streams] at stored
+                rw [State.startNewWork_streams, State.finishGroupSuccess_streams]
+                  at stored
                 exact registry stream stored
           | some errors =>
               intro event member

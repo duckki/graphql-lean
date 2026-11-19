@@ -132,7 +132,8 @@ mutual
                 simp [OmissionAtCuts, RecordedExecution.completeValue,
                   EagerRecordedExecution.completeValue, LiteralCuts.value, omittedOrigins_self]
             | scalar scalar =>
-                simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
+                simp only [RecordedExecution.completeValue,
+                  EagerRecordedExecution.completeValue]
                 split <;> simp [OmissionAtCuts, LiteralCuts.value, omittedOrigins_self]
             | list sources =>
                 simp [OmissionAtCuts, RecordedExecution.completeValue,
@@ -224,7 +225,8 @@ mutual
               · obtain rfl := List.mem_singleton.mp later
                 exact positive errors outcome
         | ok value =>
-            simp only [run_bind, StateT.run_pure, id_pure_eq, RecordedCompletion.combine_report]
+            simp only [run_bind, StateT.run_pure, id_pure_eq,
+              RecordedCompletion.combine_report]
             have omitted := combine_omitted_within List.cons head.1 tail.1
             refine ⟨?_, ?_⟩
             · intro origin member

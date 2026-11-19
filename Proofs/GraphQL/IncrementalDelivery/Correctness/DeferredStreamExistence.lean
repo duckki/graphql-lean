@@ -170,7 +170,8 @@ theorem sharedDeferredStreams_success_groups_healthy
           have member := (List.mem_filter.mp member).1
           have fails := explained.2.1.recorded_payload_fails
             (by simpa only [← equal] using member) task
-          simp only [same, Payload.failure, Option.isSome_none, Bool.false_eq_true] at fails
+          simp only [same, Payload.failure, Option.isSome_none, Bool.false_eq_true]
+            at fails
       | item located entry =>
           exact stream_group_refs_distinct roleCoherent (NodeAt.stream located.toCurrent)
             known (List.mem_singleton.mp owner).symm

@@ -135,7 +135,8 @@ theorem projectBatch_streamActions (queue : ReferenceWorkQueue.State)
             | none => rfl
             | some action =>
                 have retained := accepted [] event rest action rfl source
-                simp only [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil] at retained
+                simp only [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil]
+                  at retained
                 rw [live] at retained
                 cases retained
           simp only [projectBatch, live, Bool.false_eq_true, ↓reduceIte,
@@ -183,7 +184,8 @@ theorem projectBatch_itemsBefore (queue : ReferenceWorkQueue.State)
             | taskSuccess | taskFailure | streamSuccess | streamFailure => rfl
             | streamItems stream items =>
                 have retained := accepted [] stream items rest rfl
-                simp only [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil] at retained
+                simp only [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil]
+                  at retained
                 rw [live] at retained
                 cases retained
           have tail := ih queue (by

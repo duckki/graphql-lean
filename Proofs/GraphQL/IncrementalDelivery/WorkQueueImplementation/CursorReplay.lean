@@ -118,7 +118,8 @@ theorem ResponseStreamCursor.run_append (cursor : ResponseStreamCursor)
             : (outputs.mapM Execution.mapWorkEventBatch).run cursor.publisher.ids with
       | mk updates ids =>
           dsimp only
-          simp only [State.runWithPublisher_with_ids, List.mapM_append, StateT.run_bind, mapped]
+          simp only [State.runWithPublisher_with_ids, List.mapM_append, StateT.run_bind,
+            mapped]
           cases second : ((queue.runWithPublisher publisher right).2.2.mapM
             Execution.mapWorkEventBatch).run ids
           simp [second]

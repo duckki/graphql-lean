@@ -113,11 +113,12 @@ theorem completeListValueWithStream_listEntriesCovered_of_values (containers : B
         fuel itemType (selected.map eraseField) values usage.initialCount
       rw [success] at split
       cases first : GraphQL.Execution.completeValueList schema resolvers variables fuel
-          itemType (selected.map eraseField) (values.take usage.initialCount) <;>
-        cases last : GraphQL.Execution.completeValueList schema resolvers variables fuel
-          itemType (selected.map eraseField) (values.drop usage.initialCount) <;>
-        simp only [first, last, Result.combine, Except.ok.injEq, Prod.mk.injEq, reduceCtorEq,
-          List.append_eq] at split
+          itemType (selected.map eraseField) (values.take usage.initialCount)
+      <;> cases last : GraphQL.Execution.completeValueList schema resolvers variables fuel
+            itemType (selected.map eraseField) (values.drop usage.initialCount)
+      <;> simp only [first, last, Result.combine, Except.ok.injEq, Prod.mk.injEq,
+            reduceCtorEq, List.append_eq]
+            at split
       rename_i head tail
       have refEq := split.1
       subst reference
@@ -154,7 +155,8 @@ theorem completeListValueWithStream_listEntriesCovered_of_values (containers : B
           have tailEmpty : tail.1 = [] := by
             have empty : values.drop usage.initialCount = [] :=
               List.drop_eq_nil_iff.mpr (by omega)
-            simp only [empty, GraphQL.Execution.completeValueList, Except.ok.injEq] at last
+            simp only [empty, GraphQL.Execution.completeValueList, Except.ok.injEq]
+              at last
             exact (congrArg Prod.fst last).symm
           apply runEnsures_pure
           refine ⟨data, count, ?_, ?_⟩
@@ -182,8 +184,8 @@ theorem completeListValueWithStream_listEntriesCovered_of_values (containers : B
           have cursor
               : ResponsePositions.cursorAt cursors node.path
                 = some usage.initialCount := by
-            simp [cursors, node, ResponsePositions.listCursors, ResponsePositions.cursorAt,
-              prefixLength]
+            simp [cursors, node, ResponsePositions.listCursors,
+              ResponsePositions.cursorAt, prefixLength]
           refine runEnsures_bind (fun items => EntriesCovered containers
             (TypedResponse.items path usage.initialCount tail.1)
             ((sourceTasks [] none cursors (.stream node items)).flatMap

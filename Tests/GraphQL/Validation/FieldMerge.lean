@@ -208,11 +208,13 @@ theorem unrelatedScope_rejected
     parentType := "Other", responseName := "name", fieldName := "name",
     arguments := [], outputType := .named "Int", selectionSet := []
   }
-  have hcollect : collectFields returnScopeSchema "Other" (directName ++ fragmentName)
-      = [otherName, nameField] := by
-    simp [collectFields, directName, fragmentName, returnScopeSchema, otherName, nameField,
-      Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
-      TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
+  have hcollect
+      : collectFields returnScopeSchema "Other" (directName ++ fragmentName)
+        = [otherName, nameField] := by
+    simp [collectFields, directName, fragmentName, returnScopeSchema, otherName,
+      nameField, Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType,
+      Schema.allTypes, Schema.builtinScalarDefinitions, TypeDefinition.name,
+      TypeDefinition.fields?, BuiltinScalar.name]
   have hpair := fieldsInSetCanMerge_pair (left := otherName) (right := nameField) hmerge
     (by rw [hcollect]; simp) (by rw [hcollect]; simp) rfl
   have hshape := fieldsForNameCanMerge_sameTypeShape hpair
@@ -280,8 +282,9 @@ theorem sameResponseShape_disjointParents_nestedMismatch_rejected
               fields := [{ name := "name", outputType := .named "String" }]
             },
           by
-            simp [disjointReturnSchema, returnScopeSchema, Schema.lookupType, Schema.allTypes,
-              Schema.builtinScalarDefinitions, TypeDefinition.name, BuiltinScalar.name],
+            simp [disjointReturnSchema, returnScopeSchema, Schema.lookupType,
+              Schema.allTypes, Schema.builtinScalarDefinitions, TypeDefinition.name,
+              BuiltinScalar.name],
           trivial
         ⟩
       have hother : disjointReturnSchema.isCompositeType "Other" :=
@@ -291,21 +294,24 @@ theorem sameResponseShape_disjointParents_nestedMismatch_rejected
               name := "Other", fields := [{ name := "name", outputType := .named "Int" }]
             },
           by
-            simp [disjointReturnSchema, returnScopeSchema, Schema.lookupType, Schema.allTypes,
-              Schema.builtinScalarDefinitions, TypeDefinition.name, BuiltinScalar.name],
+            simp [disjointReturnSchema, returnScopeSchema, Schema.lookupType,
+              Schema.allTypes, Schema.builtinScalarDefinitions, TypeDefinition.name,
+              BuiltinScalar.name],
           trivial
         ⟩
       let intField : ScopedField := {
         parentType := "Other", responseName := "name", fieldName := "name",
         arguments := [], outputType := .named "Int", selectionSet := []
       }
-      have hcollect : collectSubfields disjointReturnSchema
-          (branchField "LeftBranch" "User") (branchField "RightBranch" "Other")
-          = [nameField, intField] := by
-        simp [collectSubfields, collectFields, branchField, directName, disjointReturnSchema,
-          returnScopeSchema, nameField, intField, TypeRef.namedType,
-          Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
-          TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
+      have hcollect
+          : collectSubfields disjointReturnSchema
+              (branchField "LeftBranch" "User") (branchField "RightBranch" "Other")
+            = [nameField, intField] := by
+        simp [collectSubfields, collectFields, branchField, directName,
+          disjointReturnSchema, returnScopeSchema, nameField, intField, TypeRef.namedType,
+          Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType,
+          Schema.allTypes, Schema.builtinScalarDefinitions, TypeDefinition.name,
+          TypeDefinition.fields?, BuiltinScalar.name]
       have hchild := hchildren huser hother nameField (by rw [hcollect]; simp)
         intField (by rw [hcollect]; simp) rfl
       cases hchild with

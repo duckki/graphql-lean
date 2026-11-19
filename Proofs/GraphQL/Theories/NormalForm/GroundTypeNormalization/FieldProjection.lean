@@ -27,7 +27,8 @@ private theorem collectFields_possibleNormalizations_source
             selectionSet field hfield with ⟨runtime, hruntime, hfield⟩
           exact ⟨runtime, List.mem_cons_of_mem _ hruntime, hfield⟩
       | cons selection tail =>
-          simp [possibleTypeNormalizations, hnormalized, FieldMerge.collectFields] at hfield
+          simp [possibleTypeNormalizations, hnormalized, FieldMerge.collectFields]
+            at hfield
           rcases hfield with hhead | htail
           · exact ⟨objectType, by simp, by simpa [hnormalized] using hhead⟩
           · rcases collectFields_possibleNormalizations_source schema parentType rest

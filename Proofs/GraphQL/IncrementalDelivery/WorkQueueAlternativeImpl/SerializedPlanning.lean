@@ -161,7 +161,8 @@ private theorem addPartition_unique (key : String) (usages : List Nat)
       by_cases equal : partition.key = key
       · simpa [addPartition, equal] using unique
       · obtain ⟨absent, tail⟩ := List.nodup_cons.mp unique
-        simp only [addPartition, beq_iff_eq, equal, ↓reduceIte, List.map_cons, List.nodup_cons]
+        simp only [addPartition, beq_iff_eq, equal, ↓reduceIte, List.map_cons,
+          List.nodup_cons]
         refine ⟨?_, ih tail⟩
         intro member
         rcases (addPartition_memKey key usages group rest partition.key).mp member with old | fresh
@@ -203,7 +204,8 @@ private theorem fold_invariants (forest : Forest) (unique : forest.keys.Nodup)
       have certificate := source.indexFor forest unique group.2
       apply ih _ (fun item member => fromForest item (List.mem_cons_of_mem _ member))
       · dsimp only [Plan.step]
-        rw [IndexedFilterOptimization_holds _ _ certificate, stringKey_eq_ownerKey _ _ certificate]
+        rw [IndexedFilterOptimization_holds _ _ certificate,
+          stringKey_eq_ownerKey _ _ certificate]
         split
         · exact matching
         · exact addPartition_compatible _ _ _ _ _ matching (filtered_subset forest group.2 source)
@@ -234,17 +236,20 @@ private theorem fold_project (forest : Forest) (unique : forest.keys.Nodup)
   | cons group rest ih =>
       have source := fromForest group (by simp)
       have certificate := source.indexFor forest unique group.2
-      have compatibleStep : Compatible (makeIndex (forest.encode 0 [])) forest.keys
-          (plan.step (makeIndex (forest.encode 0 [])) parent group).partitions := by
+      have compatibleStep
+          : Compatible (makeIndex (forest.encode 0 [])) forest.keys
+              (plan.step (makeIndex (forest.encode 0 [])) parent group).partitions := by
         dsimp only [Plan.step]
-        rw [IndexedFilterOptimization_holds _ _ certificate, stringKey_eq_ownerKey _ _ certificate]
+        rw [IndexedFilterOptimization_holds _ _ certificate,
+          stringKey_eq_ownerKey _ _ certificate]
         split
         · exact matching
         · exact addPartition_compatible _ _ _ _ _ matching (filtered_subset forest group.2 source)
       rw [List.foldl_cons, List.foldl_cons,
         ih _ (fun item member => fromForest item (List.mem_cons_of_mem _ member)) compatibleStep]
       dsimp only [Plan.step]
-      rw [IndexedFilterOptimization_holds _ _ certificate, stringKey_eq_ownerKey _ _ certificate]
+      rw [IndexedFilterOptimization_holds _ _ certificate,
+        stringKey_eq_ownerKey _ _ certificate]
       split
       · rfl
       · simp only [Plan.project, addPartition_project _ _ _ _ _

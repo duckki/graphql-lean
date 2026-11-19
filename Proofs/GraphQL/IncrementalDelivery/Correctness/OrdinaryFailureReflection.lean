@@ -636,7 +636,8 @@ mutual
                               fuel itemType (selected.map eraseField) rest with
                     | error count => exact (deferred count last).cons _
                     | ok suffix =>
-                        simp [GraphQL.Execution.completeValueList, Result.combine, first, last]
+                        simp [GraphQL.Execution.completeValueList, Result.combine, first,
+                          last]
                           at failed
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by

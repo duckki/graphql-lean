@@ -461,8 +461,8 @@ theorem IncrementalPublisher.normalizeBatch_groupClosureRefs
   | nil => rfl
   | cons event rest ih =>
       rw [IncrementalPublisher.normalizeBatch_cons]
-      simp only [List.flatMap_append, IncrementalPublisher.handleWorkQueueEvent_groupClosureRefs,
-        ih, List.flatMap_cons]
+      simp only [List.flatMap_append,
+        IncrementalPublisher.handleWorkQueueEvent_groupClosureRefs, ih, List.flatMap_cons]
 
 /-- Actual normalized replay closes each group at most once and retires every closed ref.
 Witness: joint registry and closure-certificate replay; old output refs are retired before

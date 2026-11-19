@@ -35,10 +35,12 @@ theorem resultValueOrNull_executeField_depth_zero_none
                 parentType field.fieldName field.arguments source with
       | none =>
           rcases fieldDefinition with ⟨fdName, fdOutput, fdArgs⟩
-          cases fdOutput <;>
-            simp [executeField, hlookup, hresolve, reusablePreviousValue?, handleFieldError, resultValueOrNull]
+          cases fdOutput
+          <;> simp [executeField, hlookup, hresolve, reusablePreviousValue?,
+                handleFieldError, resultValueOrNull]
       | some resolved =>
-          simp [executeField, hlookup, hresolve, reusablePreviousValue?, completeValue, outOfFuel, resultValueOrNull]
+          simp [executeField, hlookup, hresolve, reusablePreviousValue?, completeValue,
+            outOfFuel, resultValueOrNull]
 
 theorem
     visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResult_of_guarded_child_states
@@ -82,7 +84,12 @@ theorem
       dsimp at hresolve hchildren ⊢
       cases hlookup : schema.lookupField parentType fieldName with
       | none =>
-          simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
+          simp [visitSubfields, visitSelection, executableFieldSelections,
+            executableFieldSelection, executableField, selectionDirectivesAllowBool_empty,
+            responseObjectField?, lookupResponseField?, executeField,
+            GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult,
+            GraphQL.Execution.singleFieldResult,
+            mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
       | some fieldDefinition =>
           simp [resolveFieldValueByName, hlookup] at hresolve
           cases resolved with
@@ -158,7 +165,12 @@ theorem
       dsimp at hresolve hchildren ⊢
       cases hlookup : schema.lookupField parentType fieldName with
       | none =>
-          simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
+          simp [visitSubfields, visitSelection, executableFieldSelections,
+            executableFieldSelection, executableField, selectionDirectivesAllowBool_empty,
+            responseObjectField?, lookupResponseField?, executeField,
+            GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult,
+            GraphQL.Execution.singleFieldResult,
+            mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
       | some fieldDefinition =>
           simp [resolveFieldValueByName, hlookup] at hresolve
           cases resolved with
@@ -408,7 +420,10 @@ theorem visitSubfields_executableFieldSelections_existing_null
         cases field with
         | mk fieldName arguments selectionSet =>
             dsimp [executableFieldSelection] at hfieldLookup ⊢
-            simp [visitSelection, selectionDirectivesAllowBool_empty, hlookup, executeField, executableField, hfieldLookup, reusablePreviousValue?_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, hmerge, resultValueOrNull, resultStatus, visitOk]
+            simp [visitSelection, selectionDirectivesAllowBool_empty, hlookup,
+              executeField, executableField, hfieldLookup, reusablePreviousValue?_null,
+              mergeResponseFieldResult, mergeResponseFieldIntoObject, hmerge,
+              resultValueOrNull, resultStatus, visitOk]
       have hrest :=
         visitSubfields_executableFieldSelections_existing_null schema
           resolvers variableValues depth parentType source responseName rest
@@ -555,21 +570,42 @@ theorem visitSubfields_executableFieldSelections_single_existing_eq_merge_comple
       fieldDefinition resolvedValue previous hlookup hresolve
   cases previous with
   | null =>
-      simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk, combineVisitStatus, GraphQL.Execution.Result.combine, hexec]
+      simp [visitSubfields, visitSelection, executableFieldSelections,
+        executableFieldSelection, executableField, selectionDirectivesAllowBool_empty,
+        responseObjectField?, lookupResponseField?, completeResolvedValue_previous_null,
+        mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField,
+        mergeResponse, resultValueOrNull, resultStatus, visitOk, combineVisitStatus,
+        GraphQL.Execution.Result.combine, hexec]
   | scalar value =>
       cases hcomplete
             : completeResolvedValue schema resolvers variableValues
                 (completionDepth + 1) fieldDefinition.outputType selectionSet
                 resolvedValue (some (ResponseValue.scalar value)) with
       | error errors =>
-          simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, resultStatus, visitOk, combineVisitStatus, GraphQL.Execution.Result.combine, hexec, hcomplete]
+          simp [visitSubfields, visitSelection, executableFieldSelections,
+            executableFieldSelection, executableField, selectionDirectivesAllowBool_empty,
+            responseObjectField?, lookupResponseField?, mergeResponseFieldResult,
+            mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull,
+            resultStatus, visitOk, combineVisitStatus, GraphQL.Execution.Result.combine,
+            hexec, hcomplete]
       | ok completeResult =>
           rcases completeResult with ⟨completeValue, completeErrors⟩
-          simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, resultStatus, visitOk, combineVisitStatus, GraphQL.Execution.Result.combine, hexec, hcomplete]
+          simp [visitSubfields, visitSelection, executableFieldSelections,
+            executableFieldSelection, executableField, selectionDirectivesAllowBool_empty,
+            responseObjectField?, lookupResponseField?, mergeResponseFieldResult,
+            mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull,
+            resultStatus, visitOk, combineVisitStatus, GraphQL.Execution.Result.combine,
+            hexec, hcomplete]
   | object fields =>
-      simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, hexec]
+      simp [visitSubfields, visitSelection, executableFieldSelections,
+        executableFieldSelection, executableField, selectionDirectivesAllowBool_empty,
+        responseObjectField?, lookupResponseField?, mergeResponseFieldResult,
+        mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, hexec]
   | list values =>
-      simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, hexec]
+      simp [visitSubfields, visitSelection, executableFieldSelections,
+        executableFieldSelection, executableField, selectionDirectivesAllowBool_empty,
+        responseObjectField?, lookupResponseField?, mergeResponseFieldResult,
+        mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, hexec]
 
 theorem executeRootSelectionSet_executableFieldSelections_append_one_aligned_resolved
     {ObjectIdentity : Type}

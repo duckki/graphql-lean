@@ -101,13 +101,18 @@ theorem graphEvent_newStream_active (queue : ReferenceWorkQueue.State)
   | streamItems stream items =>
       exact queue.streamItems_streamRoots_cover stream items (List.mem_append_right _ noticed)
   | taskFailure occurrence errors =>
-      rw [ReferenceWorkQueue.State.handleGraphEvent, queue.taskFailure_streamNoticeRefs] at noticed
+      rw [ReferenceWorkQueue.State.handleGraphEvent, queue.taskFailure_streamNoticeRefs]
+        at noticed
       cases noticed
   | streamSuccess stream =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess] at noticed
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamSuccess]
+        at noticed
       split at noticed <;> simp [rawStreamNoticeRefs] at noticed
   | streamFailure stream errors =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure] at noticed
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamFailure]
+        at noticed
       split at noticed <;> simp [rawStreamNoticeRefs] at noticed
 
 /-- Dispatch's actual newly announced source is reachable by the alternative stop walk. -/

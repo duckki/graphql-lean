@@ -74,8 +74,9 @@ theorem Witness.canonical_event {work inputs index event} {w : Witness}
   · rw [queue.runNormalized_terminalShape inputs (createWorkQueue_terminated _),
       List.getElem?_append_left bound, ← history]
     exact selected
-  · rw [queue.nonterminalAtoms_take inputs (createWorkQueue_terminated _) (Nat.le_of_lt bound),
-      ← history]
+  · rw [
+      queue.nonterminalAtoms_take inputs (createWorkQueue_terminated _)
+        (Nat.le_of_lt bound), ← history]
 
 /-- Both kinds of failed completion obey their entire local `EventAllowed` rule.
 The witness carries one event history, publication matching, and mixed failure inventory.

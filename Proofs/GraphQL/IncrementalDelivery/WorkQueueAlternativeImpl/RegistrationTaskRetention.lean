@@ -58,8 +58,9 @@ theorem RegistrationFrame.start {state : State} {settled}
   · simpa only [ReferenceWorkQueue.State.LiveGroupsRegistered, groups, catalogues.2] using frame.live
   · simpa only [ReferenceWorkQueue.State.TaskGroupsRegistered, catalogues.1, catalogues.2]
       using frame.contributors
-  · simpa only [ReferenceWorkQueue.State.UnsettledTaskLinks, ReferenceWorkQueue.State.TaskLinkedOn,
-      groups, catalogues.1] using frame.links
+  · simpa only [ReferenceWorkQueue.State.UnsettledTaskLinks,
+      ReferenceWorkQueue.State.TaskLinkedOn, groups, catalogues.1]
+      using frame.links
 
 -----------------------------------------------------------------------------------------
 -- A linked task blocks empty-shell removal independently of computation start

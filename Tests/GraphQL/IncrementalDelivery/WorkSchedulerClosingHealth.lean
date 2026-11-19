@@ -63,7 +63,8 @@ theorem source_valid
   exact ⟨
     .append one ⟨_, _, _, second_known⟩
       (by
-        simp [first, second, firstTask, secondTask, GraphEvent.Fresh, GraphEvent.identities])
+        simp [first, second, firstTask, secondTask, GraphEvent.Fresh,
+          GraphEvent.identities])
       ⟨_, _, _, second_known, by intro source impossible; cases impossible⟩,
     by cbv
   ⟩

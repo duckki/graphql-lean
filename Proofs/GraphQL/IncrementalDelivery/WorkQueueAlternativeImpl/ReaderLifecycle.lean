@@ -59,8 +59,10 @@ theorem ResponseStreamCursor.handleBatch_finishCount (cursor : ResponseStreamCur
   cases running : cursor.finished with
   | true => simp [ResponseStreamCursor.handleBatch, running]
   | false =>
-      simp only [ResponseStreamCursor.handleBatch, running, Bool.false_eq_true, ↓reduceIte]
-      by_cases silent : (cursor.queue.handleGraphEvents batch).workQueueEvents.isEmpty = true
+      simp only [ResponseStreamCursor.handleBatch, running, Bool.false_eq_true,
+        ↓reduceIte]
+      by_cases silent :
+        (cursor.queue.handleGraphEvents batch).workQueueEvents.isEmpty = true
       · simp [silent, State.handleGraphEvents_noFinish]
       · by_cases continued :
             (cursor.publisher.handleBatch (cursor.queue.handleGraphEvents batch).workQueueEvents).1.hasNext

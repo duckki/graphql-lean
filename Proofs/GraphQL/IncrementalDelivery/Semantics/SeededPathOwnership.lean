@@ -76,7 +76,8 @@ theorem seeded_combine {pa : α → List ResponsePath} {pb : β → List Respons
       rcases leftData with ⟨a, ea⟩
       cases hre : right.result with
       | error errors =>
-          simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine, seeded_error]
+          simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
+            seeded_error]
       | ok rightData =>
           rcases rightData with ⟨b, eb⟩
           obtain ⟨sl, hsl, hol⟩ := hl
@@ -156,8 +157,9 @@ theorem seeded_nonNull {path : ResponsePath} {completed : Completion ResponseVal
         GraphQL.Execution.nonNullCompletion, seeded_error]
   | ok data =>
       rcases data with ⟨data, errors⟩
-      cases data <;>
-        simp only [Completion.nonNull, he, nonNullCompletion, GraphQL.Execution.nonNullCompletion]
+      cases data
+      <;> simp only [Completion.nonNull, he, nonNullCompletion,
+            GraphQL.Execution.nonNullCompletion]
       · exact seeded_error _ _ _ _
       all_goals
         obtain ⟨s, hw, ho⟩ := h
@@ -346,7 +348,8 @@ theorem seeded_streamPrefix {path : ResponsePath} {finish start : Nat}
     · apply WorkCursorSeed.stream (index := start)
       · simp [Completion.catchNull, he, resultCursors, listCursors, cursorAt, hp, hlen]
       · simpa only [hp] using hsr
-  · simp only [Completion.catchNull, he, result, value, List.flatten_append, List.append_assoc]
+  · simp only [Completion.catchNull, he, result, value, List.flatten_append,
+      List.append_assoc]
     have ho : Owns (Below path)
         (([path] ++ (DeliveryPaths.items true path 0 data ++ sl.flatten)) ++ sr.flatten) := by
       apply owns_append hprefix hor

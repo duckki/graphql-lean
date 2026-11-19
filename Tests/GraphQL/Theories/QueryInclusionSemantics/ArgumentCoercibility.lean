@@ -373,7 +373,8 @@ private theorem operationValid (responseName : Name)
         exact ⟨⟨.builtinScalar .string, rfl, trivial⟩,
           ⟨.builtinScalar .string, rfl, trivial⟩, by intro _; rfl⟩
       · intro _ _ child hchild
-        simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField] at hchild
+        simp [FieldMerge.collectSubfields, FieldMerge.collectFields, scopedField]
+          at hchild
     · intro _
       constructor
       · rfl

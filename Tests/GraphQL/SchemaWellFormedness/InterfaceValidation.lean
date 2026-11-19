@@ -51,7 +51,8 @@ private theorem validTypes
     : ∀ definition ∈ validSchema.types,
         typeDefinitionWellFormed validSchema definition := by
   intro definition hdefinition
-  simp only [validSchema, fixture, List.mem_cons, List.not_mem_nil, or_false] at hdefinition
+  simp only [validSchema, fixture, List.mem_cons, List.not_mem_nil, or_false]
+    at hdefinition
   rcases hdefinition with rfl | rfl | rfl | rfl <;>
     simp [validSchema, typeDefinitionWellFormed, objectTypeWellFormed,
       interfaceTypeWellFormed, interfacesIncludeInherited, fieldDefinitionsWellFormed,

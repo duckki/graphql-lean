@@ -136,9 +136,11 @@ theorem nested_cancelled_reported_below_bound
   have roles
       : RefRoles.WorkRoles (fun _ => true) (independentStreams outer middle inner) := by
     simp [RefRoles.WorkRoles, independentStreams, NestedStreamExistence.nested]
-  have continuous : GeneralScheduling.DeferContinuous (fun _ => [])
-      (independentStreams outer middle inner) := by
-    simp [GeneralScheduling.DeferContinuous, independentStreams, NestedStreamExistence.nested]
+  have continuous
+      : GeneralScheduling.DeferContinuous (fun _ => [])
+          (independentStreams outer middle inner) := by
+    simp [GeneralScheduling.DeferContinuous, independentStreams,
+      NestedStreamExistence.nested]
   have ordered : GeneralScheduling.StreamOwnersOrdered (independentStreams outer middle
       inner) := by
     simp [GeneralScheduling.StreamOwnersOrdered, independentStreams,

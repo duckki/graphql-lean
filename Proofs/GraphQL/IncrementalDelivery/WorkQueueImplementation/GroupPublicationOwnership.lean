@@ -96,7 +96,8 @@ theorem Witness.groupPublication_contributorRegistry {work inputs index owner pa
   obtain ⟨pending, completed⟩ := publicationAtoms_list_noticeState _ normalizedShape
   obtain ⟨silentPending, silentCompleted⟩ := GroupPublicationOrigin.object_prefix_refs
     (publisher.normalizeBatch origin.before).1 origin.group origin.values origin.offset
-  simp only [pendingRefs, completedRefs] at pending completed silentPending silentCompleted
+  simp only [pendingRefs, completedRefs]
+    at pending completed silentPending silentCompleted
   have same := history.trans (createWorkQueue_nonterminalAtoms_flattened inputs started)
   have valuePrefix := origin.valuePrefix
   rw [← same] at valuePrefix
@@ -107,7 +108,8 @@ theorem Witness.groupPublication_contributorRegistry {work inputs index owner pa
   dsimp only at registry
   rw [registry, valuePrefix]
   simp only [Open, announcedRefs, pendingRefs, completedRefs, List.flatMap_append]
-  rw [pending, completed, silentPending, silentCompleted, List.append_nil, List.append_nil]
+  rw [pending, completed, silentPending, silentCompleted, List.append_nil,
+    List.append_nil]
   rfl
 
 /-- Every actual object atom selects an open longest-path contributor with healthy support.

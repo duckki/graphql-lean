@@ -78,7 +78,8 @@ theorem source_valid
   exact ⟨
     .append one ⟨_, _, parentKnown, rfl, rfl⟩
       (by
-        simp [first, finish, GraphEvent.Fresh, GraphEvent.identities, parentTask, sharedTask])
+        simp [first, finish, GraphEvent.Fresh, GraphEvent.identities, parentTask,
+          sharedTask])
       ⟨_, _, _, parentKnown, by intro source impossible; cases impossible⟩,
     by cbv
   ⟩

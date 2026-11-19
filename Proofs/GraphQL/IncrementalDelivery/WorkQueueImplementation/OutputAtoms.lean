@@ -86,7 +86,8 @@ theorem publicationAtoms_values (event : Execution.WorkQueueEvent)
         = normalizedItemValues event := by
   cases event with
   | groupValues group values =>
-      simp [publicationAtoms, normalizedObjectValues, normalizedItemValues, List.flatMap_map]
+      simp [publicationAtoms, normalizedObjectValues, normalizedItemValues,
+        List.flatMap_map]
   | streamValues stream values groups streams =>
       refine ⟨?_, streamPublicationAtoms_itemValues ..⟩
       induction values using streamPublicationAtoms.induct with

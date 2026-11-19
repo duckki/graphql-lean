@@ -38,7 +38,8 @@ theorem cursorAt_cons (entry : ResponsePath × Nat) (tail : Cursors) (path : Res
     : cursorAt (entry :: tail) path
       = if entry.1 = path then some entry.2 else cursorAt tail path := by
   by_cases h : entry.1 = path
-  · simp only [cursorAt, List.find?_cons, h, beq_self_eq_true, ↓reduceIte, Option.map_some]
+  · simp only [cursorAt, List.find?_cons, h, beq_self_eq_true, ↓reduceIte,
+      Option.map_some]
   · simp only [cursorAt, List.find?_cons, beq_eq_false_iff_ne.mpr h, h, ↓reduceIte]
 
 /-- Cursor lookup prefers the left table, by the appended-list lookup equation. -/
@@ -137,7 +138,8 @@ theorem merge_object_cursorRepresents (path : ResponsePath) (data : ResponseValu
   refine ⟨updated, hm, he, ?_⟩
   have hn := (listCursors_sublist [] updated).nodup ((he.map Prod.fst).nodup_iff.mpr unique)
   intro target
-  rw [cursorAt_perm hc hn target, cursorAt_append_eq, cursorAt_append_eq, represents target]
+  rw [cursorAt_perm hc hn target, cursorAt_append_eq, cursorAt_append_eq,
+    represents target]
 
 /-- Appending one stream item preserves typed entries and cursor agreement; the
 old cursor equals the list length, and the new cursor shadows it by one. -/

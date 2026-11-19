@@ -172,7 +172,8 @@ private theorem wellFormed (expected implementation : TypeRef)
             = expectedField := by simpa [Schema.lookupField, Schema.lookupDeclaredField] using hlookup
         subst expectedField
         exact ⟨_, rfl, outputSubtype_refl _ hs, by simp [argumentDefinitionsImplement]⟩
-      simp [Schema.lookupDeclaredField, beq_iff_eq, Ne.symm hv, Ne.symm hn, Ne.symm hf] at hlookup
+      simp [Schema.lookupDeclaredField, beq_iff_eq, Ne.symm hv, Ne.symm hn, Ne.symm hf]
+        at hlookup
     by_cases hP : parent = "Plain"
     · subst parent
       have hobject : object = "Plain" := by simpa using hpossible

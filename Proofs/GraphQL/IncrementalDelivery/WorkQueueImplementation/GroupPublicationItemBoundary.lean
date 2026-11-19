@@ -53,7 +53,8 @@ theorem State.handleGraphEvent_items_before_groupValues (queue : State)
         | succ index =>
             simp only [List.take_succ_cons, List.flatMap_cons,
               State.drainReadyGroups_itemValues, List.append_nil]
-            rw [no_items_prefix (State.drainReadyGroups_itemValues _) index, List.append_nil]
+            rw [no_items_prefix (State.drainReadyGroups_itemValues _) index,
+              List.append_nil]
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess] at selected
       split at selected
@@ -107,11 +108,13 @@ theorem ExecutedWork.rawEventReplay_groupValues_itemProducer_prefix
     known (sameRef.symm ▸ retired.1)
   have observed := (valid.prefix prior).itemSuccess_publication success
   have exactItems := initial.rawEventReplay_itemValues (before ++ [event]) accepted
-  have size : (((initial.rawEventReplay received).2.take index).flatMap
-      WorkQueueEvent.itemValues).length
-      = ((before ++ [event]).flatMap GraphEvent.itemPublications).length := by
-    rw [count, (initial.replayGraphEvents before).handleGraphEvent_items_before_groupValues
-      event atEvent]
+  have size
+      : (((initial.rawEventReplay received).2.take index).flatMap
+          WorkQueueEvent.itemValues).length
+        = ((before ++ [event]).flatMap GraphEvent.itemPublications).length := by
+    rw [count,
+      (initial.replayGraphEvents before).handleGraphEvent_items_before_groupValues
+        event atEvent]
     have lengths := congrArg List.length exactItems
     rw [State.rawEventReplay_append] at lengths
     dsimp only at lengths

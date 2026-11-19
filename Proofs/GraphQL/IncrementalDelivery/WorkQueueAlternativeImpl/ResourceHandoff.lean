@@ -220,8 +220,11 @@ theorem ResourceState.observeDispatch_unacquired (resources : ResourceState)
     (inventories : ProducerInventories) (before : State) (event : GraphEvent)
     (target : CleanupTarget) (unacquired : resources target = .unacquired)
     : (resources.observeDispatch inventories before event).1 target = .unacquired := by
-  have completed : (resources.observeNormalCompletion before.queue event).1 target = .unacquired := by
-    rw [resources.observeNormalCompletion_foreign _ _ _ (by rw [unacquired]; simp), unacquired]
+  have completed
+      : (resources.observeNormalCompletion before.queue event).1 target
+        = .unacquired := by
+    rw [resources.observeNormalCompletion_foreign _ _ _ (by rw [unacquired]; simp),
+      unacquired]
   have adopted := (resources.observeNormalCompletion before.queue event).1.observeAdoptions_unacquired
     inventories (graphEffects before.queue event) target completed
   change (ResourceState.requestQueueCleanup _ _).1 target = _

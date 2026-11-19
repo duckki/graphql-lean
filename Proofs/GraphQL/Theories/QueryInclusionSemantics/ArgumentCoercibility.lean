@@ -78,8 +78,9 @@ private theorem inputValueBoolean_filtered_case
       intro hvalue
       by_cases heq : headName = name
       · subst headName
-        simpa [List.filter, hname, boolCaseVariableValues, inputValueBoolean?, lookupVariableValue?,
-          ConstInputValue.toInputValue, InputValue.staticBoolean?] using hvalue
+        simpa [List.filter, hname, boolCaseVariableValues, inputValueBoolean?,
+          lookupVariableValue?, ConstInputValue.toInputValue, InputValue.staticBoolean?]
+          using hvalue
       · have htail
             : inputValueBoolean? (boolCaseVariableValues rest) (.variable name)
               = some bit := by

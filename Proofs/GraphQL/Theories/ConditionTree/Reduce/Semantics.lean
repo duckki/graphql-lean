@@ -735,11 +735,13 @@ mutual
                     exact boundary.fieldChildSemanticsReady hrightGroup hfield
                       fieldDefinition (hlookupAll field hfield) childRuntime
                       (by rw [← hnamed]; exact hinclude)
-                  have hchildMerge : NormalForm.runtimeMergeSource schema childRuntime
-                      rightSelectionSet := by
+                  have hchildMerge
+                      : NormalForm.runtimeMergeSource schema childRuntime
+                          rightSelectionSet := by
                     rcases rightFields with _ | ⟨first, rest⟩
-                    · refine ⟨[], ?_, ?_, ?_⟩ <;>
-                        simp [rightSelectionSet, NormalForm.fieldSelectionsWithResponseNameInScope]
+                    · refine ⟨[], ?_, ?_, ?_⟩
+                      <;> simp [rightSelectionSet,
+                            NormalForm.fieldSelectionsWithResponseNameInScope]
                     · apply Algorithms.ExecutionUngroupedUncached.Eager.collectFields_group_mergedRuntimeSource
                         schema hschema variableValues boundary.parentType boundary.runtimeType
                         boundary.ref boundary.selectionSet responseName (first :: rest)

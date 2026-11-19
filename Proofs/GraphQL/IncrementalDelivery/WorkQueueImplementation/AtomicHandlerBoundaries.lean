@@ -22,7 +22,8 @@ theorem IncrementalPublisher.normalizeBatch_atomicObjectValues
     induction outputs with
     | nil => rfl
     | cons output rest ih =>
-        simp only [List.flatMap_cons, List.flatMap_append, (publicationAtoms_values output).1, ih]
+        simp only [List.flatMap_cons, List.flatMap_append,
+          (publicationAtoms_values output).1, ih]
   rw [atoms, publisher.normalizeBatch_objectValues]
 
 namespace ConformancePlan

@@ -61,8 +61,8 @@ theorem ExecutedWork.itemProducedStream_rawNotice
   have noticed := generated.streamItems_child_notice
     (valid.prefix (before := before) ⟨.streamItems stream items :: after, same.symm⟩)
     localLaws.1 localLaws.2.1 active selected (identity.symm ▸ known)
-  simp only [same, State.rawEventReplay_append, State.rawEventReplay_cons, List.flatMap_append,
-    State.rawEventReplay_state]
+  simp only [same, State.rawEventReplay_append, State.rawEventReplay_cons,
+    List.flatMap_append, State.rawEventReplay_state]
   exact List.mem_append_right _ (List.mem_append_left _ noticed)
 
 namespace ConformancePlan

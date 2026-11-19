@@ -144,8 +144,9 @@ theorem State.sourceBatchBlocks_agrees (queue : State) (publisher : IncrementalP
   · rw [state]
     split
     · simp only [IncrementalPublisher.normalizeBatch_append]
-      simp [IncrementalPublisher.normalizeBatch, IncrementalPublisher.handleWorkQueueEvent,
-        publicationAtoms, List.flatMap_append, mapper, output]
+      simp [IncrementalPublisher.normalizeBatch,
+        IncrementalPublisher.handleWorkQueueEvent, publicationAtoms, List.flatMap_append,
+        mapper, output]
     · exact ⟨state, mapper, output⟩
 
 /-- A batch's retained source labels form a subsequence of its supplied events.

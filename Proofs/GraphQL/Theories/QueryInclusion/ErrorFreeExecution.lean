@@ -100,9 +100,10 @@ theorem ResolversSupported.resolveFieldValue {schema : Schema}
             by simp [Execution.resolveFieldValue, resolveTypenameField],
             ?_
           ⟩
-          simp [resolverValueSupported, Schema.typenameFieldDefinition, TypeRef.isCompositeBool,
-            TypeRef.namedType, Schema.lookupType, Schema.allTypes,
-            Schema.builtinScalarDefinitions, TypeDefinition.name, BuiltinScalar.name, List.find?]
+          simp [resolverValueSupported, Schema.typenameFieldDefinition,
+            TypeRef.isCompositeBool, TypeRef.namedType, Schema.lookupType,
+            Schema.allTypes, Schema.builtinScalarDefinitions, TypeDefinition.name,
+            BuiltinScalar.name, List.find?]
     · exact False.elim (hne rfl)
   · simpa [Execution.resolveFieldValue, hmeta]
       using hresolvers parentType fieldName arguments source definition hlookup hinhabited
@@ -269,7 +270,8 @@ private theorem collectFlatFields_field_compositeType_inhabited
                 cases hdirectives :
                     selectionDirectivesAllowBool variableValues directives <;>
                   simp [collectFlatSelection, hdirectives] at hhead
-                simp only [selectionCompositeFieldTypesInhabited, hdirectives, true_implies]
+                simp only [selectionCompositeFieldTypesInhabited, hdirectives,
+                  true_implies]
                   at hselection
                 exact collectFlatFields_field_compositeType_inhabited schema
                   variableValues parentType ref childSelectionSet hselection entry hhead
@@ -281,7 +283,8 @@ private theorem collectFlatFields_field_compositeType_inhabited
                     schema.typeIncludesObjectBool typeName parentType = true := by
                   simpa [doesFragmentTypeApplyBool, runtimeObjectType?] using hhead.1
                 have hhead' := hhead.2
-                simp only [selectionCompositeFieldTypesInhabited, hdirectives, true_implies]
+                simp only [selectionCompositeFieldTypesInhabited, hdirectives,
+                  true_implies]
                   at hselection
                 exact collectFlatFields_field_compositeType_inhabited schema
                   variableValues parentType ref childSelectionSet

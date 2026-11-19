@@ -1551,8 +1551,9 @@ private theorem recursiveChildExecutionSound_proved
         rightSelectionSet executionFuel leftResponseFields rightResponseFields hruntime
         hcheck hleftBoolean hrightBoolean _hcommonLookups hleftNodup hrightNodup hleft
         hright
-      simp only [selectionSetIncludesBoolWithFuel, selectionSetIncludesAtRuntimeBoolWithFuel,
-        List.all_eq_true] at hcheck
+      simp only [selectionSetIncludesBoolWithFuel,
+        selectionSetIncludesAtRuntimeBoolWithFuel, List.all_eq_true]
+        at hcheck
       have hregion := hcheck runtimeType hruntime
       have hrightGroupsLeft : collectRuntimeFieldGroups schema conditionValues parentType
           runtimeType rightSelectionSet = [] := List.isEmpty_iff.mp hregion

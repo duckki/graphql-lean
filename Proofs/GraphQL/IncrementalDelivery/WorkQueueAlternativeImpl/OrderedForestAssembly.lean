@@ -200,7 +200,8 @@ private theorem assembly_covers (ancestors : Contexts) (nodes : List Nat)
           induction roots with
           | nil => simp at selected
           | cons other rest restIH =>
-              simp only [assembleAt, List.foldr_cons, Forest.keys, List.mem_cons, List.mem_append]
+              simp only [assembleAt, List.foldr_cons, Forest.keys, List.mem_cons,
+                List.mem_append]
               rcases List.mem_cons.mp selected with rfl | present
               · exact Or.inr (Or.inl below)
               · exact Or.inr (Or.inr (restIH present))
@@ -262,7 +263,9 @@ private theorem assembly_children (ancestors : Contexts) (nodes : List Nat) (fue
       | nil => simp [assembleAt, childLists]
       | cons key rest restIH =>
           intro pair member
-          simp only [assembleAt, List.foldr_cons, childLists, List.mem_cons, List.mem_append] at member
+          simp only [assembleAt, List.foldr_cons, childLists, List.mem_cons,
+            List.mem_append]
+            at member
           have childBound : ∀ key ∈ nodes, (ancestors key).length < fuel + (key :: context).length := by
             intro item present
             have h := bound item present

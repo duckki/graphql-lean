@@ -52,7 +52,8 @@ theorem atPath_of_entry (base path : ResponsePath) (data : ResponseValue) (atom 
           obtain ⟨found, hf, ha⟩ := ih (base ++ [.field name]) child
             (by simpa only [List.append_assoc, List.singleton_append] using hm) hcu
           refine ⟨found, ?_, ha⟩
-          simp only [atPath, fields_find_member name child data (fields_keys_nodup base data hu) hc,
+          simp only [atPath,
+            fields_find_member name child data (fields_keys_nodup base data hu) hc,
             Option.bind_some, hf]
       | list data =>
           have hm : (base ++ segment :: rest, atom) ∈ items base 0 data := by

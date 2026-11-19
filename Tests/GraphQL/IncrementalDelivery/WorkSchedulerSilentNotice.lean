@@ -103,7 +103,8 @@ private theorem valid : ValidGraphEvents work [first, event] := by
       ⟨_, _, _, known, by intro source impossible; cases impossible⟩
   exact .append one matched
     (by
-      simp [GraphEvent.Fresh, first, event, GraphEvent.identities, occurrence, lastOccurrence])
+      simp [GraphEvent.Fresh, first, event, GraphEvent.identities, occurrence,
+        lastOccurrence])
     ⟨_, _, _, lastKnown, by intro source impossible; cases impossible⟩
 
 /-- The later shared settlement cannot repeat either initial root or an earlier notice.

@@ -199,7 +199,8 @@ theorem State.streamItems_streamRoots (queue : State) (stream : Execution.Delive
                 ((acc.1.maybeIntegrateWork item.work).1.pruneEmptyGroups
                   (acc.1.maybeIntegrateWork item.work).2.newGroups).2 }
         have membership := included active
-        rw [State.pruneEmptyGroups_rootStreams, State.maybeIntegrateWork_rootStreams] at membership
+        rw [State.pruneEmptyGroups_rootStreams, State.maybeIntegrateWork_rootStreams]
+          at membership
         change ref ∈ queue.rootStreams ++
           (acc.2.2.1 ++ (acc.1.maybeIntegrateWork item.work).2.newStreams).map
             Execution.DeliveryNode.ref
@@ -334,8 +335,8 @@ theorem IncrementalPublisher.normalizeBatch_streamNotices
   | nil => rfl
   | cons event rest ih =>
       rw [IncrementalPublisher.normalizeBatch_cons]
-      simp only [List.flatMap_append, IncrementalPublisher.handleWorkQueueEvent_streamNotices,
-        ih, List.flatMap_cons]
+      simp only [List.flatMap_append,
+        IncrementalPublisher.handleWorkQueueEvent_streamNotices, ih, List.flatMap_cons]
 
 /-- A normalized batch step activates only streams already in the prior output or this batch.
 Witness: queue activation accounting followed by the publisher's exact notice projection.

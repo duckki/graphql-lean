@@ -24,7 +24,8 @@ theorem lifecycleValid_iff_idUsageValid_control (result : ExecutionObservation)
     : result.lifecycleValid = true ↔ result.idUsageValid ∧ QueryControl result := by
   cases result with
   | single response =>
-      simp [ExecutionObservation.lifecycleValid, ExecutionObservation.idUsageValid, QueryControl]
+      simp [ExecutionObservation.lifecycleValid, ExecutionObservation.idUsageValid,
+        QueryControl]
   | incremental initial subsequent =>
       constructor
       · intro h

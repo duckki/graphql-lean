@@ -79,7 +79,8 @@ theorem executeCollectedFields_eq (schema : Schema) (resolvers : Resolvers Objec
               cases hd : schema.lookupField parentType field.fieldName with
               | none => simp only [executeCollectedFields, executeResponseField, hd]
               | some definition =>
-                  simp only [executeCollectedFields, executeResponseField, hd, executeField]
+                  simp only [executeCollectedFields, executeResponseField, hd,
+                    executeField]
                   cases ha
                         : coerceArgumentValues schema variables definition.arguments
                             field.arguments with

@@ -63,7 +63,8 @@ mutual
         have hm' := hm.extend he hle
         obtain ⟨hlt, final, het, hwt⟩ := collectExecutionGroups_owners schema resolvers variables fuel
           parentType source rest path deferMap middle _ hm'
-        simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [collectExecutionGroups, executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         refine ⟨Nat.le_trans hle hlt, final, he.trans het hle, ?_⟩
         simp only [WorkAt]
         exact ⟨⟨mapAt_filterMap (hm'.extend het hlt) usages, hw.extend het hlt⟩, hwt⟩

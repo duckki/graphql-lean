@@ -290,10 +290,12 @@ theorem State.PendingAccounting.handleGraphEvent {queue : State} {work : Executi
           prior.liveGroups prior.taskGroups stream items
         exact fun _ member => matching.streamItem_childTasksCovered member
     | streamSuccess stream =>
-        dsimp only [State.handleGraphEvent, GraphEvent.recordTaskOutcome, State.streamSuccess]
+        dsimp only [State.handleGraphEvent, GraphEvent.recordTaskOutcome,
+          State.streamSuccess]
         split <;> exact ⟨prior.pending, prior.links⟩
     | streamFailure stream errors =>
-        dsimp only [State.handleGraphEvent, GraphEvent.recordTaskOutcome, State.streamFailure]
+        dsimp only [State.handleGraphEvent, GraphEvent.recordTaskOutcome,
+          State.streamFailure]
         split <;> exact ⟨prior.pending, prior.links⟩
   exact ⟨accounting.1, accounting.2, prior.refs.handleGraphEvent event,
     prior.memberships.handleGraphEvent event, registry.1, registry.2.1,

@@ -105,11 +105,13 @@ private theorem cancel_recording_suffix {plan : List (Sibling α)} {state : Reco
         ih recorded pendingLater failedLater available
       refine ⟨final, history, complete, accounted, ?_, ?_, ?_, ?_, ?_⟩
       · rw [settled, scope]; rfl
-      · simpa only [scope, cancelled, Recording.scopeStep, Scope.cancel, List.append_assoc,
-          List.singleton_append] using cancelledAll
+      · simpa only [scope, cancelled, Recording.scopeStep, Scope.cancel,
+          List.append_assoc, List.singleton_append]
+          using cancelledAll
       · exact recordedAll.trans kept
-      · simpa only [dropped, cancelled, Recording.scopeStep, errorSlots, List.flatMap_cons,
-          List.append_assoc] using omittedAll
+      · simpa only [dropped, cancelled, Recording.scopeStep, errorSlots,
+          List.flatMap_cons, List.append_assoc]
+          using omittedAll
       · simpa only [scope, cancelled, Recording.scopeStep, Scope.cancel, List.map_cons,
           List.append_assoc, List.singleton_append] using actions
 
@@ -174,12 +176,14 @@ private theorem CutPrefix.recording_history {plan : List (Sibling α)}
       · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started,
           Scope.start]
           using cancelledAll
-      · simpa only [settled, Recording.scopeStep, kept, started, errorSlots, List.flatMap_cons,
-          List.flatMap_nil, List.append_nil] using recordedAll
+      · simpa only [settled, Recording.scopeStep, kept, started, errorSlots,
+          List.flatMap_cons, List.flatMap_nil, List.append_nil]
+          using recordedAll
       · simpa only [settled, Recording.scopeStep, dropped, started] using omittedAll
-      · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started, Scope.start,
-          List.flatMap_cons, List.flatMap_nil, List.append_assoc, List.append_nil,
-          List.singleton_append] using actions
+      · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started,
+          Scope.start, List.flatMap_cons, List.flatMap_nil, List.append_assoc,
+          List.append_nil, List.singleton_append]
+          using actions
   | success sibling healthy later ih =>
       rename_i tail skipped
       let started := state.scopeStep (state.scope.start sibling.id) (.start sibling.id)
@@ -201,8 +205,9 @@ private theorem CutPrefix.recording_history {plan : List (Sibling α)}
       simp only [List.cons_append, List.map_cons, List.nodup_cons] at ids
       have freshLater : ∀ other ∈ tail ++ skipped, other.id ∉ settled.scope.started := by
         intro other member repeated
-        simp only [settled, Recording.scopeStep, Scope.settle, scope, started, Scope.start,
-          List.mem_append, List.mem_singleton] at repeated
+        simp only [settled, Recording.scopeStep, Scope.settle, scope, started,
+          Scope.start, List.mem_append, List.mem_singleton]
+          at repeated
         rcases repeated with old | same
         · exact fresh other (List.mem_cons_of_mem _ member) old
         · exact ids.1 (same ▸ List.mem_map_of_mem member)
@@ -217,17 +222,20 @@ private theorem CutPrefix.recording_history {plan : List (Sibling α)}
           (by simp [settled, Recording.scopeStep, Scope.settle, scope, started, Scope.start,
             running, healthy]) ids.2 freshLater liveLater
       refine ⟨final, valid, complete, accounted, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started, Scope.start,
-          List.append_assoc, List.singleton_append] using settledAll
+      · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started,
+          Scope.start, List.append_assoc, List.singleton_append]
+          using settledAll
       · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started,
           Scope.start]
           using cancelledAll
-      · simpa only [settled, Recording.scopeStep, kept, started, errorSlots, List.flatMap_cons,
-          List.append_assoc] using recordedAll
+      · simpa only [settled, Recording.scopeStep, kept, started, errorSlots,
+          List.flatMap_cons, List.append_assoc]
+          using recordedAll
       · simpa only [settled, Recording.scopeStep, dropped, started] using omittedAll
-      · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started, Scope.start,
-          List.flatMap_cons, List.append_assoc, List.singleton_append, List.cons_append,
-          List.nil_append] using actions
+      · simpa only [settled, Recording.scopeStep, Scope.settle, scope, started,
+          Scope.start, List.flatMap_cons, List.append_assoc, List.singleton_append,
+          List.cons_append, List.nil_append]
+          using actions
 
 -----------------------------------------------------------------------------------------
 -- Actual action-cut root: one fine ledger with exact completed/omitted inventories
@@ -329,8 +337,11 @@ theorem ActionCut.recording_observation {actions : List (StateM Nat (Completion 
       (eager (completionPlan ((observeActions actions).run supply).1 id)) := by
     simpa only [executeActions_observed, foldCompletions_cons_result _ id]
       using cut.sameData List.cons []
-  have equalCount : countedErrors observed = countedErrors (foldCompletions List.cons [] completed).result := by
-    rw [count, recorded, errorSlots_length, foldCompletions_errors List.cons [] completed id]
+  have equalCount
+      : countedErrors observed
+        = countedErrors (foldCompletions List.cons [] completed).result := by
+    rw [count, recorded, errorSlots_length,
+      foldCompletions_errors List.cons [] completed id]
   have exactResult := (data.trans cutData.symm).eq_of_count equalCount
   exact ⟨
     recording,

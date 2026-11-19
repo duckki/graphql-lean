@@ -34,17 +34,20 @@ theorem responseField_cuts_of_values (schema : Schema)
           right).1 := by
   cases fuel with
   | zero =>
-      simpa only [RecordedExecution.executeResponseField, EagerRecordedExecution.executeResponseField,
-        StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.error 1)
+      simpa only [RecordedExecution.executeResponseField,
+        EagerRecordedExecution.executeResponseField, StateT.run_pure, id_pure_eq]
+        using CompletionCutTrace.fault route (.error 1)
   | succ fuel =>
       simp only [Nat.add_sub_cancel] at children
       cases fields with
       | nil =>
-          simpa only [RecordedExecution.executeResponseField, EagerRecordedExecution.executeResponseField,
-            List.map_nil, StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.error 1)
+          simpa only [RecordedExecution.executeResponseField,
+            EagerRecordedExecution.executeResponseField, List.map_nil, StateT.run_pure,
+            id_pure_eq]
+            using CompletionCutTrace.fault route (.error 1)
       | cons head tail =>
-          simp only [RecordedExecution.executeResponseField, EagerRecordedExecution.executeResponseField,
-            List.map_cons, field]
+          simp only [RecordedExecution.executeResponseField,
+            EagerRecordedExecution.executeResponseField, List.map_cons, field]
           split
           · simp_all only [StateT.run_pure, id_pure_eq]
             exact CompletionCutTrace.fault _ _
@@ -88,8 +91,9 @@ theorem fields_cuts_of_values (schema : Schema) (resolvers : Resolvers ObjectRef
         group path usages context (route ++ [0]) keys left right supplies
         (ordered (name, group) (by simp)) usageBound contextBound
       dsimp only [eraseCompletionRun] at mapped
-      simp only [RecordedExecution.executeCollectedFields, EagerRecordedExecution.executeCollectedFields,
-        KeyRenaming.fields, List.map_cons, run_bind]
+      simp only [RecordedExecution.executeCollectedFields,
+        EagerRecordedExecution.executeCollectedFields, KeyRenaming.fields, List.map_cons,
+        run_bind]
       cases outcome
             : ((RecordedExecution.executeResponseField schema resolvers variables fuel
                   parentType source name group path usages context (route ++ [0])).run

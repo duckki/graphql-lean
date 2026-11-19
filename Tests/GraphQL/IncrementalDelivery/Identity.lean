@@ -60,8 +60,10 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have once := deliveryIDsCompleteExactlyOnce_holds schema operation resolvers variables
     fuel source createWorkQueue Tests.Correctness.duplicateCompletion conforms observed
-  simp [Tests.Correctness.duplicateCompletion, ExecutionObservation.idsCompleteExactlyOnce,
-    DeliveryTrace.pendingIDs, DeliveryTrace.completedIDs] at once
+  simp [Tests.Correctness.duplicateCompletion,
+    ExecutionObservation.idsCompleteExactlyOnce, DeliveryTrace.pendingIDs,
+    DeliveryTrace.completedIDs]
+    at once
 
 /-- Coalescing may reorder notices inside a batch, but preserves multiplicity. -/
 example {events batches}

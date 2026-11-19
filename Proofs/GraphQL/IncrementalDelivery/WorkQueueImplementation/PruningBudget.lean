@@ -303,11 +303,13 @@ private theorem PruningFrontier.covers {queue parents remaining kept fuel target
               simpa only [List.append_assoc] using List.mem_append_right promoted tail
           · rename_i nonempty
             simp only [nonempty] at survives
-            apply ih frame.keep (by simp only [List.length_append, List.length_singleton]; omega)
-              ?_ survives
+            apply ih frame.keep
+              (by simp only [List.length_append, List.length_singleton]; omega) ?_
+              survives
             obtain ⟨root, member, path⟩ := covered
             refine ⟨root, ?_, path⟩
-            simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at member ⊢
+            simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
+              at member ⊢
             grind
 
 /-- Every surviving descendant of a pruning input remains below an actual returned notice.

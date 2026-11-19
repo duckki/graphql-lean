@@ -32,8 +32,10 @@ theorem groups_origins_of_fields (schema : Schema) (resolvers : Resolvers Object
           right).1 := by
   induction partitions generalizing route keys left right with
   | nil =>
-      simpa only [RecordedExecution.collectExecutionGroups, EagerRecordedExecution.collectExecutionGroups,
-        KeyRenaming.partitions, List.map_nil, StateT.run_pure, id_pure_eq] using WorkOriginsRefine.empty
+      simpa only [RecordedExecution.collectExecutionGroups,
+        EagerRecordedExecution.collectExecutionGroups, KeyRenaming.partitions,
+        List.map_nil, StateT.run_pure, id_pure_eq]
+        using WorkOriginsRefine.empty
   | cons partition rest ih =>
       obtain ⟨usages, fields⟩ := partition
       have head := children parentType source fields path usages context (route ++ [0]) keys left right
@@ -69,8 +71,9 @@ theorem plan_origins_of_fields (schema : Schema) (resolvers : Resolvers ObjectRe
     keys left right supplies initialBefore usageBound contextBound
   dsimp only [eraseCompletionRun] at mapped
   have same := head.1.1.1
-  simp only [RecordedExecution.executeExecutionPlan, EagerRecordedExecution.executeExecutionPlan,
-    plan, new_defer_map supplies.injective, run_bind]
+  simp only [RecordedExecution.executeExecutionPlan,
+    EagerRecordedExecution.executeExecutionPlan, plan, new_defer_map supplies.injective,
+    run_bind]
   cases outcome : ((RecordedExecution.executeCollectedFields schema resolvers variables fuel parentType source
       original.collectedFieldsMap path usages (getNewDeferMap newUsages path context) (route ++ [0])).run
       left).1.report.outcome

@@ -64,8 +64,10 @@ theorem GeneratedPendingBufferLossCut_holds : GeneratedPendingBufferLossCut := b
       cases inputFound : before.taskNode? incoming with
       | none =>
           have unchanged : snapshot = before := by simp [snapshot, registrationSnapshot, inputFound]
-          have next : (before.handleGraphEvent (.taskSuccess incoming result)).1 = before := by
-            simp [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.taskSuccess, inputFound]
+          have next
+              : (before.handleGraphEvent (.taskSuccess incoming result)).1 = before := by
+            simp [ReferenceWorkQueue.State.handleGraphEvent,
+              ReferenceWorkQueue.State.taskSuccess, inputFound]
           rw [unchanged] at found
           exact False.elim (changed (by rw [next]; exact found))
       | some incomingNode =>
@@ -93,7 +95,8 @@ theorem GeneratedPendingBufferLossCut_holds : GeneratedPendingBufferLossCut := b
               let starting : State := { registered.1 with queue := folded.1 }
               let initial := (starting.startNewWork folded.2.2 registered.2).1.queue
               have prepared : snapshot = registered.1.queue := by
-                simp only [snapshot, registrationSnapshot, inputFound, healthy, ↓reduceIte]
+                simp only [snapshot, registrationSnapshot, inputFound, healthy,
+                  ↓reduceIte]
                 rfl
               have handler : before.handleGraphEvent (.taskSuccess incoming result)
                   = (initial.drainReadyGroups.1, folded.2.1 ++ initial.drainReadyGroups.2) := by
@@ -183,10 +186,12 @@ theorem GeneratedPendingBufferLossCut_holds : GeneratedPendingBufferLossCut := b
       cases active : before.rootStreams.contains stream.ref with
       | false =>
           have unchanged : snapshot = before := by
-            simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true, ↓reduceIte]
-          have next : (before.handleGraphEvent (.streamItems stream items)).1 = before := by
-            simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamItems,
-              active, Bool.not_false, ↓reduceIte]
+            simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true,
+              ↓reduceIte]
+          have next
+              : (before.handleGraphEvent (.streamItems stream items)).1 = before := by
+            simp only [ReferenceWorkQueue.State.handleGraphEvent,
+              ReferenceWorkQueue.State.streamItems, active, Bool.not_false, ↓reduceIte]
           rw [unchanged] at found
           exact False.elim (changed (by rw [next]; exact found))
       | true =>

@@ -84,7 +84,8 @@ theorem State.taskSuccess_itemValues (queue : State) (occurrence : Occurrence)
         split
         · rfl
         · split
-          · simp only [List.flatMap_append, State.finishGroupSuccess_itemValues, List.append_nil]
+          · simp only [List.flatMap_append, State.finishGroupSuccess_itemValues,
+              List.append_nil]
           · rfl
   cases found : queue.taskNode? occurrence with
   | none => simp [State.taskSuccess, found]
@@ -121,7 +122,8 @@ theorem State.taskFailure_itemValues (queue : State) (occurrence : Occurrence)
         split
         · rfl
         · split
-          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.itemValues]
+          · simp [State.finishGroupFailure, List.flatMap_append,
+              WorkQueueEvent.itemValues]
           · rfl
   unfold State.taskFailure
   split
@@ -190,8 +192,9 @@ theorem State.rawEventReplay_itemValues (queue : State) (events : List GraphEven
           (queue.handleGraphEvent event).1.acceptsBatch rest = true := by
         simpa only [State.acceptsBatch, Bool.and_eq_true] using accepted
       rw [State.rawEventReplay_cons]
-      simp only [List.flatMap_append, State.handleGraphEvent_itemValues queue event both.1,
-        ih _ both.2, List.flatMap_cons, List.map_append]
+      simp only [List.flatMap_append,
+        State.handleGraphEvent_itemValues queue event both.1, ih _ both.2,
+        List.flatMap_cons, List.map_append]
 
 /-- Before queue termination, a started batch emits exactly its input item values.
 Witness: eventwise exactness; appending a terminal control event cannot add an item. -/
@@ -280,7 +283,8 @@ theorem createWorkQueue_runNormalized_itemValues {work : Execution.Work}
           exact nextStarted
         rw [List.foldl_cons, ih _ checked, normalizedStep_itemValues,
           acc.1.handleGraphEvents_itemValues batch startOpen accepted]
-        simp only [List.flatten_cons, List.flatMap_append, List.map_append, List.append_assoc]
+        simp only [List.flatten_cons, List.flatMap_append, List.map_append,
+          List.append_assoc]
   rw [inputsStarted_eq_batchesStarted] at started
   let queue := State.initialize (Work.fromExecution work)
   let publisher : IncrementalPublisher := { active := queue.initialGroups ++ queue.initialStreams }

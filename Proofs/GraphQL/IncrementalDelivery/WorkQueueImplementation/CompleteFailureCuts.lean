@@ -123,7 +123,8 @@ theorem State.GroupErrorAccounting.sourceBatchBlocks_completeTotals
   simp only [State.sourceBatchBlocks, running, Bool.false_eq_true, ↓reduceIte]
   split
   · rw [State.eligibleFailureBlocks_append]
-    exact handlers.append (by simp [State.eligibleFailureBlocks, SourceBlocksHaveCompleteTotals])
+    exact handlers.append
+      (by simp [State.eligibleFailureBlocks, SourceBlocksHaveCompleteTotals])
   · exact handlers
 
 /-- Complete counts survive the actual multi-batch annotated replay.
@@ -232,7 +233,8 @@ theorem sourceObjectFailureCuts_nodeErrors {work : Execution.Work}
     sourceOutputBlocks_at atEvent
   subst blocks
   have counted := totals.atBlock (List.mem_of_getElem? atLocal)
-  simp only [List.nil_append, GraphEvent.failureSettlements_eq_objectFailures_reverse] at counted
+  simp only [List.nil_append, GraphEvent.failureSettlements_eq_objectFailures_reverse]
+    at counted
   have reordered := nodeErrors_of_perm counted (List.reverse_perm _)
   have visible := sourceObjectFailureCuts_visible offset before after block localIndex
     (List.getElem?_eq_some_iff.mp atLocal).1

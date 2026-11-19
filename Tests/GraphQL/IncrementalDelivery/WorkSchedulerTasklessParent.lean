@@ -821,7 +821,8 @@ private theorem batching_failureControls {events batches}
   induction batching with
   | nil => rfl
   | cons _ values _ ih =>
-      simp only [List.flatten_cons, List.filter_append, grouping_failureControls values, ih]
+      simp only [List.flatten_cons, List.filter_append, grouping_failureControls values,
+        ih]
 
 /-- Filtering retains enough order to force the incompatible error counts.
 Witness: split around P, S, R, and D, recovering ordered positions in any atomic history.

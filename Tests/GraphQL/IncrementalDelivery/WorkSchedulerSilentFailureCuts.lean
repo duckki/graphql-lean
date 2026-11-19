@@ -254,8 +254,9 @@ theorem reported_cuts : reportedFailureCuts work events candidateCuts = delayedC
       rcases positions with rfl | rfl <;>
         obtain ⟨node, errors, atEvent, _⟩ := report <;>
         rcases atEvent with impossible | impossible <;> cases impossible
-  simp only [reportedFailureCuts, candidateCuts, List.filterMap_cons, placeReportedFailure,
-    firstSelected, sharedSelected, Option.map_some, List.filterMap_nil]
+  simp only [reportedFailureCuts, candidateCuts, List.filterMap_cons,
+    placeReportedFailure, firstSelected, sharedSelected, Option.map_some,
+    List.filterMap_nil]
   exact List.mergeSort_of_pairwise (by simp)
 
 /-- The general placement theorem preserves the full inventory at the delayed cuts.
@@ -288,8 +289,9 @@ theorem unreported_failure_omitted
     rw [output] at bound
     simp only [List.length_singleton] at bound
     omega
-  simp only [reportedFailureCuts, candidateCuts, List.filterMap_cons, placeReportedFailure,
-    firstSelected, sharedSelected, Option.map_some, Option.map_none, List.filterMap_nil]
+  simp only [reportedFailureCuts, candidateCuts, List.filterMap_cons,
+    placeReportedFailure, firstSelected, sharedSelected, Option.map_some, Option.map_none,
+    List.filterMap_nil]
   exact List.mergeSort_singleton _
 
 private theorem parent_node : NodeAt work parent .group [] none :=
@@ -418,7 +420,8 @@ theorem source_cuts_licensed (matching : PublicationMatching)
   · intro before cut occurrence after split
     match before with
     | [] =>
-        simp only [candidateCuts, List.nil_append, List.cons.injEq, Prod.mk.injEq] at split
+        simp only [candidateCuts, List.nil_append, List.cons.injEq, Prod.mk.injEq]
+          at split
         obtain ⟨⟨rfl, rfl⟩, rfl⟩ := split
         simp [TaskCancelled]
     | [entry] =>

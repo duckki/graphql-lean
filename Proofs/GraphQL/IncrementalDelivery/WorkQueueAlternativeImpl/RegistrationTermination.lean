@@ -31,7 +31,8 @@ theorem streamRegistrationStep_terminated (acc : StreamRegistrationAcc)
   change (({ (acc.1.maybeIntegrateWork item.work).1 with queue :=
     ((acc.1.maybeIntegrateWork item.work).1.queue.pruneEmptyGroups
       (acc.1.maybeIntegrateWork item.work).2.newGroups).1 }).startNewWork _ _ _).1.queue.terminated = _
-  rw [State.startNewWork_terminated _ _ _ acc.2.2.2.2.1, ReferenceWorkQueue.State.pruneEmptyGroups_terminated,
+  rw [State.startNewWork_terminated _ _ _ acc.2.2.2.2.1,
+    ReferenceWorkQueue.State.pruneEmptyGroups_terminated,
     State.maybeIntegrateWork_terminated]
 
 /-- An actual receipt terminates only at the enclosing batch boundary, not an item. -/

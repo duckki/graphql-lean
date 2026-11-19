@@ -99,9 +99,11 @@ mutual
     | nil => rfl
     | cons field rest =>
         obtain ⟨name, data⟩ := field
-        simp only [TypedResponse.fields, visibleEntryPaths_append, ResponsePositions.fields]
-        rw [visibleEntryPaths_value containers (path ++ [ResponsePathSegment.field name]) data,
-          visibleEntryPaths_fields containers path rest]
+        simp only [TypedResponse.fields, visibleEntryPaths_append,
+          ResponsePositions.fields]
+        rw [
+          visibleEntryPaths_value containers (path ++ [ResponsePathSegment.field name])
+            data, visibleEntryPaths_fields containers path rest]
   termination_by sizeOf fields
 
   /-- Visible typed item paths equal public indexed positions at the same absolute offset.
@@ -115,8 +117,9 @@ mutual
     | nil => rfl
     | cons value rest =>
         simp only [TypedResponse.items, visibleEntryPaths_append, ResponsePositions.items]
-        rw [visibleEntryPaths_value containers (path ++ [ResponsePathSegment.index index]) value,
-          visibleEntryPaths_items containers path (index + 1) rest]
+        rw [
+          visibleEntryPaths_value containers (path ++ [ResponsePathSegment.index index])
+            value, visibleEntryPaths_items containers path (index + 1) rest]
   termination_by sizeOf values
 end
 

@@ -196,8 +196,8 @@ private theorem size_mergeSelectionSets_fieldSelectionsWithResponseNameInScope_l
               omega
           | some typeCondition =>
               by_cases h : (schema.typesOverlapBool parentType typeCondition) = true
-              · simp [fieldSelectionsWithResponseNameInScope, h, mergeSelectionSets_append,
-                  selectionSet_size_append, SelectionSet.size,
+              · simp [fieldSelectionsWithResponseNameInScope, h,
+                  mergeSelectionSets_append, selectionSet_size_append, SelectionSet.size,
                   Selection.size]
                 omega
               · have hfalse :

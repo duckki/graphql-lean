@@ -98,8 +98,8 @@ mutual
                   freshUsage_before state usage label h
                 have hc := collectFields_refs schema variables parentType source children
                   (some next) (state + 1) hn
-                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-                  ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
+                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true,
+                  ↓reduceIte, ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
                   StateT.run_get, StateT.run_set]
                 rcases hc with ⟨hs, hf, hu⟩
                 dsimp only [next] at hs hf hu
@@ -187,13 +187,17 @@ theorem filteredDeferUsageSet_nonempty (fields : List FieldDetails)
             have hm : usage.ref ∈ refs := by simp [refs, usages, hu]
             exact List.ne_nil_of_mem hm
   obtain ⟨least, hl, hleast⟩ := nonempty_refs_minimum refs hrefs
-  have hkeep : usages.any (fun usage =>
-      usage.ref == least && usage.ancestors.any refs.contains) = false := by
+  have hkeep
+      : usages.any
+          (fun usage =>
+            usage.ref == least && usage.ancestors.any refs.contains)
+        = false := by
     apply List.any_eq_false.mpr
     intro usage hu hbad
     obtain ⟨field, hf, hfu⟩ := List.mem_filterMap.mp hu
     have ho := hordered field hf usage hfu
-    simp only [Bool.and_eq_true, beq_iff_eq, List.any_eq_true, List.contains_iff_mem] at hbad
+    simp only [Bool.and_eq_true, beq_iff_eq, List.any_eq_true, List.contains_iff_mem]
+      at hbad
     obtain ⟨heq, ancestor, ha, hak⟩ := hbad
     have hlt := ho ancestor ha
     have hle := hleast ancestor hak

@@ -656,7 +656,8 @@ theorem released_stream_healthy (matching : PublicationMatching)
     cbv
     exact List.mem_cons_self
   · intro address index member
-    simp [first, produced, finish, GraphEvent.successes, producerTask, parentTask] at member
+    simp [first, produced, finish, GraphEvent.successes, producerTask, parentTask]
+      at member
   · intro occurrence owners ⟨producer, payload, known⟩ owner member
     have same : occurrence = failedTask := by simpa [cuts, failedBefore] using member
     subst occurrence

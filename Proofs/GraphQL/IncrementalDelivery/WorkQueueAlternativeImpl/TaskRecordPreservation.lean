@@ -39,7 +39,8 @@ theorem registrationSnapshot_oldTasks (queue : Kernel) (event : GraphEvent)
           simpa only [registrationSnapshot, active, Bool.false_eq_true,
             ↓reduceIte] using (show queue.tasks.Subset queue.tasks from fun _ member => member)
       | true =>
-          rw [registrationSnapshot_itemFold queue stream items active, streamRegistrationFold_tasks]
+          rw [registrationSnapshot_itemFold queue stream items active,
+            streamRegistrationFold_tasks]
           exact List.subset_append_left _ _
   | taskFailure | streamSuccess | streamFailure => exact fun _ member => member
 

@@ -706,25 +706,26 @@ mutual
             simp [Execution.executeField, hlookup,
               deepSelectionSetSuccessResolversWithRef]
         | some fieldDefinition =>
-            cases hcoerce : Execution.coerceArgumentValues schema variableValues
-                fieldDefinition.arguments field.arguments with
+            cases hcoerce
+                  : Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments field.arguments with
             | error =>
                 simp [hlookup,
                   hcoerce]
             | success coercedArguments =>
-            have hcomplete :=
-              completeValue_fieldPairOrDeepSuccessResolvers_deepSuccessWithRef_value
-                schema rootSelectionSet base variableValues targetParent
-                leftField rightField leftArguments rightArguments fuel
-                fieldDefinition.outputType (field :: fields)
-                runtimeType field.fieldName
-            simpa [Execution.executeField, Execution.resolveFieldValue, hmeta, hlookup, hcoerce,
-              deepSelectionSetSuccessResolversWithRef,
-              fieldPairOrDeepSuccessResolvers_filler_object schema
-                rootSelectionSet base targetParent leftField rightField
-                runtimeType field.fieldName runtimeType leftArguments
-                rightArguments coercedArguments] using
-              congrArg (Execution.singleFieldResult responseName) hcomplete
+                have hcomplete :=
+                  completeValue_fieldPairOrDeepSuccessResolvers_deepSuccessWithRef_value
+                    schema rootSelectionSet base variableValues targetParent
+                    leftField rightField leftArguments rightArguments fuel
+                    fieldDefinition.outputType (field :: fields)
+                    runtimeType field.fieldName
+                simpa [Execution.executeField, Execution.resolveFieldValue, hmeta,
+                  hlookup, hcoerce, deepSelectionSetSuccessResolversWithRef,
+                  fieldPairOrDeepSuccessResolvers_filler_object schema
+                    rootSelectionSet base targetParent leftField rightField
+                    runtimeType field.fieldName runtimeType leftArguments
+                    rightArguments coercedArguments]
+                  using congrArg (Execution.singleFieldResult responseName) hcomplete
 
   theorem completeValue_fieldPairOrDeepSuccessResolvers_deepSuccessWithRef_value
       {ObjectRef : Type} (schema : Schema)
@@ -978,7 +979,8 @@ mutual
               dsimp only at hmeta
               subst fieldName
               apply Execution.executeField_typename_eq
-              simp [projectionTargetResolverValue, runtimeObjectType?_projectionResolverValue]
+              simp [projectionTargetResolverValue,
+                runtimeObjectType?_projectionResolverValue]
         cases hlookup : schema.lookupField parentType field.fieldName with
         | none =>
             simp [Execution.executeField, hlookup]

@@ -170,8 +170,8 @@ theorem recursiveExecutionConstruction_holds : RecursiveExecutionConstruction :=
   rw [supplies.boundary] at collectedMapped
   have plannedMapped := build_plan supplies.injective collected.1.collectedFieldsMap ([] : List Nat)
   simp only [List.map_nil] at plannedMapped
-  simp only [ScheduledExecution.executeRootSelectionSetCore, Execution.executeRootSelectionSetCore,
-    run_bind, collectedMapped, collection]
+  simp only [ScheduledExecution.executeRootSelectionSetCore,
+    Execution.executeRootSelectionSetCore, run_bind, collectedMapped, collection]
   rw [plannedMapped]
   refine ⟨next, ⟨?_, planned.supplies,
     Nat.le_trans collectedKeys.1 planned.scheduledMonotone,

@@ -150,9 +150,10 @@ theorem ResourceState.observeCompletionAndCleanup_taskFailure (resources : Resou
         completed.1.observeHandlerCleanup before (.taskFailure failed errors)
       resources.observeCompletionAndCleanup before (.taskFailure failed errors)
       = (requested.1, completed.2 ++ requested.2) := by
-  simp only [ResourceState.observeCompletionAndCleanup, ResourceState.observeNormalCompletion,
-    normalCompletionTarget?, GraphBatchResult.handleGraphEvent, State.handleGraphEvent,
-    List.nil_append, ResourceState.observeHandlerCleanup]
+  simp only [ResourceState.observeCompletionAndCleanup,
+    ResourceState.observeNormalCompletion, normalCompletionTarget?,
+    GraphBatchResult.handleGraphEvent, State.handleGraphEvent, List.nil_append,
+    ResourceState.observeHandlerCleanup]
 
 /-- The input's completed queue-owned identity stays released through all cleanup starts. -/
 theorem ResourceState.observeCompletionAndCleanup_finishedTarget

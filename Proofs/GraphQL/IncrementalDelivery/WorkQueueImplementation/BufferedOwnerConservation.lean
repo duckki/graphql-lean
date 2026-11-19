@@ -155,7 +155,8 @@ theorem State.drainReadyGroups_go_cancelledGroups_subset (fuel : Nat) (queue : S
             dsimp only
             intro ref member
             apply ih _
-            rwa [State.startNewWork_cancelledGroups, State.finishGroupSuccess_cancelledGroups]
+            rwa [State.startNewWork_cancelledGroups,
+              State.finishGroupSuccess_cancelledGroups]
         | some errors =>
             dsimp only
             intro ref member

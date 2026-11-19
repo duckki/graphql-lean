@@ -322,10 +322,14 @@ theorem mixed_drain_shared_ledger
       = 1 := by cbv
   have lastCount : ((ready.drainReadyGroups.2.take 4).flatMap WorkQueueEvent.objectValues).length
       = 2 := by cbv
-  rw [show State.drainReadyGroups.go ready.groupNodes.length ready = ready.drainReadyGroups
-    from rfl, firstCount] at firstCovered
-  rw [show State.drainReadyGroups.go ready.groupNodes.length ready = ready.drainReadyGroups
-    from rfl, lastCount] at lastCovered
+  rw [
+    show State.drainReadyGroups.go ready.groupNodes.length ready
+          = ready.drainReadyGroups from rfl, firstCount]
+    at firstCovered
+  rw [
+    show State.drainReadyGroups.go ready.groupNodes.length ready
+          = ready.drainReadyGroups from rfl, lastCount]
+    at lastCovered
   refine ⟨added, exactValues, inventory.unique, covered, firstCovered, lastCovered, ?_⟩
   intro tooEarly
   have inValues : sharedValue ∈ (added.take 1).map Prod.snd :=
@@ -351,8 +355,10 @@ theorem mixed_drain_membership_boundary
     firstTask firstNode firstValue (by cbv) rfl (by simp [firstNode, firstValue])
   have size : ((ready.drainReadyGroups.2.take 2).flatMap WorkQueueEvent.objectValues).length
       = (middle.2.flatMap WorkQueueEvent.objectValues).length := by cbv
-  rw [show State.drainReadyGroups.go ready.groupNodes.length ready = ready.drainReadyGroups
-    from rfl, size] at firstCovered
+  rw [
+    show State.drainReadyGroups.go ready.groupNodes.length ready
+          = ready.drainReadyGroups from rfl, size]
+    at firstCovered
   refine ⟨cleared 2 (by cbv) (firstTask, firstValue) firstCovered, ?_⟩
   refine ⟨{ group := ⟨lastOwner, some parent.ref⟩, tasks := [sharedTask] }, ?_, by simp⟩
   cbv

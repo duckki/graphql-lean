@@ -98,8 +98,9 @@ theorem removeGroup_walk_accounting {queue : ReferenceWorkQueue.State} {work : W
           have lookup := accounting_lookup core fresh
           cases found : queue.groupNode? key with
           | none =>
-              simpa only [State.removeGroup.walk, ReferenceWorkQueue.State.removeGroup.collect,
-                lookup, found] using tailIH removed frontier.skip state targets matching sound core
+              simpa only [State.removeGroup.walk,
+                ReferenceWorkQueue.State.removeGroup.collect, lookup, found]
+                using tailIH removed frontier.skip state targets matching sound core
           | some group =>
               rw [State.removeGroup.walk, lookup, found,
                 ReferenceWorkQueue.State.removeGroup.collect, found]

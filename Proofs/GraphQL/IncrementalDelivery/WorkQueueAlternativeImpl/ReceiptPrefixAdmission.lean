@@ -53,10 +53,16 @@ private theorem streamItems_take_fresh {before : List GraphEvent} {stream items}
     (count : Nat)
     : ReferenceWorkQueue.GraphEvent.Fresh before
         (.streamItems stream (items.take count)) := by
-  dsimp only [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities] at fresh ⊢
+  dsimp only [ReferenceWorkQueue.GraphEvent.Fresh,
+    ReferenceWorkQueue.GraphEvent.identities]
+    at fresh ⊢
   rw [List.map_take]
-  exact ⟨List.Nodup.sublist (List.take_sublist _ _) fresh.1, fresh.2.1,
-    fun occurrence selected => fresh.2.2.1 occurrence (List.mem_of_mem_take selected), fresh.2.2.2⟩
+  exact ⟨
+    List.Nodup.sublist (List.take_sublist _ _) fresh.1,
+    fresh.2.1,
+    fun occurrence selected => fresh.2.2.1 occurrence (List.mem_of_mem_take selected),
+    fresh.2.2.2
+  ⟩
 
 private theorem streamItems_take_ready {work : Work} {before : List GraphEvent}
     {stream items}

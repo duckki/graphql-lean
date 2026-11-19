@@ -288,11 +288,13 @@ theorem branched_release_covers_survivors
   have forest : current.RemovalForest parents := by
     refine ⟨children, links, ?_⟩
     intro first second firstMember secondMember linked
-    simp only [current, List.mem_cons, List.not_mem_nil, or_false] at firstMember secondMember
-    rcases firstMember with rfl | rfl | rfl | rfl | rfl <;>
-      rcases secondMember with rfl | rfl | rfl | rfl | rfl <;>
-      simp [closing, shell, left, right, separate, parentRecord, parent, childRecord, child]
-        at linked ⊢
+    simp only [current, List.mem_cons, List.not_mem_nil, or_false]
+      at firstMember secondMember
+    rcases firstMember with rfl | rfl | rfl | rfl | rfl
+    <;> rcases secondMember with rfl | rfl | rfl | rfl | rfl
+    <;> simp [closing, shell, left, right, separate, parentRecord, parent, childRecord,
+          child]
+          at linked ⊢
   apply State.finishGroupSuccess_root_coverage forest (group := closing) (by rfl)
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl | rfl

@@ -724,8 +724,10 @@ private theorem CaseCursor.BooleanEnvironment.unresolved_realizes
     (variableValues : VariableValues)
     : CaseCursor.BooleanEnvironment.unresolved.Realizes variableValues := by
   intro variableName value hstatus
-  simp [CaseCursor.BooleanEnvironment.unresolved, CaseCursor.BooleanEnvironment.statusForVariable,
-    CaseCursor.BooleanEnvironment.variableValues, inputValueBoolean?, lookupVariableValue?]
+  simp [CaseCursor.BooleanEnvironment.unresolved,
+    CaseCursor.BooleanEnvironment.statusForVariable,
+    CaseCursor.BooleanEnvironment.variableValues, inputValueBoolean?,
+    lookupVariableValue?]
     at hstatus
 
 private theorem CaseCursor.BooleanEnvironment.Realizes.assign
@@ -741,16 +743,20 @@ private theorem CaseCursor.BooleanEnvironment.Realizes.assign
       intro candidate candidateValue hstatus
       by_cases heq : candidate = variableName
       · subst candidate
-        simp [CaseCursor.BooleanEnvironment.assign, CaseCursor.BooleanEnvironment.statusForVariable,
-          CaseCursor.BooleanEnvironment.variableValues, inputValueBoolean?, lookupVariableValue?,
-          ConstInputValue.toInputValue, InputValue.staticBoolean?] at hstatus
+        simp [CaseCursor.BooleanEnvironment.assign,
+          CaseCursor.BooleanEnvironment.statusForVariable,
+          CaseCursor.BooleanEnvironment.variableValues, inputValueBoolean?,
+          lookupVariableValue?, ConstInputValue.toInputValue, InputValue.staticBoolean?]
+          at hstatus
         subst candidateValue
         exact hvalue
       · have hne : variableName ≠ candidate := fun equal => heq equal.symm
         apply hrealizes candidate candidateValue
-        simpa [CaseCursor.BooleanEnvironment.assign, CaseCursor.BooleanEnvironment.statusForVariable,
-          CaseCursor.BooleanEnvironment.variableValues, inputValueBoolean?, lookupVariableValue?,
-          heq, hne] using hstatus
+        simpa [CaseCursor.BooleanEnvironment.assign,
+          CaseCursor.BooleanEnvironment.statusForVariable,
+          CaseCursor.BooleanEnvironment.variableValues, inputValueBoolean?,
+          lookupVariableValue?, heq, hne]
+          using hstatus
 
 private def NamedFieldsBooleanFree (fields : List NamedField) : Prop :=
   ∀ namedField,
@@ -818,7 +824,8 @@ private theorem fieldGroupsBooleanFree_addFieldWithResponseName
       intro group hgroup candidate hcandidate
       simp only [addFieldWithResponseName, List.mem_singleton] at hgroup
       subst group
-      simp only [FieldGroup.fields, List.mem_cons, List.mem_nil_iff, or_false] at hcandidate
+      simp only [FieldGroup.fields, List.mem_cons, List.mem_nil_iff, or_false]
+        at hcandidate
       subst candidate
       exact hfield
   | cons headGroup rest ih =>
@@ -1129,20 +1136,22 @@ private theorem CaseCursor.summarizeDecisionWithPruning_refines_complete
   case case1 =>
     intro inherited caseCondition cursor possibleTypes environment
       hbranches ih variableValues hrealizes hsymbolic
-    rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
-      caseCondition cursor possibleTypes environment pruningValues hbranches,
-      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
-        caseCondition cursor possibleTypes
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes environment pruningValues hbranches,
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
         (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues hbranches]
     exact ih variableValues hrealizes hsymbolic
   case case2 =>
     intro inherited caseCondition cursor possibleTypes environment branch rest
       hbranches typeName hcondition ihSelect ihSkip variableValues hrealizes hsymbolic
-    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-      caseCondition cursor possibleTypes environment pruningValues branch rest
-      hbranches,
-      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-        caseCondition cursor possibleTypes
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes environment pruningValues branch rest
+        hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
         (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues branch rest
         hbranches]
     simp only [hcondition]
@@ -1156,11 +1165,12 @@ private theorem CaseCursor.summarizeDecisionWithPruning_refines_complete
       hbranches literal hcondition value hstatus selectedLiteral ih variableValues
       hrealizes hsymbolic
     have hknown := hrealizes literal.variableName value hstatus
-    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-      caseCondition cursor possibleTypes environment pruningValues branch rest
-      hbranches,
-      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-        caseCondition cursor possibleTypes
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes environment pruningValues branch rest
+        hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
         (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues branch rest
         hbranches]
     simp only [hcondition, hstatus]
@@ -1180,11 +1190,12 @@ private theorem CaseCursor.summarizeDecisionWithPruning_refines_complete
     intro inherited caseCondition cursor possibleTypes environment branch rest
       hbranches literal hcondition hstatus ihFalse ihTrue variableValues
       hrealizes hsymbolic
-    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-      caseCondition cursor possibleTypes environment pruningValues branch rest
-      hbranches,
-      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-        caseCondition cursor possibleTypes
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes environment pruningValues branch rest
+        hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
         (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues branch rest
         hbranches]
     simp only [hcondition, hstatus]
@@ -1431,11 +1442,12 @@ theorem summarizeDecisionWithPruning_complete_eq_of_booleanFree
     intro inherited caseCondition cursor possibleTypes environment hbranches ih
       left right henvironment hcursor
     subst environment
-    rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
-      caseCondition cursor possibleTypes
-      (CaseCursor.BooleanEnvironment.concrete left) fixedVariableValues hbranches,
-      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
-        caseCondition cursor possibleTypes
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete left) fixedVariableValues hbranches,
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
         (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues hbranches]
     exact ih left right rfl
       (cursor.fieldGroups_booleanFree hcursor _ possibleTypes)
@@ -1443,12 +1455,15 @@ theorem summarizeDecisionWithPruning_complete_eq_of_booleanFree
     intro inherited caseCondition cursor possibleTypes environment branch rest
       hbranches typeName hcondition ihSelect ihSkip left right henvironment hcursor
     subst environment
-    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-      caseCondition cursor possibleTypes
-      (CaseCursor.BooleanEnvironment.concrete left) fixedVariableValues branch rest hbranches,
-      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
-        caseCondition cursor possibleTypes
-        (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues branch rest hbranches]
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete left) fixedVariableValues branch rest
+        hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues branch rest
+        hbranches]
     simp only [hcondition]
     apply BooleanDecision.joinMap_congr algebra
     intro region hregion
@@ -1582,24 +1597,30 @@ theorem summarizeDecisionWithPruning_complete_order_independent
     intro inherited caseCondition cursor possibleTypes environment
       hbranches ih variableValues henvironment leftOrder rightOrder
     subst environment
-    rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema leftOrder inherited
-      caseCondition cursor possibleTypes
-      (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues hbranches,
-      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema rightOrder inherited
-        caseCondition cursor possibleTypes
-        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues hbranches]
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema leftOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues
+        hbranches,
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema rightOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues
+        hbranches]
     exact ih variableValues rfl leftOrder rightOrder
   case case2 =>
     intro inherited caseCondition cursor possibleTypes environment branch rest
       hbranches typeName hcondition ihSelect ihSkip variableValues henvironment leftOrder
       rightOrder
     subst environment
-    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema leftOrder inherited
-      caseCondition cursor possibleTypes
-      (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch rest hbranches,
-      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema rightOrder inherited
-        caseCondition cursor possibleTypes
-        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch rest hbranches]
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema leftOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch
+        rest hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema rightOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch
+        rest hbranches]
     simp only [hcondition]
     apply BooleanDecision.joinMap_congr algebra
     intro region hregion
@@ -1611,12 +1632,15 @@ theorem summarizeDecisionWithPruning_complete_order_independent
       hbranches literal hcondition value hstatus selectedLiteral ih variableValues
       henvironment leftOrder rightOrder
     subst environment
-    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema leftOrder inherited
-      caseCondition cursor possibleTypes
-      (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch rest hbranches,
-      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema rightOrder inherited
-        caseCondition cursor possibleTypes
-        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch rest hbranches]
+    rw [
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema leftOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch
+        rest hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema rightOrder
+        inherited caseCondition cursor possibleTypes
+        (CaseCursor.BooleanEnvironment.concrete variableValues) fixedVariableValues branch
+        rest hbranches]
     simp only [hcondition, hstatus]
     exact ih variableValues rfl leftOrder rightOrder
   case case4 =>

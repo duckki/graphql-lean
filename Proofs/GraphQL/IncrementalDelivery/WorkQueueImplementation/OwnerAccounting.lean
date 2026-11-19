@@ -241,12 +241,12 @@ theorem State.HealthyRegisteredTaskAccounting.handleGraphEvent_ofPendingAccounti
         cancelled pending.matching generated links groupMatching canonical stream items matching
         available
   | streamSuccess stream =>
-      dsimp only [State.handleGraphEvent, State.streamSuccess, GraphEvent.recordTaskOutcome,
-        GraphEvent.groupFailures, List.nil_append]
+      dsimp only [State.handleGraphEvent, State.streamSuccess,
+        GraphEvent.recordTaskOutcome, GraphEvent.groupFailures, List.nil_append]
       split <;> exact accounted
   | streamFailure stream errors =>
-      dsimp only [State.handleGraphEvent, State.streamFailure, GraphEvent.recordTaskOutcome,
-        GraphEvent.groupFailures, List.nil_append]
+      dsimp only [State.handleGraphEvent, State.streamFailure,
+        GraphEvent.recordTaskOutcome, GraphEvent.groupFailures, List.nil_append]
       split <;> exact accounted
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

@@ -96,8 +96,11 @@ theorem basicFields_perm (schema : Schema) (resolvers : Resolvers ObjectRef)
     (basicFields_success_iff schema resolvers variables fuel parentType source right).mpr
       (fun g hg => hs g (hp.mem_iff.mpr hg))
   refine ⟨data', hd', ?_⟩
-  rw [basicFields_entries schema resolvers variables fuel parentType source path left data h,
-    basicFields_entries schema resolvers variables fuel parentType source path right data' hd']
+  rw [
+    basicFields_entries schema resolvers variables fuel parentType source path left data
+      h,
+    basicFields_entries schema resolvers variables fuel parentType source path right data'
+      hd']
   exact hp.flatMap_right _
 
 /-- Two successful basic field partitions concatenate successfully, by field-list

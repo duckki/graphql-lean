@@ -19,7 +19,8 @@ theorem State.runNormalized_stopped_eq_terminated (work : Work)
     : ((State.initialize work).runNormalized inputs).1.stopped
       = ((State.initialize work).runNormalized inputs).1.queue.terminated := by
   apply State.runNormalized_flagsAligned
-  rw [State.initialize_stopped, State.initialize_queue, ReferenceWorkQueue.createWorkQueue_terminated]
+  rw [State.initialize_stopped, State.initialize_queue,
+    ReferenceWorkQueue.createWorkQueue_terminated]
 
 /-- The actual response reader's records and stop coverage are derived from the same
 constructed FIFO prefix. A finished reader has no queue-owned acquired remainder.
@@ -35,10 +36,18 @@ theorem ResourcePrefixConstruction.readerSafety {work inputs resources actions}
       ∧ (cursor.finished = true → ∀ target, resources target ≠ .owned .queue) := by
   dsimp only
   obtain ⟨valid, started⟩ := built.sourceEvidence
-  rw [ResponseStreamCursor.run_buildResponse_queue response work inputs generated valid started,
-    ResponseStreamCursor.run_buildResponse_finished response work inputs generated valid started]
-  exact ⟨(built.invariants generated).2.1, built.stopCoverage generated,
-    fun ended => (built.invariants generated).2.2 ((State.runNormalized_stopped_eq_terminated _ _).trans ended)⟩
+  rw [
+    ResponseStreamCursor.run_buildResponse_queue response work inputs generated valid
+      started,
+    ResponseStreamCursor.run_buildResponse_finished response work inputs generated valid
+      started]
+  exact ⟨
+    (built.invariants generated).2.1,
+    built.stopCoverage generated,
+    fun ended =>
+      (built.invariants generated).2.2
+        ((State.runNormalized_stopped_eq_terminated _ _).trans ended)
+  ⟩
 
 -----------------------------------------------------------------------------------------
 -- Observe cleanup at the real close guard, never as a late synthetic dispatch
@@ -108,8 +117,9 @@ theorem ResourcePrefixConstruction.readerCloseSafety {work inputs resources acti
         have ended := closed
         change ((ResponseStreamCursor.buildResponse response work).2.run inputs).2.1.finished = false at ended
         rw [ResponseStreamCursor.run_buildResponse_finished response work inputs generated valid started] at ended
-        rw [ResponseStreamCursor.run_buildResponse_queue response work inputs generated valid started,
-          State.runNormalized_stopped_eq_terminated]
+        rw [
+          ResponseStreamCursor.run_buildResponse_queue response work inputs generated
+            valid started, State.runNormalized_stopped_eq_terminated]
         exact ended
       simpa only [ResourceState.observeReaderClose, closed, Bool.false_eq_true,
         ↓reduceIte]

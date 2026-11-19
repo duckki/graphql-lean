@@ -96,7 +96,8 @@ mutual
         have hf := deferred_workAt final lower _ deferMap usages path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
           _ ((hm.extend he hle).extend het hlt) hl hpart.1 hpart.2.1 (hw.extend het hlt)
-        simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [collectExecutionGroups, executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
           workAt_combine hf hwt⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
@@ -302,8 +303,15 @@ mutual
             (Nat.le_refl _) hav (by intro f hf; obtain ⟨old, _, rfl⟩ := List.mem_map.mp hf; rfl)
           have hea := allocate_extends middle middleState []
           have heall := hea.trans het (Nat.le_succ middleState)
-          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
-          refine ⟨by dsimp only [middleState] at *; omega, final, he.trans heall hle, hfv, ?_⟩
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+            StateT.run_pure, id_pure_eq]
+          refine ⟨
+            by dsimp only [middleState] at *; omega,
+            final,
+            he.trans heall hle,
+            hfv,
+            ?_
+          ⟩
           apply workAt_combine (workAt_catchNull final lower _ _ _
             (hw.extend heall (by dsimp only [middleState] at *; omega)))
           rw [WorkAt]

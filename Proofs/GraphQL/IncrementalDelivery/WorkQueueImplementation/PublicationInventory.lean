@@ -363,7 +363,8 @@ theorem State.taskFailure_objectValues (queue : State) (occurrence : Occurrence)
         split
         · rfl
         · split
-          · simp [State.finishGroupFailure, List.flatMap_append, WorkQueueEvent.objectValues]
+          · simp [State.finishGroupFailure, List.flatMap_append,
+              WorkQueueEvent.objectValues]
           · rfl
   unfold State.taskFailure
   split

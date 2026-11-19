@@ -34,10 +34,12 @@ theorem basicList_length (schema : Schema) (resolvers : Resolvers ObjectRef)
   | nil =>
       simp [GraphQL.Execution.completeValueList] at h; simp [← h.1]
   | cons head tail ih =>
-      cases hh : GraphQL.Execution.completeValue schema resolvers variables fuel itemType selected head <;>
-        cases ht : GraphQL.Execution.completeValueList schema resolvers variables fuel itemType selected tail <;>
-        simp only [GraphQL.Execution.completeValueList, hh, ht, GraphQL.Execution.Result.combine,
-          Except.ok.injEq, Prod.mk.injEq, reduceCtorEq] at h
+      cases hh : GraphQL.Execution.completeValue schema resolvers variables fuel itemType selected head
+      <;> cases ht : GraphQL.Execution.completeValueList schema resolvers variables fuel itemType selected tail
+      <;> simp only [GraphQL.Execution.completeValueList, hh, ht,
+            GraphQL.Execution.Result.combine, Except.ok.injEq, Prod.mk.injEq,
+            reduceCtorEq]
+            at h
       obtain ⟨rfl, _⟩ := h
       simpa using ih _ _ ht
 
@@ -152,8 +154,9 @@ theorem seeded_stream (path : ResponsePath) (count : Nat)
   · simp only [Completion.catchNull, he]
     exact .combine hwp (.stream (hn ▸ hwr))
   · have hall := (hpp.append hpr).cons (path, Atom.list)
-    simpa only [Completion.catchNull, he, result, value, List.flatten_append, items_append,
-      Nat.zero_add, hlen first hp, List.cons_append, List.append_assoc] using hall
+    simpa only [Completion.catchNull, he, result, value, List.flatten_append,
+      items_append, Nat.zero_add, hlen first hp, List.cons_append, List.append_assoc]
+      using hall
   · intro hn'
     simp only [Completion.catchNull, he, result, value, List.flatten_append,
       List.cons_append, List.map_cons, List.nodup_cons] at hn'

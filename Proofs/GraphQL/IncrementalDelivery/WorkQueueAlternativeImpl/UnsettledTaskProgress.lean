@@ -43,14 +43,18 @@ theorem handleGraphEvent_tasks_eq_snapshot (queue : Kernel) (event : GraphEvent)
             ReferenceWorkQueue.State.streamItems, registrationSnapshot, active, Bool.not_false,
             Bool.false_eq_true, ↓reduceIte]
       | true =>
-          rw [ReferenceWorkQueue.State.handleGraphEvent, queue.streamItems_tasks stream items active,
-            registrationSnapshot_itemFold queue stream items active, streamRegistrationFold_tasks]
+          rw [ReferenceWorkQueue.State.handleGraphEvent,
+            queue.streamItems_tasks stream items active,
+            registrationSnapshot_itemFold queue stream items active,
+            streamRegistrationFold_tasks]
   | taskFailure occurrence errors => exact queue.taskFailure_tasks occurrence errors
   | streamSuccess stream =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamSuccess]
       split <;> rfl
   | streamFailure stream errors =>
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamFailure]
       split <;> rfl
 
 -----------------------------------------------------------------------------------------

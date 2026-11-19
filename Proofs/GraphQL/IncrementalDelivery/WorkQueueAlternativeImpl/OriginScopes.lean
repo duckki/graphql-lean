@@ -136,9 +136,9 @@ theorem map_scoped (f : α → β) (completed : RecordedCompletion α) (route : 
 theorem catchNull_scoped (wrap : α → ResponseValue) (completed : RecordedCompletion α)
     (route : List Nat) (known : Scoped route completed.origins)
     : Scoped route (completed.catchNull wrap).origins := by
-  cases h : completed.report.outcome <;>
-    simp only [RecordedCompletion.catchNull, Report.catchNull, h, RecordedCompletion.origins,
-      RecordedWork.origins, List.append_nil]
+  cases h : completed.report.outcome
+  <;> simp only [RecordedCompletion.catchNull, Report.catchNull, h,
+        RecordedCompletion.origins, RecordedWork.origins, List.append_nil]
   · exact known.left
   · exact known
 
@@ -161,8 +161,9 @@ theorem nonNull_scoped (completed : RecordedCompletion ResponseValue) (route : L
                 ScheduledErrors.countedErrors]
                 using Scoped.primitive route 1
           | succ errors =>
-              simpa [RecordedCompletion.nonNull, RecordedCompletion.origins, Report.nonNull,
-                RecordedWork.origins] using known.left.parent
+              simpa [RecordedCompletion.nonNull, RecordedCompletion.origins,
+                Report.nonNull, RecordedWork.origins]
+                using known.left.parent
       | scalar value =>
           simpa [RecordedCompletion.nonNull, RecordedCompletion.origins, Report.nonNull]
             using known.parent

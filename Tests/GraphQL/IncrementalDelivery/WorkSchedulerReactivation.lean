@@ -153,8 +153,8 @@ theorem inputs_valid : ValidGraphEvents work batches.flatten := by
       ⟨_, _, _, shared_known, by intro source impossible; cases impossible⟩
   exact .append second ⟨_, _, parent_known, by cbv, by cbv⟩
     (by
-      simp [failure, sharedSuccess, parentSuccess, GraphEvent.Fresh, GraphEvent.identities,
-        failedTask, sharedTask, parentTask])
+      simp [failure, sharedSuccess, parentSuccess, GraphEvent.Fresh,
+        GraphEvent.identities, failedTask, sharedTask, parentTask])
     ⟨_, _, _, parent_known, by intro source impossible; cases impossible⟩
 
 /-- Every event settles an actually started task before queue termination.

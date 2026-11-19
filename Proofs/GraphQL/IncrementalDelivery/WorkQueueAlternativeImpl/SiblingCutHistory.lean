@@ -128,10 +128,14 @@ private theorem CutPrefix.scope_history {plan : List (Sibling α)} {scope : Scop
         .settle started [] (tail ++ skipped) sibling pending (by simp [Scope.start])
       have ids := unique
       simp only [List.cons_append, List.map_cons, List.nodup_cons] at ids
-      have freshLater : ∀ other ∈ tail ++ skipped,
-          other.id ∉ ((scope.start sibling.id).settle [] sibling (tail ++ skipped)).started := by
+      have freshLater
+          : ∀ other ∈ tail ++ skipped,
+              other.id
+              ∉ ((scope.start sibling.id).settle [] sibling
+                  (tail ++ skipped)).started := by
         intro other present repeated
-        simp only [Scope.settle, Scope.start, List.mem_append, List.mem_singleton] at repeated
+        simp only [Scope.settle, Scope.start, List.mem_append, List.mem_singleton]
+          at repeated
         rcases repeated with old | same
         · exact fresh other (List.mem_cons_of_mem _ present) old
         · exact ids.1 (same ▸ List.mem_map_of_mem present)

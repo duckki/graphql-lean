@@ -191,7 +191,8 @@ private theorem map_fold_eq (consumed groups : CollectedFieldsMap) (index : Inde
       have fresh : group.1 ∉ consumed.map Prod.fst := by
         have separated := (List.nodup_append.mp (by simpa only [List.map_append] using unique)).2.2
         exact fun member => separated group.1 member group.1 (by simp) rfl
-      rw [List.foldl_cons, List.foldl_cons, mapStep_eq consumed index parent plan group ordered fresh]
+      rw [List.foldl_cons, List.foldl_cons,
+        mapStep_eq consumed index parent plan group ordered fresh]
       apply ih (consumed ++ [group]) _
         (ordered_step consumed index parent plan group ordered)
       simpa only [List.append_assoc, List.singleton_append] using unique

@@ -551,8 +551,8 @@ theorem slots_completeSlot_buildValueSlot_named_object_eq_completeValue
     exact collectFieldsByKey_eq_collectFields_self_object schema variableValues
       runtimeType ref selectionSet
   rw [GraphQL.Execution.completeValue]
-  simp [hinclude, GraphQL.Execution.collectSubfields, GraphQL.Execution.mergeExecutableGroups,
-    ScheduleKey.executableField, hcollect]
+  simp [hinclude, GraphQL.Execution.collectSubfields,
+    GraphQL.Execution.mergeExecutableGroups, ScheduleKey.executableField, hcollect]
   rw [catchBubbleAsNull_objectResultFromFields]
 
 theorem slots_completeSlot_buildValueSlot_nonNull_named_object_eq_completeValue
@@ -806,7 +806,8 @@ mutual
               expectedPendingChildWorkCompletionStack, GraphQL.Execution.completeValue]
         | scalar scalarValue =>
             by_cases hcomposite : (TypeRef.named typeName).isCompositeBool schema = true
-            · simp [buildValueSlot, completeSlot, expectedPendingChildWorkForCompleteValue,
+            · simp [buildValueSlot, completeSlot,
+                expectedPendingChildWorkForCompleteValue,
                 expectedPendingChildWorkCompletionStack, GraphQL.Execution.completeValue,
                 hcomposite]
             · have hcompositeFalse :
@@ -814,7 +815,8 @@ mutual
                 cases h : (TypeRef.named typeName).isCompositeBool schema with
                 | false => rfl
                 | true => exact False.elim (hcomposite h)
-              simp [buildValueSlot, completeSlot, expectedPendingChildWorkForCompleteValue,
+              simp [buildValueSlot, completeSlot,
+                expectedPendingChildWorkForCompleteValue,
                 expectedPendingChildWorkCompletionStack, GraphQL.Execution.completeValue,
                 hcompositeFalse]
         | object runtimeType ref =>
@@ -830,7 +832,8 @@ mutual
                 cases h : schema.typeIncludesObjectBool typeName runtimeType with
                 | false => rfl
                 | true => exact False.elim (hincludes h)
-              simp [buildValueSlot, completeSlot, expectedPendingChildWorkForCompleteValue,
+              simp [buildValueSlot, completeSlot,
+                expectedPendingChildWorkForCompleteValue,
                 expectedPendingChildWorkCompletionStack, GraphQL.Execution.completeValue,
                 hincludesFalse]
         | list values =>
@@ -863,39 +866,50 @@ mutual
                 depth inner (key.executableField selectionSet) values
             calc
               completeSlot (.list inner)
-                  (buildValueSlot schema selectionSet (.list inner)
-                    (.list values) []).snd
-                  { valueStack :=
-                      (expectedPendingChildWorkCompletionStack schema resolvers
-                        variableValues
-                        (expectedPendingChildWorkForCompleteValue schema selectionSet
-                          (depth + 1) (.list inner) (.list values) [])).valueStack ++
-                        stack.valueStack
-                    fieldStore := stack.fieldStore } =
-                ( listResultFromItems
+                    (buildValueSlot schema selectionSet (.list inner)
+                      (.list values) []).snd
+                    {
+                      valueStack :=
+                        (expectedPendingChildWorkCompletionStack schema resolvers
+                          variableValues
+                          (expectedPendingChildWorkForCompleteValue schema selectionSet
+                            (depth + 1) (.list inner) (.list values) [])).valueStack
+                        ++ stack.valueStack
+                      fieldStore := stack.fieldStore
+                    }
+                  = (
+                    listResultFromItems
+                      (completeSlotList inner
+                        (mapAccumList
+                          (fun state value =>
+                            buildValueSlot schema selectionSet inner value state)
+                          [] values).snd
+                        {
+                          valueStack :=
+                            (expectedPendingChildWorkCompletionStack schema resolvers
+                              variableValues
+                              (expectedPendingChildWorkForCompleteValueList schema
+                                selectionSet depth inner values [])).valueStack
+                            ++ stack.valueStack
+                          fieldStore := stack.fieldStore
+                        }).fst,
                     (completeSlotList inner
                       (mapAccumList
-                        (fun state value => buildValueSlot schema selectionSet inner value state)
+                        (fun state value =>
+                          buildValueSlot schema selectionSet inner value state)
                         [] values).snd
-                      { valueStack :=
+                      {
+                        valueStack :=
                           (expectedPendingChildWorkCompletionStack schema resolvers
                             variableValues
                             (expectedPendingChildWorkForCompleteValueList schema
-                              selectionSet depth inner values [])).valueStack ++
-                            stack.valueStack
-                        fieldStore := stack.fieldStore }).fst
-                , (completeSlotList inner
-                    (mapAccumList
-                      (fun state value => buildValueSlot schema selectionSet inner value state)
-                      [] values).snd
-                    { valueStack :=
-                        (expectedPendingChildWorkCompletionStack schema resolvers
-                          variableValues
-                          (expectedPendingChildWorkForCompleteValueList schema
-                            selectionSet depth inner values [])).valueStack ++
-                          stack.valueStack
-                      fieldStore := stack.fieldStore }).snd ) := by
-                    simp [buildValueSlot, completeSlot, expectedPendingChildWorkForCompleteValue]
+                              selectionSet depth inner values [])).valueStack
+                          ++ stack.valueStack
+                        fieldStore := stack.fieldStore
+                      }).snd
+                  ) := by
+                simp [buildValueSlot, completeSlot,
+                  expectedPendingChildWorkForCompleteValue]
               _ = (listResultFromItems
                     (values.map (fun value =>
                       GraphQL.Execution.completeValue schema resolvers variableValues
@@ -961,7 +975,8 @@ mutual
                 stack
               )
     | depth, inner, [], stack, _hdepth, _hready => by
-        simp [mapAccumList, completeSlotList, expectedPendingChildWorkForCompleteValueList,
+        simp [mapAccumList, completeSlotList,
+          expectedPendingChildWorkForCompleteValueList,
           expectedPendingChildWorkCompletionStack]
     | depth, inner, value :: values, stack, hdepth, hready => by
         let headWork :=
@@ -1292,7 +1307,8 @@ theorem
       intro specFuels stack hlookup hlength hready
       cases specFuels with
       | nil =>
-          simp [buildFieldSlotsForResolved, mapAccumList, expectedPendingChildWorkForSources,
+          simp [buildFieldSlotsForResolved, mapAccumList,
+            expectedPendingChildWorkForSources,
             expectedScheduleSegmentSpecFieldResultsWithFuels,
             expectedPendingChildWorkCompletionStack, completeSlotList]
       | cons fuel specFuels =>

@@ -167,7 +167,8 @@ theorem merge_history
         refine ⟨current, by simp [noAtoms, applyAtoms], ?_, ?_⟩
         · simpa only [sourcePrefixTasks, selected, Option.bind_some,
             sourceEventTask_control control, Option.toList_none, List.append_nil] using entries
-        · simpa only [sourceHistoryCursors_step selected, sourceEventCursors_control control,
-            List.nil_append] using represented
+        · simpa only [sourceHistoryCursors_step selected,
+            sourceEventCursors_control control, List.nil_append]
+            using represented
 
 end GraphQL.IncrementalDelivery.Correctness

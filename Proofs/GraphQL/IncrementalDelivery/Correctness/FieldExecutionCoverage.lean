@@ -120,8 +120,8 @@ theorem responseFieldCoverage_of_values (containers : Bool) (schema : Schema)
                   simp [executeResponseField, eraseField, lookup,
                     coercion, resolved]
               | some value =>
-                  simp only [executeResponseField, GraphQL.Execution.executeField, List.map_cons,
-                    eraseField, lookup, coercion, resolved]
+                  simp only [executeResponseField, GraphQL.Execution.executeField,
+                    List.map_cons, eraseField, lookup, coercion, resolved]
                   refine runEnsures_bind
                     (ValueCompletionCovered containers (path ++ [.field name])
                       (GraphQL.Execution.completeValue schema resolvers variables fuel
@@ -176,8 +176,8 @@ theorem executeCollectedFields_entriesCovered_of_fields (containers : Bool)
   | nil =>
       intro state
       apply FieldsCompletionCovered.of_result_eq
-      simp [executeCollectedFields_nil, eraseGroups, GraphQL.Execution.executeCollectedFields,
-        Completion.pure]
+      simp [executeCollectedFields_nil, eraseGroups,
+        GraphQL.Execution.executeCollectedFields, Completion.pure]
   | cons group rest ih =>
       obtain ⟨name, selected⟩ := group
       have validHead : ∀ field ∈ selected, ArgumentValidity.FieldArgumentsValid variables field :=
@@ -200,9 +200,11 @@ theorem executeCollectedFields_entriesCovered_of_fields (containers : Bool)
         variables fuel parentType source rest uniqueTail path usages deferMap next
       have assembled := MixedPaths.executeCollectedFields_seeded schema resolvers variables
         fuel parentType source ((name, selected) :: rest) unique path usages deferMap state
-      simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq] at assembled ⊢
+      simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq]
+        at assembled ⊢
       change SeedOwnsCompletion _ _ _ (Completion.combine List.append head tail) at assembled
-      simp only [eraseGroups, List.map_cons, eraseGroup, GraphQL.Execution.executeCollectedFields]
+      simp only [eraseGroups, List.map_cons, eraseGroup,
+        GraphQL.Execution.executeCollectedFields]
       change FieldsCompletionCovered containers path
         (Result.combine List.append
           (GraphQL.Execution.executeField schema resolvers variables fuel parentType source

@@ -89,8 +89,9 @@ theorem failurePruningView_lookup {before : Kernel} {event events key node}
   rw [predicate]
   change ((registrationSnapshot before event).groupNode? key).bind _ = _
   rw [found]
-  simp only [Option.bind_some, pruningGroup, ReferenceWorkQueue.State.groupNode?_ref found,
-    List.contains_iff_mem, unpublished, ↓reduceIte]
+  simp only [Option.bind_some, pruningGroup,
+    ReferenceWorkQueue.State.groupNode?_ref found, List.contains_iff_mem, unpublished,
+    ↓reduceIte]
 
 /-- A pending occurrence retains links to all of its still-live contributors in the view.
 Only this occurrence is tracked: transferred tasks need not satisfy a global link invariant.
@@ -152,7 +153,8 @@ theorem failurePruningView_pendingOwner {before : Kernel} {event events occurren
     rw [failurePruningView_eq]
     apply List.mem_filterMap.mpr
     refine ⟨group, List.mem_of_find?_eq_some live, ?_⟩
-    simp only [pruningGroup, same, List.contains_iff_mem, unpublished, ↓reduceIte, retained]
+    simp only [pruningGroup, same, List.contains_iff_mem, unpublished, ↓reduceIte,
+      retained]
   cases found : (failurePruningView before event events).groupNode? owner.ref with
   | none =>
       have absent := List.find?_eq_none.mp found retained present

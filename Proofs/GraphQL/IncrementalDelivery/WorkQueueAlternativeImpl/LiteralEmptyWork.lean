@@ -91,7 +91,8 @@ mutual
                 simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
                 StateT.run_pure, id_pure_eq, RecordedCompletion.pure]; exact ⟨.empty, .empty⟩
             | scalar scalar =>
-                simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
+                simp only [RecordedExecution.completeValue,
+                  EagerRecordedExecution.completeValue]
                 split <;> exact ⟨.empty, .empty⟩
             | list sources =>
                 simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
@@ -151,8 +152,8 @@ mutual
           ((EagerRecordedExecution.completeValue schema resolvers variables fuel itemType fields source
             (path ++ [.index index]) usages context false (route ++ [0])).run supply).2
           (fun source member => literal source (List.mem_cons_of_mem _ member))).2
-        simp only [RecordedExecution.completeListValue, EagerRecordedExecution.completeListValue,
-          run_bind]
+        simp only [RecordedExecution.completeListValue,
+          EagerRecordedExecution.completeListValue, run_bind]
         refine ⟨?_, ?_⟩
         · split
           · exact cutHead.map (fun value => [value])

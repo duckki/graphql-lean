@@ -66,14 +66,20 @@ private theorem isSubType_lookupField
     rw [heq] at hinterface
     cases hinterface
     have hmem : expected ∈ interfaceDefinition.fields := by
-      exact List.mem_of_find?_eq_some (by
-        simpa [Schema.lookupField, Schema.lookupDeclaredField, hmeta, hparent, TypeDefinition.fields?,
-          Schema.lookupFieldDefinition] using hlookup)
+      exact List.mem_of_find?_eq_some
+        (by
+          simpa [Schema.lookupField, Schema.lookupDeclaredField, hmeta, hparent,
+            TypeDefinition.fields?, Schema.lookupFieldDefinition]
+            using hlookup)
     rcases hfields expected hmem with ⟨implementation, himplementation, himplements⟩
-    exact ⟨implementation, by
-      simpa [Schema.lookupField, Schema.lookupDeclaredField, hmeta, htarget, TypeDefinition.fields?,
-        Schema.lookupFieldDefinition, hfieldName] using himplementation,
-      outputTypeSubtype_namedType himplements.1⟩
+    exact ⟨
+      implementation,
+      by
+        simpa [Schema.lookupField, Schema.lookupDeclaredField, hmeta, htarget,
+          TypeDefinition.fields?, Schema.lookupFieldDefinition, hfieldName]
+          using himplementation,
+      outputTypeSubtype_namedType himplements.1
+    ⟩
 
 private theorem selectionSetDeclaredLookupReady_of_covariantLookup
     (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)

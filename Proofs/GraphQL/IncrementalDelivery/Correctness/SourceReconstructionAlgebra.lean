@@ -198,12 +198,16 @@ theorem seeded_nonNull (path : ResponsePath)
   · intro hs
     cases he : completed.result with
     | error errors =>
-        simp [CompletionSuccess, Completion.nonNull, he, nonNullCompletion, Completion.error] at hs
+        simp [CompletionSuccess, Completion.nonNull, he, nonNullCompletion,
+          Completion.error]
+          at hs
     | ok data =>
         rcases data with ⟨data, errors⟩
         cases data with
         | null =>
-            simp [CompletionSuccess, Completion.nonNull, he, nonNullCompletion, Completion.error] at hs
+            simp [CompletionSuccess, Completion.nonNull, he, nonNullCompletion,
+              Completion.error]
+              at hs
         | scalar text | object _ | list _ =>
             simp only [CompletionSuccess, Completion.nonNull, he, nonNullCompletion,
               Except.ok.injEq, Prod.mk.injEq, exists_eq_left'] at hs
@@ -266,18 +270,25 @@ theorem seeded_combine {pa : α → List Entry} {pb : β → List Entry} {pc : �
         (Completion.combine f left right) := by
   refine ⟨?_, ?_⟩
   · have hp := BasicErrors.combine f left.result right.result hl.positive hr.positive
-    cases he : left.result <;> cases hre : right.result <;>
-      simpa [Completion.combine, he, hre, GraphQL.Execution.Result.combine, Completion.error] using hp
+    cases he : left.result
+    <;> cases hre : right.result
+    <;> simpa [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
+      Completion.error]
+      using hp
   · intro hs
     cases he : left.result with
     | error errors =>
-        cases hre : right.result <;>
-          simp [CompletionSuccess, Completion.combine, he, hre, GraphQL.Execution.Result.combine, Completion.error] at hs
+        cases hre : right.result
+        <;> simp [CompletionSuccess, Completion.combine, he, hre,
+              GraphQL.Execution.Result.combine, Completion.error]
+              at hs
     | ok leftData =>
         rcases leftData with ⟨a, ea⟩
         cases hre : right.result with
         | error errors =>
-            simp [CompletionSuccess, Completion.combine, he, hre, GraphQL.Execution.Result.combine, Completion.error] at hs
+            simp [CompletionSuccess, Completion.combine, he, hre,
+              GraphQL.Execution.Result.combine, Completion.error]
+              at hs
         | ok rightData =>
             rcases rightData with ⟨b, eb⟩
             simp only [CompletionSuccess, Completion.combine, he, hre,
@@ -300,15 +311,17 @@ theorem seeded_combine {pa : α → List Entry} {pb : β → List Entry} {pc : �
                 using WorkEntries.combine hsa hsb
             · have hp := hpa.append hpb
               simp only [he, hre, result] at hp
-              simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine, result, hf, List.flatten_append]
+              simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
+                result, hf, List.flatten_append]
               apply List.Perm.trans _ hp
               simpa only [List.append_assoc]
                 using ((List.perm_append_comm (l₁ := pb b) (l₂ := sa.flatten)).append_left
                         (pa a)).append_right
                   sb.flatten
             · intro hn
-              simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine, result,
-                hf, List.flatten_append] at hn
+              simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
+                result, hf, List.flatten_append]
+                at hn
               obtain ⟨hna, hnb, hnc⟩ := shuffle_nodup hn
               have hsa' := hsea (by simpa only [he, result] using hna)
               have hsb' := hseb (by simpa only [hre, result] using hnb)

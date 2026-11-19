@@ -89,14 +89,16 @@ theorem modifyAtPath_bind (path : ResponsePath) (data : ResponseValue)
                 have composition := ih old.2
                 cases head : ResponseMerging.modifyAtPath rest first old.2 with
                 | none =>
-                    simp only [ResponseMerging.modifyAtPath, found, Option.bind_eq_bind, Option.bind_some,
-                      Option.bind_none, Option.pure_def, ← composition, head]
+                    simp only [ResponseMerging.modifyAtPath, found, Option.bind_eq_bind,
+                      Option.bind_some, Option.bind_none, Option.pure_def, ← composition,
+                      head]
                 | some updated =>
                     have next := replaced_fields_find name updated found
-                    cases tail : ResponseMerging.modifyAtPath rest second updated <;>
-                      simp only [ResponseMerging.modifyAtPath, found, Option.bind_eq_bind, Option.bind_some,
-                        Option.bind_none, Option.pure_def, ← composition, head, next,
-                        tail, replaced_fields_twice]
+                    cases tail : ResponseMerging.modifyAtPath rest second updated
+                    <;> simp only [ResponseMerging.modifyAtPath, found,
+                          Option.bind_eq_bind, Option.bind_some, Option.bind_none,
+                          Option.pure_def, ← composition, head, next, tail,
+                          replaced_fields_twice]
       | index index =>
           cases data <;> try rfl
           case list items =>
@@ -107,13 +109,15 @@ theorem modifyAtPath_bind (path : ResponsePath) (data : ResponseValue)
                 have composition := ih old
                 cases head : ResponseMerging.modifyAtPath rest first old with
                 | none =>
-                    simp only [ResponseMerging.modifyAtPath, found, Option.bind_eq_bind, Option.bind_some,
-                      Option.bind_none, Option.pure_def, ← composition, head]
+                    simp only [ResponseMerging.modifyAtPath, found, Option.bind_eq_bind,
+                      Option.bind_some, Option.bind_none, Option.pure_def, ← composition,
+                      head]
                 | some updated =>
-                    cases tail : ResponseMerging.modifyAtPath rest second updated <;>
-                      simp only [ResponseMerging.modifyAtPath, found, Option.bind_eq_bind, Option.bind_some,
-                        Option.bind_none, Option.pure_def, ← composition, head,
-                        List.getElem?_set_self, bound, tail, List.set_set]
+                    cases tail : ResponseMerging.modifyAtPath rest second updated
+                    <;> simp only [ResponseMerging.modifyAtPath, found,
+                          Option.bind_eq_bind, Option.bind_some, Option.bind_none,
+                          Option.pure_def, ← composition, head, List.getElem?_set_self,
+                          bound, tail, List.set_set]
 
 /-- Repeated item appends at one path equal one nonempty list patch. Witness: fold
 induction and same-path modification composition; nonemptiness avoids a spurious

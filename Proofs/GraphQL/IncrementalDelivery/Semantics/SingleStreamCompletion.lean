@@ -88,22 +88,21 @@ mutual
                 cases hi : schema.typeIncludesObjectBool parentType runtimeType
                 · simp [completeValue, GraphQL.Execution.completeValue, hi, RunMatches,
                     CompletionMatches, Work.size]
-                · simp only [completeValue, GraphQL.Execution.completeValue, hi, Bool.not_true,
-                    Bool.false_eq_true, ↓reduceIte]
+                · simp only [completeValue, GraphQL.Execution.completeValue, hi,
+                    Bool.not_true, Bool.false_eq_true, ↓reduceIte]
                   apply runMatches_after_contextCollection usage _ _ _ _ _
-                    (collectSubfields_itemContext schema variables runtimeType (.object runtimeType
-                      ref)
-                      fields usage hplain state)
-                    (collectSubfields_erase schema variables runtimeType (.object runtimeType ref)
-                      fields state)
+                    (collectSubfields_itemContext schema variables runtimeType
+                      (.object runtimeType ref) fields usage hplain state)
+                    (collectSubfields_erase schema variables runtimeType
+                      (.object runtimeType ref) fields state)
                   intro collection hn hp he
                   apply runMatches_bind _ _ _ _ _
-                    (executePlan_inContext usage hvalid deferMap schema resolvers variables fuel
-                      runtimeType (.object runtimeType ref)
-                      collection path state _ hn hp
-                      (executeCollectedFields_inContext usage hvalid deferMap schema resolvers
-                        variables fuel runtimeType (.object runtimeType ref) collection.collectedFieldsMap hp
-                        path state))
+                    (executePlan_inContext usage hvalid deferMap schema resolvers
+                      variables fuel runtimeType (.object runtimeType ref) collection path
+                      state _ hn hp
+                      (executeCollectedFields_inContext usage hvalid deferMap schema
+                        resolvers variables fuel runtimeType (.object runtimeType ref)
+                        collection.collectedFieldsMap hp path state))
                   intro completed hc
                   apply runMatches_pure
                   simpa [he] using completionMatches_catchNull ResponseValue.object completed _ hc

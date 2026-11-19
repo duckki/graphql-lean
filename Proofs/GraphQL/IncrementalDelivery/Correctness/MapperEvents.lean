@@ -85,7 +85,8 @@ theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpda
             ?_,
             ?_
           ⟩
-          · simp [eventLoop, action, StateT.run, StateT.bind, StateT.pure, bind, pure] at h ⊢
+          · simp [eventLoop, action, StateT.run, StateT.bind, StateT.pure, bind, pure]
+              at h ⊢
             rw [h]
           · refine ⟨?_, ⟨[], by simp, .nil⟩, ⟨[], by simp, .nil⟩⟩
             simpa [h] using preserves
@@ -101,7 +102,8 @@ theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpda
               refine ⟨{ initial with
                   pending := initial.pending ++ pending
                   completed := initial.completed ++ [completed] }, next, ?_, ?_⟩
-              · simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure] at hc hp ⊢
+              · simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure]
+                  at hc hp ⊢
                 simp only [hc, hp]
               · exact ⟨preserves.trans tailPreserves,
                   ⟨pending, rfl, by simpa [pendingRefs, eventPending] using refs⟩,
@@ -144,7 +146,8 @@ theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpda
                 ?_,
                 ?_
               ⟩
-              · simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure, hi] at hp ⊢
+              · simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure, hi]
+                  at hp ⊢
                 rw [hp]
               · exact ⟨preserves.trans tailPreserves,
                   ⟨pending, rfl, by simpa [pendingRefs, eventPending] using refs⟩,

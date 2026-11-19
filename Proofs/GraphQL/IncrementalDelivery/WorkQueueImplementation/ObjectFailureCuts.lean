@@ -147,7 +147,8 @@ theorem sourceObjectFailureCuts_visible (offset : Nat)
   rw [sourceObjectFailureCuts_append]
   change failedBefore (sourceObjectFailureCuts offset before ++
     sourceObjectFailureCuts boundary (block :: after)) (boundary + index) = _
-  simp only [failedBefore, List.filter_append, kept, List.map_append, sourceObjectFailureCuts]
+  simp only [failedBefore, List.filter_append, kept, List.map_append,
+    sourceObjectFailureCuts]
   split
   · rename_i absent
     rw [absent]

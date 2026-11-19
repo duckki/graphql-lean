@@ -70,8 +70,9 @@ theorem ResponseStreamCursor.queryObservation
     ?_
   ⟩
   have observation := observed.2
-  simp only [GraphQL.IncrementalDelivery.queryObservation, Execution.executeQueryWithFuel, applies,
-    ↓reduceIte, Correctness.executeRootSelectionSet_fromWork] at observation ⊢
+  simp only [GraphQL.IncrementalDelivery.queryObservation, Execution.executeQueryWithFuel,
+    applies, ↓reduceIte, Correctness.executeRootSelectionSet_fromWork]
+    at observation ⊢
   rw [executionFromWork_congr _
       (fun work => ReferenceWorkQueue.createWorkQueueForSchedule work (sources work)) _ _ factory,
     ResponseStreamCursor.buildResponse_initial,

@@ -59,8 +59,10 @@ example
   intro invariant
   have unfinished := (invariant RejectedTaskCleanup.producer (by simp [stale])).2
   apply unfinished
-  simp [ReferenceWorkQueue.GraphEvent.taskSettlements, ReferenceWorkQueue.GraphEvent.groupSuccesses,
-    ReferenceWorkQueue.GraphEvent.groupFailures, SharedOwnerFailure.parentSuccess, RejectedTaskCleanup.producer]
+  simp [ReferenceWorkQueue.GraphEvent.taskSettlements,
+    ReferenceWorkQueue.GraphEvent.groupSuccesses,
+    ReferenceWorkQueue.GraphEvent.groupFailures, SharedOwnerFailure.parentSuccess,
+    RejectedTaskCleanup.producer]
 
 -- The real completion observer releases that computation rather than aborting its buffer.
 example

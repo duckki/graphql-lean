@@ -422,7 +422,8 @@ private theorem valid : ReferenceWorkQueue.ValidGraphEvents work [event] := by
   · intro candidate member
     obtain rfl := List.mem_singleton.mp member
     exact ⟨_, _, known, by cbv⟩
-  · simp [event, ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities, item]
+  · simp [event, ReferenceWorkQueue.GraphEvent.Fresh,
+      ReferenceWorkQueue.GraphEvent.identities, item]
   · exact ⟨_, _, _, _, located, by simp, by simp,
       (by intro producer impossible; cases impossible), rfl⟩
 

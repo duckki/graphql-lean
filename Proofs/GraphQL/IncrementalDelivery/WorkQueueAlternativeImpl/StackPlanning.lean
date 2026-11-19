@@ -116,7 +116,8 @@ theorem budget_eq (forest : Forest) : budget forest = 3 * forest.keys.length + 1
   induction forest with
   | empty => simp [budget, Forest.keys]
   | node key children siblings childIH siblingIH =>
-      simp only [budget, Forest.keys, List.length_cons, List.length_append, childIH, siblingIH]
+      simp only [budget, Forest.keys, List.length_cons, List.length_append, childIH,
+        siblingIH]
       omega
 
 private theorem exits_perm (forest : Forest) (base : Nat) (parents : List Nat)

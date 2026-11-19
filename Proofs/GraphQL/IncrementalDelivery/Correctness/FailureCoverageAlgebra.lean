@@ -60,7 +60,8 @@ mutual
           sourceTasks_positions_relabel containers right cursors (address ++ [1])
             (other ++ [1]) producer parent]
     | executionGroup groups path result children =>
-        simp only [sourceTasks, List.flatMap_cons, SourceTask.positions, SourceTask.cursors]
+        simp only [sourceTasks, List.flatMap_cons, SourceTask.positions,
+          SourceTask.cursors]
         rw [sourceTasks_positions_relabel containers children _ (address ++ [0])
           (other ++ [0]) (some (.executionGroup address)) (some (.executionGroup other))]
     | stream node items =>

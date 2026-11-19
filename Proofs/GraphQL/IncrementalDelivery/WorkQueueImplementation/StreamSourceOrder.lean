@@ -68,8 +68,10 @@ theorem streamRefAddresses_refs (work : Execution.Work) (address : Address)
         intro entry member
         exact streamRefAddresses_refs entry.1.2 _
       rw [List.flatMap_def, List.map_congr_left erased, ← List.flatMap_def]
-      rw [← List.flatMap_map Prod.fst (fun entry => streamAllocationRefs entry.2) items.zipIdx,
-        List.zipIdx_map_fst]
+      rw [
+        ←
+          List.flatMap_map Prod.fst (fun entry => streamAllocationRefs entry.2)
+            items.zipIdx, List.zipIdx_map_fst]
       rw [streamAllocationRefs]
 termination_by sizeOf work
 decreasing_by
@@ -181,10 +183,11 @@ theorem ValidGraphEvents.itemsBefore_order {work : Execution.Work}
           · obtain ⟨route, results, parent, dependencies, source, _, _, _, order⟩ := ready
             have routeSame := generated.streamAddress_unique source located same
             subst route
-            simp only [GraphEvent.itemsBefore, List.flatMap_singleton, same, beq_self_eq_true,
-              ite_true] at order ih ⊢
-            simp only [List.map_append, List.length_append, List.range_add, List.map_append,
-              List.map_map, Function.comp_def]
+            simp only [GraphEvent.itemsBefore, List.flatMap_singleton, same,
+              beq_self_eq_true, ite_true]
+              at order ih ⊢
+            simp only [List.map_append, List.length_append, List.range_add,
+              List.map_append, List.map_map, Function.comp_def]
             rw [ih, order]
           · simpa [GraphEvent.itemsBefore, same] using ih
       | taskSuccess | taskFailure | streamSuccess | streamFailure =>

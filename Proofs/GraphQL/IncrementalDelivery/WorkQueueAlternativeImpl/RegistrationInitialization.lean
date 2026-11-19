@@ -131,7 +131,8 @@ theorem State.initialize_queue (work : Work)
   rw [started]
   simp only [IntegratedWork.newWork] at sameGroups sameStreams
   dsimp only [initial, lowered] at same sameGroups sameStreams
-  dsimp only [ready, released, pruned, integrated, initial, lowered, IntegratedWork.newWork]
+  dsimp only [ready, released, pruned, integrated, initial, lowered,
+    IntegratedWork.newWork]
   simp only [same, sameGroups, sameStreams, ReferenceWorkQueue.State.initialize]
 
 /-- Initial construction has not interrupted or retired the graph reader.

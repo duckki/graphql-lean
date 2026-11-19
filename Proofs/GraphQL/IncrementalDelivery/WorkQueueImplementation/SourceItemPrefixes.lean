@@ -19,7 +19,8 @@ theorem publicationAtoms_list_itemValues (events : List Execution.WorkQueueEvent
   induction events with
   | nil => rfl
   | cons event rest ih =>
-      simp only [List.flatMap_cons, List.flatMap_append, (publicationAtoms_values event).2, ih]
+      simp only [List.flatMap_cons, List.flatMap_append,
+        (publicationAtoms_values event).2, ih]
 
 /-- Each accepted handler block emits exactly the items supplied by its source label.
 Witness: induction through actual handlers, with acceptance split at each input; publisher

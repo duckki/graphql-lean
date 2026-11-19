@@ -161,10 +161,15 @@ theorem GeneratedUnsettledTaskOwnerProgress_holds
                 rw [ReferenceWorkQueue.State.groupNode?,
                   State.startNewWork_groupNodes] at lookup
                 exact foldEdges key candidate lookup
-              have handler : before.handleGraphEvent (.taskSuccess incoming result)
-                  = (initial.drainReadyGroups.1, released.2.1 ++ initial.drainReadyGroups.2) := by
+              have handler
+                  : before.handleGraphEvent (.taskSuccess incoming result)
+                    = (
+                      initial.drainReadyGroups.1,
+                      released.2.1 ++ initial.drainReadyGroups.2
+                    ) := by
                 have prepared : snapshot = integrated.1.queue := by
-                  simp only [snapshot, registrationSnapshot, inputFound, healthy, ↓reduceIte]
+                  simp only [snapshot, registrationSnapshot, inputFound, healthy,
+                    ↓reduceIte]
                   rfl
                 let active := starting.startNewWork released.2.2 integrated.2
                 have raw : before = (ReferenceWorkQueue.State.initialize
@@ -225,7 +230,9 @@ theorem GeneratedUnsettledTaskOwnerProgress_holds
   | streamItems stream items =>
       cases active : before.rootStreams.contains stream.ref with
       | false =>
-          simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true, ↓reduceIte] at present
+          simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true,
+            ↓reduceIte]
+            at present
           exact Or.inl
             (by
               simpa only [ReferenceWorkQueue.State.handleGraphEvent,
@@ -257,7 +264,9 @@ theorem GeneratedUnsettledTaskOwnerProgress_holds
             refine Or.inr ⟨root, ?_, ?_⟩
             · simpa only [failureRoots, notice, List.filterMap_cons,
                 ReferenceWorkQueue.State.drainReadyGroups] using failed
-            · simpa only [List.singleton_append, ReferenceWorkQueue.State.drainReadyGroups] using path
+            · simpa only [List.singleton_append,
+                ReferenceWorkQueue.State.drainReadyGroups]
+                using path
   | taskFailure failed errors =>
       have unpublished : publicationRoots (before.taskFailure failed errors).2 = [] := by
         apply List.eq_nil_iff_forall_not_mem.mpr
@@ -284,11 +293,13 @@ theorem GeneratedUnsettledTaskOwnerProgress_holds
           ReferenceWorkQueue.State.groupNode?_ref found⟩)
   | streamSuccess stream =>
       change key ∈ before.groupNodes.map (fun node => node.group.node.ref) at present
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamSuccess]
       split <;> exact Or.inl present
   | streamFailure stream errors =>
       change key ∈ before.groupNodes.map (fun node => node.group.node.ref) at present
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamFailure]
       split <;> exact Or.inl present
 
 -----------------------------------------------------------------------------------------

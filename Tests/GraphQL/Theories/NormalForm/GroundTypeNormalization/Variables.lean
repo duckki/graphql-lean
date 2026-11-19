@@ -87,15 +87,19 @@ private theorem userField_merge (left right : List Selection)
       = [nameField, nameField] := by
     rcases hleft with rfl | rfl <;> rcases hright with rfl | rfl <;>
       simp [FieldMerge.collectSubfields, FieldMerge.collectFields, userField, nameField]
-  have hpairs : ∀ childLeft, childLeft ∈ FieldMerge.collectSubfields schema
-      (userField left) (userField right) ->
-      ∀ childRight, childRight ∈ FieldMerge.collectSubfields schema
-        (userField left) (userField right) ->
-        childLeft.responseName = childRight.responseName ->
-        FieldMerge.fieldsForNameCanMerge schema childLeft childRight := by
+  have hpairs
+      : ∀ childLeft,
+          childLeft
+            ∈ FieldMerge.collectSubfields schema (userField left) (userField right)
+          -> ∀ childRight,
+              childRight
+                ∈ FieldMerge.collectSubfields schema (userField left) (userField right)
+              -> childLeft.responseName = childRight.responseName
+              -> FieldMerge.fieldsForNameCanMerge schema childLeft childRight := by
     intro childLeft hchildLeft childRight hchildRight _
     rw [hcollect] at hchildLeft hchildRight
-    simp only [List.mem_cons, List.not_mem_nil, or_false, or_self] at hchildLeft hchildRight
+    simp only [List.mem_cons, List.not_mem_nil, or_false, or_self]
+      at hchildLeft hchildRight
     subst childLeft
     subst childRight
     exact nameField_merge

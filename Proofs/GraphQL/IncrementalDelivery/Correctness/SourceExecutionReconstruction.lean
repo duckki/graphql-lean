@@ -68,7 +68,9 @@ mutual
             _ _ hpall _ hcombined
           refine ⟨data, si ++ st, hd, .combine his hts, ?_, ?_⟩
           · apply List.Perm.trans _ hpd
-            simpa only [List.flatten_append, TypedResponse.fields_append, List.append_assoc] using hip.append htp
+            simpa only [List.flatten_append, TypedResponse.fields_append,
+              List.append_assoc]
+              using hip.append htp
           · intro hn
             have hn' : (((result (fields path) initial.result ++ si.flatten) ++ st.flatten).map Prod.fst).Nodup := by
               simpa only [List.flatten_append, List.append_assoc] using hn
@@ -132,7 +134,9 @@ mutual
             refine ⟨head ++ tail, _, ?_, .combine (.executionGroup hsh) hst, ?_, ?_⟩
             · simpa [eraseGroups] using basicFields_append schema resolvers variables fuel parentType source
                 _ _ head tail hh htail
-            · simpa only [List.flatten_append, List.flatten_cons, TypedResponse.fields_append] using hhp.append htailp
+            · simpa only [List.flatten_append, List.flatten_cons,
+                TypedResponse.fields_append]
+                using hhp.append htailp
             · intro cursors hn
               have hn' : (((result (fields path) completed.result ++ sh.flatten) ++ st.flatten).map Prod.fst).Nodup := by
                 simpa only [List.flatten_append, List.flatten_cons] using hn
@@ -162,14 +166,18 @@ mutual
             path usages deferMap) := by
     cases groups with
     | nil =>
-        simp only [executeCollectedFields_nil, eraseGroups, List.map_nil, GraphQL.Execution.executeCollectedFields]
+        simp only [executeCollectedFields_nil, eraseGroups, List.map_nil,
+          GraphQL.Execution.executeCollectedFields]
         exact runEnsures_pure _ _ (seeded_pure _ _ _)
     | cons group rest =>
         rcases group with ⟨name, selected⟩
-        simp only [executeCollectedFields_cons, eraseGroups, List.map_cons, eraseGroup, GraphQL.Execution.executeCollectedFields]
-        refine runEnsures_bind (SeededReconstructs (fields path) (fieldCursors path)
-          (GraphQL.Execution.executeField schema resolvers variables fuel parentType source name
-            (selected.map eraseField))) _ _ _ ?_ ?_
+        simp only [executeCollectedFields_cons, eraseGroups, List.map_cons, eraseGroup,
+          GraphQL.Execution.executeCollectedFields]
+        refine runEnsures_bind
+          (SeededReconstructs (fields path) (fieldCursors path)
+            (GraphQL.Execution.executeField schema resolvers variables fuel parentType
+              source name (selected.map eraseField)))
+          _ _ _ ?_ ?_
         · exact executeResponseField_seeded schema resolvers variables fuel parentType source name selected path usages deferMap
         · intro head hh
           refine runEnsures_bind (SeededReconstructs (fields path) (fieldCursors path)
@@ -226,10 +234,15 @@ mutual
                         simp only [executeResponseField, hf, ha, hr]
                         exact runEnsures_pure _ _ (seeded_failedField _ _ _ _)
                     | some resolved =>
-                        simp only [executeResponseField, List.map_cons, GraphQL.Execution.executeField, eraseField, hf, ha, hr]
-                        refine runEnsures_bind (SeededReconstructs (value (path ++ [.field name])) (listCursors (path ++ [.field name]))
-                          (GraphQL.Execution.completeValue schema resolvers variables fuel definition.outputType
-                            ((field :: rest).map eraseField) resolved)) _ _ _ ?_ ?_
+                        simp only [executeResponseField, List.map_cons,
+                          GraphQL.Execution.executeField, eraseField, hf, ha, hr]
+                        refine runEnsures_bind
+                          (SeededReconstructs (value (path ++ [.field name]))
+                            (listCursors (path ++ [.field name]))
+                            (GraphQL.Execution.completeValue schema resolvers variables
+                              fuel definition.outputType ((field :: rest).map eraseField)
+                              resolved))
+                          _ _ _ ?_ ?_
                         · exact completeValue_seeded schema resolvers variables fuel _ _ _
                             (path ++ [.field name]) usages deferMap true
                         · intro completed hc

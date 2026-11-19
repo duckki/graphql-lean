@@ -68,7 +68,9 @@ theorem ItemsAttached.index_eq {available : List Entry} {path : ResponsePath}
       generalize he : entryPaths (result (value (path ++ [.index left])) (.ok (data, 0)) :: (cs ++ ts)) = slices at ha
       cases ha with
       | cons hac hat =>
-          simp only [entryPaths, List.map_cons, List.map_append, result, value_paths, DeliveryPaths.result] at he
+          simp only [entryPaths, List.map_cons, List.map_append, result, value_paths,
+            DeliveryPaths.result]
+            at he
           have hh := congrArg List.head? (List.cons.inj he).1
           rw [value_paths_head, value_paths_head] at hh
           have heq := List.append_cancel_left (Option.some.inj hh)

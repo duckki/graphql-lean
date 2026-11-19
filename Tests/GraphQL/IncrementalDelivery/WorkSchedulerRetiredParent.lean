@@ -78,7 +78,8 @@ theorem source_valid
       (by simp [success, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, parentKnown, by intro producer impossible; cases impossible⟩
   refine ⟨.append first ⟨_, _, _, other_known⟩ ?_ ?_, by cbv⟩
-  · simp [success, failure, GraphEvent.Fresh, GraphEvent.identities, parentTask, otherTask]
+  · simp [success, failure, GraphEvent.Fresh, GraphEvent.identities, parentTask,
+      otherTask]
   · exact ⟨_, _, _, other_known, by intro producer impossible; cases impossible⟩
 
 /-- The surviving child's absent successful parent is permanently retired, not unseen.

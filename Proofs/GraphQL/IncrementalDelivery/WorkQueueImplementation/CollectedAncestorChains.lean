@@ -95,8 +95,8 @@ mutual
                 have hc := collectFields_chains schema variables parentType source children (some fresh)
                   next (state + 1) nextMap path hnv hn.1 (by intro u hu; cases hu; exact hn.2)
                 obtain ⟨hle, final, he, hfinal, hmap, hfields⟩ := hc
-                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-                  ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
+                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true,
+                  ↓reduceIte, ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
                   StateT.run_get, StateT.run_set]
                 refine ⟨Nat.le_trans (Nat.le_succ state) hle, final,
                   (allocate_extends parents state ancestors).trans he (Nat.le_succ state),

@@ -249,8 +249,9 @@ mutual
             (((EagerRecordedExecution.completeListValue schema resolvers variables fuel inner fields
               (values.take usage.initialCount) path 0 usages context (route ++ [0])).run state).2 + 1)
           rw [← items]
-          simp only [eraseItemsRun, RecordedCompletion.erase, RecordedWork.erase, eraseItems,
-            RecordedCompletion.catchNull, Report.catchNull, Completion.catchNull, initialEq]
+          simp only [eraseItemsRun, RecordedCompletion.erase, RecordedWork.erase,
+            eraseItems, RecordedCompletion.catchNull, Report.catchNull,
+            Completion.catchNull, initialEq]
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -274,8 +275,8 @@ mutual
     | cons value rest =>
         have head := completeValue_erases schema resolvers variables fuel itemType fields
           value (path ++ [.index index]) [] [] false (route ++ [0]) state
-        simp only [EagerRecordedExecution.completeStreamItems, Execution.completeStreamItems,
-          run_bind]
+        simp only [EagerRecordedExecution.completeStreamItems,
+          Execution.completeStreamItems, run_bind]
         rw [← head]
         dsimp only [eraseCompletionRun]
         simp only [erase_result]
@@ -312,8 +313,8 @@ mutual
     have initial := executeCollectedFields_erases schema resolvers variables fuel parentType
       source plan.collectedFieldsMap path usages (getNewDeferMap newUsages path context)
       (route ++ [0]) state
-    simp only [EagerRecordedExecution.executeExecutionPlan, Execution.executeExecutionPlan,
-      run_bind]
+    simp only [EagerRecordedExecution.executeExecutionPlan,
+      Execution.executeExecutionPlan, run_bind]
     rw [← initial]
     dsimp only [eraseCompletionRun]
     simp only [erase_result]
@@ -355,8 +356,9 @@ mutual
         obtain ⟨usages, fields⟩ := partition
         have head := executeCollectedFields_erases schema resolvers variables fuel parentType
           source fields path usages context (route ++ [0]) state
-        simp only [EagerRecordedExecution.collectExecutionGroups, Execution.collectExecutionGroups,
-          Execution.executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [EagerRecordedExecution.collectExecutionGroups,
+          Execution.collectExecutionGroups, Execution.executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         rw [← head]
         dsimp only [eraseCompletionRun, RecordedCompletion.erase]
         have tail := collectExecutionGroups_erases schema resolvers variables fuel parentType

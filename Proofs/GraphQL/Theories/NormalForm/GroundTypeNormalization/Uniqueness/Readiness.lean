@@ -3309,8 +3309,8 @@ theorem
     responseFields,
     errors,
     by
-      simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-        hexecute]
+      simp [Execution.executeSelectionSetAsResponse,
+        Execution.selectionSetResultToResponse, hexecute]
   ⟩
 
 end GroundTypeNormalization

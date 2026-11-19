@@ -81,15 +81,17 @@ theorem sameResponseShape_fragmentSpread_nestedMismatch_rejected
       have hother : schema.isCompositeType "Other" := by
         exact ⟨.object { name := "Other", fields := [{ name := "name", outputType := .named "Int" }] },
           by rfl, trivial⟩
-      have hcollect : collectSubfields schema
-          (branchField "LeftBranch" "User") (branchField "RightBranch" "Other")
-          = [leafField "User" "String" "Other", leafField "Other" "Int" "User"] := by
-        simp [collectSubfields, collectFields, collectSelection, branchField, nameFragment,
-          leafField, fragments, lookupFragmentAndRestLt?, TypeRef.namedType, schema,
-          GraphQL.Tests.Validation.FieldMerge.disjointReturnSchema,
-          GraphQL.Tests.Validation.FieldMerge.returnScopeSchema,
-          Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
-          TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name]
+      have hcollect
+          : collectSubfields schema
+              (branchField "LeftBranch" "User") (branchField "RightBranch" "Other")
+            = [leafField "User" "String" "Other", leafField "Other" "Int" "User"] := by
+        simp [collectSubfields, collectFields, collectSelection, branchField,
+          nameFragment, leafField, fragments, lookupFragmentAndRestLt?, TypeRef.namedType,
+          schema, GraphQL.Tests.Validation.FieldMerge.disjointReturnSchema,
+          GraphQL.Tests.Validation.FieldMerge.returnScopeSchema, Schema.lookupField,
+          Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes,
+          Schema.builtinScalarDefinitions, TypeDefinition.name, TypeDefinition.fields?,
+          BuiltinScalar.name]
       have hchild := hchildren huser hother (leafField "User" "String" "Other")
         (by rw [hcollect]; simp) (leafField "Other" "Int" "User")
         (by rw [hcollect]; simp) rfl

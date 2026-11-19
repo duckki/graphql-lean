@@ -174,7 +174,8 @@ theorem IncrementalPublisher.normalizeBatch_streamCarrier_prefix
           simp only [List.take_succ_cons, List.flatMap_cons, List.length_append]
           exact congrArg (· + _) count
         · change (((head.2 ++ tail.2).take (index + 1)).flatMap normalizedItemValues).length = _
-          rw [List.take_append, List.take_of_length_le (by omega : head.2.length ≤ index + 1),
+          rw [List.take_append,
+            List.take_of_length_le (by omega : head.2.length ≤ index + 1),
             show index + 1 - head.2.length = index - head.2.length + 1 by omega,
             List.flatMap_append, List.length_append, itemCount]
           simp only [List.take_succ_cons, List.flatMap_cons, List.length_append]

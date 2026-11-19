@@ -38,7 +38,8 @@ private theorem storedOwners
     : ((buildPlan groups).partitions.map KeyedPartition.usages) = [[4, 1], [9]] := by
   have exactPlan := (CanonicalPartitionOptimization_holds groups []).1
   have same := congrArg (fun plan => plan.newCollectedFieldsMaps.map Prod.fst) exactPlan
-  simp only [KeyedPlan.project, List.map_map, Function.comp_def, KeyedPartition.project] at same
+  simp only [KeyedPlan.project, List.map_map, Function.comp_def, KeyedPartition.project]
+    at same
   change ((buildPlan groups).partitions.map KeyedPartition.usages) = [[4, 1], [9]] at same
   exact same
 
@@ -69,7 +70,8 @@ example
       = [["first", "same"], ["different"]] := by
   have exactPlan := (CanonicalPartitionOptimization_holds groups []).1
   have same := congrArg (fun plan => plan.newCollectedFieldsMaps.map (fun part => part.2.map Prod.fst)) exactPlan
-  simp only [KeyedPlan.project, List.map_map, Function.comp_def, KeyedPartition.project] at same
+  simp only [KeyedPlan.project, List.map_map, Function.comp_def, KeyedPartition.project]
+    at same
   change ((buildPlan groups).partitions.map (fun partition => partition.fields.map Prod.fst))
     = [["first", "same"], ["different"]] at same
   exact same
@@ -99,7 +101,8 @@ example
   rfl
 
 example : ((buildPlan [("empty", [])] [1]).partitions.map KeyedPartition.key) = [[]] := by
-  simp [buildPlan, KeyedPlan.step, addPartition, getFilteredDeferUsageSet, deferUsageSetsEquivalent, partitionKey]
+  simp [buildPlan, KeyedPlan.step, addPartition, getFilteredDeferUsageSet,
+    deferUsageSetsEquivalent, partitionKey]
 
 example (ordinal : Nat → Nat) (left right : List Nat)
     (separates : ∀ a ∈ left, ∀ b ∈ right, ordinal a = ordinal b → a = b)

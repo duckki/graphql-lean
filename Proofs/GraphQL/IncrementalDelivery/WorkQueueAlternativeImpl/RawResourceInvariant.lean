@@ -49,7 +49,8 @@ private theorem rawPrefix_flatten (events : List GraphEvent)
 
 private theorem rawReplay_running (work : Work) (events : List GraphEvent)
     : ((initial work).replayGraphEvents events).terminated = false := by
-  rw [← ReferenceWorkQueue.State.rawEventReplay_state, ReferenceWorkQueue.State.rawEventReplay_terminated]
+  rw [← ReferenceWorkQueue.State.rawEventReplay_state,
+    ReferenceWorkQueue.State.rawEventReplay_terminated]
   exact ReferenceWorkQueue.createWorkQueue_terminated _
 
 private theorem rawPrefix_state (work : Work) (events : List GraphEvent)
@@ -101,11 +102,14 @@ private theorem rawPrefix_startedNext {work events event}
         ReferenceWorkQueue.State.batchesStarted, ReferenceWorkQueue.createWorkQueue_terminated,
         ReferenceWorkQueue.State.acceptsBatch] using accepted
   | cons first rest =>
-      simp only [rawPrefixBatches, List.cons_ne_nil, ↓reduceIte, List.cons_append, List.nil_append,
-        ReferenceWorkQueue.inputsStarted_eq_batchesStarted, ReferenceWorkQueue.State.batchesStarted,
-        ReferenceWorkQueue.createWorkQueue_terminated, Bool.not_false, List.isEmpty_cons, Bool.true_and, Bool.and_true]
+      simp only [rawPrefixBatches, List.cons_ne_nil, ↓reduceIte, List.cons_append,
+        List.nil_append, ReferenceWorkQueue.inputsStarted_eq_batchesStarted,
+        ReferenceWorkQueue.State.batchesStarted,
+        ReferenceWorkQueue.createWorkQueue_terminated, Bool.not_false, List.isEmpty_cons,
+        Bool.true_and, Bool.and_true]
       rw [referenceBatch_openRoots _ _ (ReferenceWorkQueue.createWorkQueue_terminated _) openRoots]
-      simp only [rawReplay_running, Bool.not_false, ReferenceWorkQueue.State.acceptsBatch, next, Bool.and_true]
+      simp only [rawReplay_running, Bool.not_false, ReferenceWorkQueue.State.acceptsBatch,
+        next, Bool.and_true]
       simpa only [ReferenceWorkQueue.State.acceptsBatch] using prior
 
 -----------------------------------------------------------------------------------------

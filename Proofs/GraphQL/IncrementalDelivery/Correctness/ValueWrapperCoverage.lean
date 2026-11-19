@@ -83,7 +83,8 @@ theorem ValueCompletionCovered.nonNull {containers path ordinary completed}
   | ok pair =>
       obtain ⟨data, count⟩ := pair
       by_cases isNull : data = .null
-      · simp [outcome, isNull, nonNullCompletion, GraphQL.Execution.nonNullCompletion] at success
+      · simp [outcome, isNull, nonNullCompletion, GraphQL.Execution.nonNullCompletion]
+          at success
       · have ordinarySuccess : nonNullCompletion ordinary = .ok (data, count) := by
           rw [outcome]
           cases data <;> first | contradiction | rfl

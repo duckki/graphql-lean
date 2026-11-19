@@ -84,8 +84,8 @@ mutual
           simp only [checkSelection, hnext] at hzero
           cases hlookup : schema.lookupField runtimeType fieldName with
           | none =>
-              simp [selectionCompositeFieldTypesInhabited, selectionCoercibleInPossibleTypes,
-                hlookup]
+              simp [selectionCompositeFieldTypesInhabited,
+                selectionCoercibleInPossibleTypes, hlookup]
           | some definition =>
               simp only [hlookup] at hzero
               obtain ⟨hlocal, hchildren⟩ := errorCount_foldl_eq_zero _ _ _ hzero
@@ -133,8 +133,8 @@ mutual
               · unfold selectionCompositeFieldTypesInhabited
                 exact fun _ => hchild.1
               · exact fun _ => hchild.2
-            · simp [selectionCompositeFieldTypesInhabited, selectionCoercibleInPossibleTypes,
-                hdirectives]
+            · simp [selectionCompositeFieldTypesInhabited,
+                selectionCoercibleInPossibleTypes, hdirectives]
         | some typeName =>
             by_cases htype : schema.typeIncludesObjectBool typeName runtimeType = true
             · by_cases hdirectives : selectionDirectivesAllowBool values directives = true
@@ -151,9 +151,10 @@ mutual
                 · unfold selectionCompositeFieldTypesInhabited
                   exact fun _ _ => hchild.1
                 · exact fun _ _ => hchild.2
-              · simp [selectionCompositeFieldTypesInhabited, selectionCoercibleInPossibleTypes,
-                  hdirectives]
-            · simp [selectionCompositeFieldTypesInhabited, selectionCoercibleInPossibleTypes, htype]
+              · simp [selectionCompositeFieldTypesInhabited,
+                  selectionCoercibleInPossibleTypes, hdirectives]
+            · simp [selectionCompositeFieldTypesInhabited,
+                selectionCoercibleInPossibleTypes, htype]
 
   theorem checkSelectionSet_sound (schema : Schema) (values : VariableValues)
       (runtimeType : Name) (condition : List BooleanLiteral) (selections : List Selection)
@@ -163,7 +164,8 @@ mutual
         ∧ selectionSetCoercibleInPossibleTypes schema values runtimeType selections := by
     cases selections with
     | nil =>
-        simp [selectionSetCompositeFieldTypesInhabited, selectionSetCoercibleInPossibleTypes]
+        simp [selectionSetCompositeFieldTypesInhabited,
+          selectionSetCoercibleInPossibleTypes]
     | cons head rest =>
         simp only [checkSelectionSet, Result.errorCount_add, Nat.add_eq_zero_iff] at hzero
         have hhead := checkSelection_sound schema values runtimeType condition head

@@ -76,7 +76,8 @@ theorem State.handleGraphEvent_tasks_subset (queue : State) (event : GraphEvent)
       | some node =>
           cases healthy : queue.taskHasHealthyOwner node.task with
           | false =>
-              rw [State.handleGraphEvent, State.taskSuccess_of_noHealthyOwner found healthy]
+              rw [State.handleGraphEvent,
+                State.taskSuccess_of_noHealthyOwner found healthy]
               exact fun _ h => h
           | true =>
               rw [State.handleGraphEvent, State.taskSuccess_tasks found healthy]

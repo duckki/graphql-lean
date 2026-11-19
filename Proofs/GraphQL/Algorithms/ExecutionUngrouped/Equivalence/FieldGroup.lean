@@ -283,7 +283,10 @@ theorem groupedFieldVisitResult_singleFieldResult_combine_neutral
           | zero =>
               cases hcombine
               dsimp
-              simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, resultStatus, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
+              simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult,
+                mergeResponseFieldResult, mergeResponseFieldIntoObject,
+                mergeResponseField, resultValueOrNull, resultStatus, combineVisitStatus,
+                GraphQL.Execution.Result.combine, visitOk]
           | succ laterErrors =>
               simp [resultStatus, visitOk] at hright
 
@@ -790,7 +793,10 @@ theorem completeValue_object_append_result_of_absorbs_errorNeutral
           simp [hfirst, hsecond] at habsorbs herrors
           cases firstStatus with
           | error firstErrors =>
-              simp [completeResolvedValue_previous_null, completeValue, reuseOrCreateObject?, hincludes, hfirst, resultValueOrNull, hsecond, herrors, catchVisitBubbleAsNull, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
+              simp [completeResolvedValue_previous_null, completeValue,
+                reuseOrCreateObject?, hincludes, hfirst, resultValueOrNull, hsecond,
+                herrors, catchVisitBubbleAsNull, combineVisitStatus,
+                GraphQL.Execution.Result.combine, visitOk]
           | ok firstStatusResult =>
               rcases firstStatusResult with ⟨unitValue, firstErrors⟩
               cases unitValue
@@ -801,7 +807,10 @@ theorem completeValue_object_append_result_of_absorbs_errorNeutral
               rw [hfirst] at hfirstFields
               simp at hfirstFields
               subst firstOutput
-              simp [completeResolvedValue, reusablePreviousValue?, completeValue, reuseOrCreateObject?, hincludes, hparentComposite, hfirst, resultValueOrNull, hsecond, herrors, habsorbs, catchVisitBubbleAsNull, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
+              simp [completeResolvedValue, reusablePreviousValue?, completeValue,
+                reuseOrCreateObject?, hincludes, hparentComposite, hfirst,
+                resultValueOrNull, hsecond, herrors, habsorbs, catchVisitBubbleAsNull,
+                combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
 
 theorem completeValue_object_append_result_aligned_of_absorbs
     {ObjectIdentity : Type}
@@ -950,7 +959,9 @@ theorem resultStatus_completeValue_object_append_second_of_errorNeutral
       simp [hfirst] at herrors
       cases firstStatus with
       | error firstErrors =>
-          simp [completeResolvedValue_previous_null, completeValue, reuseOrCreateObject?, hincludes, hfirst, resultValueOrNull, catchVisitBubbleAsNull, resultStatus, visitOk]
+          simp [completeResolvedValue_previous_null, completeValue, reuseOrCreateObject?,
+            hincludes, hfirst, resultValueOrNull, catchVisitBubbleAsNull, resultStatus,
+            visitOk]
       | ok firstStatusResult =>
           rcases firstStatusResult with ⟨unitValue, firstErrors⟩
           cases unitValue
@@ -961,7 +972,9 @@ theorem resultStatus_completeValue_object_append_second_of_errorNeutral
           rw [hfirst] at hfirstFields
           simp at hfirstFields
           subst firstOutput
-          simp [completeResolvedValue, reusablePreviousValue?, completeValue, reuseOrCreateObject?, hincludes, hparentComposite, hfirst, resultValueOrNull, catchVisitBubbleAsNull, herrors, resultStatus, visitOk]
+          simp [completeResolvedValue, reusablePreviousValue?, completeValue,
+            reuseOrCreateObject?, hincludes, hparentComposite, hfirst, resultValueOrNull,
+            catchVisitBubbleAsNull, herrors, resultStatus, visitOk]
 
 theorem completeValue_named_group_append_one_result_eq_spec
     {ObjectIdentity : Type}
@@ -1065,19 +1078,25 @@ theorem completeValue_named_group_append_one_result_eq_spec
     simp [GraphQL.Execution.mergedFieldSelectionSet_append]
   cases depth with
   | zero =>
-      cases resolved <;>
-        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, outOfFuel, resultValueOrNull, GraphQL.Execution.Result.combine]
+      cases resolved
+      <;> simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            outOfFuel, resultValueOrNull, GraphQL.Execution.Result.combine]
   | succ childDepth =>
       cases resolved with
       | null =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, GraphQL.Execution.Result.combine]
       | scalar value =>
           by_cases hcomposite :
               (TypeRef.named parentType).isCompositeBool schema = true
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, hcomposite]
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+              resultValueOrNull, GraphQL.Execution.Result.combine, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar,
+              resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse,
+              hcomposite]
       | list values =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, GraphQL.Execution.Result.combine]
       | object runtimeType identity =>
           by_cases hincludes :
               schema.typeIncludesObjectBool parentType runtimeType = true
@@ -1144,7 +1163,8 @@ theorem completeValue_named_group_append_one_result_eq_spec
                 schema.typeIncludesObjectBool parentType runtimeType = false := by
               cases h : schema.typeIncludesObjectBool parentType runtimeType <;>
                 simp [h] at hincludes ⊢
-            simp [GraphQL.Execution.completeValue, hnotIncludes, resultValueOrNull, GraphQL.Execution.Result.combine, completeResolvedValue_previous_null]
+            simp [GraphQL.Execution.completeValue, hnotIncludes, resultValueOrNull,
+              GraphQL.Execution.Result.combine, completeResolvedValue_previous_null]
 
 theorem resultStatus_completeValue_named_group_append_second_eq_ok
     {ObjectIdentity : Type}
@@ -1198,19 +1218,24 @@ theorem resultStatus_completeValue_named_group_append_second_eq_ok
       variableValues prefixFields depth parentType resolved hprefixChildren
   cases depth with
   | zero =>
-      cases resolved <;>
-        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, outOfFuel, resultValueOrNull, resultStatus, visitOk]
+      cases resolved
+      <;> simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            outOfFuel, resultValueOrNull, resultStatus, visitOk]
   | succ childDepth =>
       cases resolved with
       | null =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, resultStatus, visitOk]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, resultStatus, visitOk]
       | scalar value =>
           by_cases hcomposite :
               (TypeRef.named parentType).isCompositeBool schema = true
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, resultStatus, visitOk, hcomposite]
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar, resultValueOrNull, resultStatus, visitOk, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+              resultValueOrNull, resultStatus, visitOk, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar,
+              resultValueOrNull, resultStatus, visitOk, hcomposite]
       | list values =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, resultStatus, visitOk]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, resultStatus, visitOk]
       | object runtimeType identity =>
           by_cases hincludes :
               schema.typeIncludesObjectBool parentType runtimeType = true
@@ -1229,7 +1254,8 @@ theorem resultStatus_completeValue_named_group_append_second_eq_ok
                 schema.typeIncludesObjectBool parentType runtimeType = false := by
               cases h : schema.typeIncludesObjectBool parentType runtimeType <;>
                 simp [h] at hincludes ⊢
-            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hnotIncludes, resultValueOrNull, resultStatus, visitOk]
+            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+              hnotIncludes, resultValueOrNull, resultStatus, visitOk]
 
 theorem completeValue_named_group_append_one_result_aligned_spec
     {ObjectIdentity : Type}
@@ -1840,19 +1866,25 @@ theorem completeValue_named_group_append_one_result_eq_spec_of_contained
     simp [GraphQL.Execution.mergedFieldSelectionSet_append]
   cases depth with
   | zero =>
-      cases resolved <;>
-        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, outOfFuel, resultValueOrNull, GraphQL.Execution.Result.combine]
+      cases resolved
+      <;> simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            outOfFuel, resultValueOrNull, GraphQL.Execution.Result.combine]
   | succ childDepth =>
       cases resolved with
       | null =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, GraphQL.Execution.Result.combine]
       | scalar value =>
           by_cases hcomposite :
               (TypeRef.named parentType).isCompositeBool schema = true
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, hcomposite]
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+              resultValueOrNull, GraphQL.Execution.Result.combine, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar,
+              resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse,
+              hcomposite]
       | list values =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, GraphQL.Execution.Result.combine]
       | object runtimeType identity =>
           by_cases hincludes :
               schema.typeIncludesObjectBool parentType runtimeType = true
@@ -1921,7 +1953,8 @@ theorem completeValue_named_group_append_one_result_eq_spec_of_contained
                 schema.typeIncludesObjectBool parentType runtimeType = false := by
               cases h : schema.typeIncludesObjectBool parentType runtimeType <;>
                 simp [h] at hincludes ⊢
-            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hnotIncludes, resultValueOrNull, GraphQL.Execution.Result.combine]
+            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+              hnotIncludes, resultValueOrNull, GraphQL.Execution.Result.combine]
 
 theorem resultStatus_completeValue_named_group_append_second_eq_ok_of_contained
     {ObjectIdentity : Type}
@@ -1981,19 +2014,24 @@ theorem resultStatus_completeValue_named_group_append_second_eq_ok_of_contained
           (by simpa using hincludes))
   cases depth with
   | zero =>
-      cases resolved <;>
-        simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, outOfFuel, resultValueOrNull, resultStatus, visitOk]
+      cases resolved
+      <;> simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            outOfFuel, resultValueOrNull, resultStatus, visitOk]
   | succ childDepth =>
       cases resolved with
       | null =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, resultStatus, visitOk]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, resultStatus, visitOk]
       | scalar value =>
           by_cases hcomposite :
               (TypeRef.named parentType).isCompositeBool schema = true
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, resultStatus, visitOk, hcomposite]
-          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar, resultValueOrNull, resultStatus, visitOk, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+              resultValueOrNull, resultStatus, visitOk, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar,
+              resultValueOrNull, resultStatus, visitOk, hcomposite]
       | list values =>
-          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, resultStatus, visitOk]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+            resultValueOrNull, resultStatus, visitOk]
       | object runtimeType identity =>
           by_cases hincludes :
               schema.typeIncludesObjectBool parentType runtimeType = true
@@ -2012,7 +2050,8 @@ theorem resultStatus_completeValue_named_group_append_second_eq_ok_of_contained
                 schema.typeIncludesObjectBool parentType runtimeType = false := by
               cases h : schema.typeIncludesObjectBool parentType runtimeType <;>
                 simp [h] at hincludes ⊢
-            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hnotIncludes, resultValueOrNull, resultStatus, visitOk]
+            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null,
+              hnotIncludes, resultValueOrNull, resultStatus, visitOk]
 
 theorem completeValueList_cons_previous
     {ObjectIdentity : Type}

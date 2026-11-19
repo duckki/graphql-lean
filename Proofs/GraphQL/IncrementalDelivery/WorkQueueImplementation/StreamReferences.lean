@@ -176,7 +176,8 @@ theorem State.taskSuccess_streamReferences (queue : State) (occurrence : Occurre
       rw [queue.taskSuccess_eq occurrence result node found]
       split
       · rfl
-      simp only [List.flatMap_append, State.drainReadyGroups_streamReferences, List.append_nil]
+      simp only [List.flatMap_append, State.drainReadyGroups_streamReferences,
+        List.append_nil]
       exact loop _ (_, [], {})
 
 /-- Task-failure output has no stream reference.

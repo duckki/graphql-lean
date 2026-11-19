@@ -87,7 +87,8 @@ theorem reporting_failure
   have oldFailures := explained.2.1.failedBefore_eq (by simp : events.length ≤
     (events ++ [event]).length)
   have oldAtBoundary := explained.2.1.failedBefore_eq (Nat.le_refl events.length)
-  simp only [failedBefore, List.filter_append, List.map_append, List.mem_append] at settled
+  simp only [failedBefore, List.filter_append, List.map_append, List.mem_append]
+    at settled
   rcases settled with earlier | current
   · exact Or.inl ⟨task, otherOwners, by
       rw [oldAtBoundary]

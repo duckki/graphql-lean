@@ -151,8 +151,8 @@ theorem replayResponse_merge_atoms {paths bound response work groups streams bat
         rw [batched_incremental, flat]
         exact entries
       have merged := updates_applyAtoms encoded finalWell metadata announced response.data
-      simp only [mergeExecutionObservation, complete, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-        merged, Option.bind_eq_bind, Option.pure_def]
+      simp only [mergeExecutionObservation, complete, Bool.not_true, Bool.false_eq_true,
+        ↓reduceIte, merged, Option.bind_eq_bind, Option.pure_def]
       cases applyAtoms (batches.flatten.flatten.flatMap eventPositionAtoms) response.data <;> rfl
 
 end GraphQL.IncrementalDelivery.Correctness

@@ -106,7 +106,8 @@ theorem State.sourceRunBlocks_groupSuccess_origin (queue : State)
           | nil => cases later
           | cons next tail =>
               exact ((queue.handleGraphEvents batch).1.batchesStarted_cons next tail restStarted).1
-        rw [state, queue.handleGraphEvents_nonterminalState batch running openNext] at emitted
+        rw [state, queue.handleGraphEvents_nonterminalState batch running openNext]
+          at emitted
         refine ⟨batch ++ before, event, after, ?_, ?_⟩
         · simp only [List.flatten_cons, same, List.append_assoc]
         · simpa only [State.replayGraphEvents, List.foldl_append] using emitted

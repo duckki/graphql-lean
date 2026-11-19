@@ -27,26 +27,26 @@ theorem stale_handleGraphEvent (queue : ReferenceWorkQueue.State) (event : Graph
       simp only [ReferenceWorkQueue.State.acceptsGraphEvent] at stale
       have absent : queue.taskNode? task = none :=
         Option.isNone_iff_eq_none.mp (Option.isSome_eq_false_iff.mp stale)
-      simp [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.taskSuccess,
-        absent]
+      simp [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.taskSuccess, absent]
   | taskFailure task errors =>
       simp only [ReferenceWorkQueue.State.acceptsGraphEvent] at stale
       have absent : queue.taskNode? task = none :=
         Option.isNone_iff_eq_none.mp (Option.isSome_eq_false_iff.mp stale)
-      simp [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.taskFailure,
-        absent]
+      simp [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.taskFailure, absent]
   | streamItems stream items =>
       simp only [ReferenceWorkQueue.State.acceptsGraphEvent] at stale
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamItems,
-        stale, Bool.not_false, ↓reduceIte]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamItems, stale, Bool.not_false, ↓reduceIte]
   | streamSuccess stream =>
       simp only [ReferenceWorkQueue.State.acceptsGraphEvent] at stale
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamSuccess,
-        stale, Bool.false_eq_true, ↓reduceIte]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamSuccess, stale, Bool.false_eq_true, ↓reduceIte]
   | streamFailure stream errors =>
       simp only [ReferenceWorkQueue.State.acceptsGraphEvent] at stale
-      simp only [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.streamFailure,
-        stale, Bool.false_eq_true, ↓reduceIte]
+      simp only [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.streamFailure, stale, Bool.false_eq_true, ↓reduceIte]
 
 /-- An ignored item batch is still a distinct consumed receipt; other stale inputs have
 no inline effect in this abstraction. Producer-owned suffix disposal is separate evidence.
@@ -99,7 +99,8 @@ theorem stale_alternativeHandleGraphEvent (state : State)
         stale_handleGraphEvent state.queue (.streamSuccess stream) stale]
   | streamFailure stream errors =>
       have absent : state.queue.rootStreams.contains stream.ref = false := stale
-      simp only [State.handleGraphEvent, staleEffects, absent, Bool.false_eq_true, ↓reduceIte,
+      simp only [State.handleGraphEvent, staleEffects, absent, Bool.false_eq_true,
+        ↓reduceIte,
         stale_handleGraphEvent state.queue (.streamFailure stream errors) stale]
 
 /-- Full dispatch is a semantic no-op plus exactly the stale receipt's inline effects.
@@ -348,8 +349,8 @@ private theorem projectAlternativeBatch_fold (state : State)
       · rename_i absent
         have stale : state.queue.acceptsGraphEvent event = false := Bool.eq_false_iff.mpr absent
         rw [List.foldl_cons]
-        simp only [alternativeKernelStep, stale_alternativeHandleGraphEvent state event stale,
-          List.append_nil]
+        simp only [alternativeKernelStep,
+          stale_alternativeHandleGraphEvent state event stale, List.append_nil]
         exact ih state events
 
 /-- Actual-state callback filtering preserves the alternative's complete accounting and raw

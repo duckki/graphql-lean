@@ -275,7 +275,9 @@ theorem referencePrefix_taskSuccess_sources {work : Work}
   | some input =>
       cases healthy : queue.taskHasHealthyOwner input.task with
       | false =>
-          simp only [registrationSnapshot, selected, healthy, Bool.false_eq_true, ↓reduceIte] at found
+          simp only [registrationSnapshot, selected, healthy, Bool.false_eq_true,
+            ↓reduceIte]
+            at found
           have different := buffered_ne_input valid found stored
           simp only [State.taskSuccess, selected, healthy, Bool.not_false, ↓reduceIte]
           exact .inl ((queue.removeTask_lookup_other different).trans found)

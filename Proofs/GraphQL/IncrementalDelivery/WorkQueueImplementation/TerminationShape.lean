@@ -462,8 +462,9 @@ theorem IncrementalPublisher.normalizeBatch_termination_mem
   | nil => simp [IncrementalPublisher.normalizeBatch]
   | cons event rest ih =>
       rw [IncrementalPublisher.normalizeBatch_cons]
-      simp only [List.mem_append, IncrementalPublisher.handleWorkQueueEvent_termination_mem,
-        ih, List.mem_cons, eq_comm]
+      simp only [List.mem_append,
+        IncrementalPublisher.handleWorkQueueEvent_termination_mem, ih, List.mem_cons,
+        eq_comm]
 
 /-- Splitting value payloads into atoms preserves and reflects termination.
 Witness: value atoms cannot be terminal, while each control constructor is unchanged.

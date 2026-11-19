@@ -132,7 +132,9 @@ theorem mapAt_new (roles : Assignment) (bound : Nat) (deferMap : DeferMap)
       · simp only [MapAt, List.flatMap_append]
         apply RefsAt.append hm
         intro ref hk
-        simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, fragmentRefs, List.mem_cons] at hk
+        simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, fragmentRefs,
+          List.mem_cons]
+          at hk
         rcases hk with rfl | hk
         · exact hu usage (by simp)
         · obtain ⟨ancestor, ha, rfl⟩ := List.mem_map.mp hk

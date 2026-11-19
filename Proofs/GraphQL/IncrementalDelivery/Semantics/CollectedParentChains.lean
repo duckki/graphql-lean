@@ -141,14 +141,18 @@ mutual
                 obtain ⟨hle, final, he, finalValid, finalChains, finalMap, finalFields⟩ :=
                   collectFields_chains schema variables parentType source children (some fresh)
                     next (state + 1) nextMap path hv hc hm.1 (by intro u hu; cases hu; exact hm.2)
-                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-                  ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
+                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true,
+                  ↓reduceIte, ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
                   StateT.run_get, StateT.run_set]
                 refine ⟨Nat.le_trans (Nat.le_succ state) hle, final,
                   (allocate_extends parents state ancestors).trans he (Nat.le_succ state),
                   finalValid, finalChains, ?_, ?_⟩
-                · simpa only [nextMap, fresh, ancestors, getNewDeferMap, List.foldl_cons, List.foldl_nil] using finalMap
-                · simpa only [nextMap, fresh, ancestors, getNewDeferMap, List.foldl_cons, List.foldl_nil] using finalFields
+                · simpa only [nextMap, fresh, ancestors, getNewDeferMap, List.foldl_cons,
+                    List.foldl_nil]
+                    using finalMap
+                · simpa only [nextMap, fresh, ancestors, getNewDeferMap, List.foldl_cons,
+                    List.foldl_nil]
+                    using finalFields
   termination_by sizeOf selection
 
   theorem collectFields_chains (schema : Schema) (variables : VariableValues)

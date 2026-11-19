@@ -216,7 +216,8 @@ mutual
                         variableValues depth' parentType source responseName
                         fieldName arguments directives selectionSet
                         (.object fields) hallowed]
-                      simp [hprevious, mergeResponseFieldResult, mergeResponseFieldIntoObject, hmerge]
+                      simp [hprevious, mergeResponseFieldResult,
+                        mergeResponseFieldIntoObject, hmerge]
                   | scalar value =>
                       refine ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
                       · rw [visitSelection_field_allowed_succ schema resolvers

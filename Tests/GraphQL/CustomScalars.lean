@@ -173,12 +173,16 @@ theorem literal_operation_valid
   · apply FieldMerge.FieldsInSetCanMerge.intro
     dsimp only
     intro left leftMember right rightMember _
-    have hcollect : FieldMerge.collectFields schema
-        ((operation [{ name := "a", value := payload.toInputValue }]).rootType schema)
-        (operation [{ name := "a", value := payload.toInputValue }]).selectionSet = [field] := by
-      simp [FieldMerge.collectFields, operation, Operation.rootType, OperationType.rootType,
-        Schema.lookupField, Schema.lookupDeclaredField, Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
-        schema, field, TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name, List.find?]
+    have hcollect
+        : FieldMerge.collectFields schema
+            ((operation [{ name := "a", value := payload.toInputValue }]).rootType schema)
+            (operation [{ name := "a", value := payload.toInputValue }]).selectionSet
+          = [field] := by
+      simp [FieldMerge.collectFields, operation, Operation.rootType,
+        OperationType.rootType, Schema.lookupField, Schema.lookupDeclaredField,
+        Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions, schema,
+        field, TypeDefinition.name, TypeDefinition.fields?, BuiltinScalar.name,
+        List.find?]
     rw [hcollect] at leftMember rightMember
     cases List.mem_singleton.mp leftMember
     cases List.mem_singleton.mp rightMember

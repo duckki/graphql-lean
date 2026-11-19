@@ -99,8 +99,8 @@ theorem ResponseStreamCursor.handleBatch_fromReference
       have flag := publisherBatch_hasNext cursor.queue cursor.publisher batch running
       have terminal := kernelBatch_termination cursor.queue batch running
       rw [projected]
-      simp only [ResponseStreamCursor.handleBatch, Bool.false_eq_true, ↓reduceIte, state, events,
-        ReferenceWorkQueue.ResponseStreamCursor.step_eq]
+      simp only [ResponseStreamCursor.handleBatch, Bool.false_eq_true, ↓reduceIte, state,
+        events, ReferenceWorkQueue.ResponseStreamCursor.step_eq]
       by_cases silent : (cursor.queue.handleGraphEvents batch).2.isEmpty = true
       · have openNext : (cursor.queue.handleGraphEvents batch).1.terminated = false := by
           apply Bool.eq_false_iff.mpr
@@ -203,12 +203,16 @@ theorem ResponseStreamCursor.run_fromReference
       have validNext : ReferenceWorkQueue.ValidGraphEvents work
           ((before ++ batch) ++ rest.flatten) := by
         simpa [List.append_assoc] using valid
-      have provenanceNext : (cursor.step batch).2.queue.terminated = false
-          → (cursor.step batch).2.queue = (ReferenceWorkQueue.State.initialize
-            (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents (before ++ batch) := by
+      have provenanceNext
+          : (cursor.step batch).2.queue.terminated = false
+            → (cursor.step batch).2.queue
+              = (ReferenceWorkQueue.State.initialize
+                  (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents
+                  (before ++ batch) := by
         rw [stepQueue]
         intro nextOpen
-        rw [cursor.queue.handleGraphEvents_nonterminalState batch startOpen nextOpen, same]
+        rw [cursor.queue.handleGraphEvents_nonterminalState batch startOpen nextOpen,
+          same]
         simp [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_append]
       rw [ResponseStreamCursor.run_cons, ReferenceWorkQueue.ResponseStreamCursor.run_cons]
       obtain ⟨update, next⟩ := ResponseStreamCursor.handleBatch_fromReference cursor batch reducer
@@ -226,8 +230,9 @@ theorem ResponseStreamCursor.buildResponse_fromReference (response : Execution.R
   simp only [ResponseStreamCursor.buildResponse, State.initialize_queue,
     ReferenceWorkQueue.ResponseStreamCursor.initialize,
     ReferenceWorkQueue.initializeIncrementalResponse]
-  simp only [ResponseStreamCursor.fromReference, ReferenceWorkQueue.createWorkQueue_terminated,
-    Bool.false_eq_true, ↓reduceIte, State.initialize_fromReference, State.fromReference]
+  simp only [ResponseStreamCursor.fromReference,
+    ReferenceWorkQueue.createWorkQueue_terminated, Bool.false_eq_true, ↓reduceIte,
+    State.initialize_fromReference, State.fromReference]
 
 /-- Initial notices and IDs are exactly those of the shared reference publisher. -/
 theorem ResponseStreamCursor.buildResponse_initial (response : Execution.Response)
@@ -308,7 +313,8 @@ theorem ResponseStreamCursor.run_buildResponse_finished (response : Execution.Re
     (ResponseStreamCursor.run_initialize_fromReference response work inputs generated valid started).2,
     ResponseStreamCursor.fromReference_finished]
   have same := (ReferenceWorkQueue.ResponseStreamCursor.run_initialize response work inputs).2
-  rw [same, State.runNormalized_initialize work inputs generated valid started, State.fromReference_terminated]
+  rw [same, State.runNormalized_initialize work inputs generated valid started,
+    State.fromReference_terminated]
 
 /-- Actual response replay is identical; host effects and terminal record erasure are separate. -/
 theorem replayIncrementalResponse_eq_reference

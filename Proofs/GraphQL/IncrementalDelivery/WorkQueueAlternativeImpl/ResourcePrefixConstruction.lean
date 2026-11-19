@@ -128,9 +128,12 @@ theorem ResourcePrefixConstruction.invariants {work inputs resources actions}
       have same := State.observeResourceBatch_state ((State.initialize work).runNormalized inputs).1
         acquired inventories batch
       rw [← State.runNormalized_append_state] at same
-      have settled : ReferenceWorkQueue.GraphEvent.taskSettlements (inputs ++ [batch]).flatten
-          = ReferenceWorkQueue.GraphEvent.taskSettlements (inputs.flatten ++ batch) := by
-        simp only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil]
+      have settled
+          : ReferenceWorkQueue.GraphEvent.taskSettlements (inputs ++ [batch]).flatten
+            = ReferenceWorkQueue.GraphEvent.taskSettlements
+                (inputs.flatten ++ batch) := by
+        simp only [List.flatten_append, List.flatten_cons, List.flatten_nil,
+          List.append_nil]
       refine ⟨(ih.1.append externalReplay).append replay, ?_, ?_⟩
       · rw [settled]
         exact same ▸ represented

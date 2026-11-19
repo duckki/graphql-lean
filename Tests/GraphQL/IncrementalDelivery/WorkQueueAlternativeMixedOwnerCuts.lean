@@ -146,9 +146,10 @@ private theorem valid
       ⟨_, _, _, sibling_known, by intro other impossible; cases impossible⟩
   exact .append fourth ⟨_, _, finisher_known, rfl, rfl⟩
     (by
-      simp [earlierInputs, ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities,
-        success, killRoot, killChild, killSibling, finish, producer, rootFailure,
-        childFailure, siblingFailure, finisher])
+      simp [earlierInputs, ReferenceWorkQueue.GraphEvent.Fresh,
+        ReferenceWorkQueue.GraphEvent.identities, success, killRoot, killChild,
+        killSibling, finish, producer, rootFailure, childFailure, siblingFailure,
+        finisher])
     ⟨_, _, _, finisher_known, by intro other impossible; cases impossible⟩
 
 private theorem started

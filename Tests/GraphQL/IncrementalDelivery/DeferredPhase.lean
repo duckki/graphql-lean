@@ -33,25 +33,32 @@ theorem deferred_task {first second address owners producer payload}
       | zero =>
           cases rest with
           | nil =>
-              simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+              simp [Located, locateWork, locateWork.go, WorkLocation.child?, work]
+                at located
               rcases located with ⟨⟨rfl, rfl, rfl, rfl⟩, rfl, rfl⟩
               simp [node]
           | cons edge tail =>
-              cases edge <;> cases tail <;>
-                simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+              cases edge
+              <;> cases tail
+              <;> simp [Located, locateWork, locateWork.go, WorkLocation.child?, work]
+                    at located
       | succ side =>
           cases side with
           | zero =>
               cases rest with
               | nil =>
-                  simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+                  simp [Located, locateWork, locateWork.go, WorkLocation.child?, work]
+                    at located
                   rcases located with ⟨⟨rfl, rfl, rfl, rfl⟩, rfl, rfl⟩
                   simp [node]
               | cons edge tail =>
-                  cases edge <;> cases tail <;>
-                    simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+                  cases edge
+                  <;> cases tail
+                  <;> simp [Located, locateWork, locateWork.go, WorkLocation.child?, work]
+                        at located
           | succ side =>
-              simp [Located, locateWork, locateWork.go, WorkLocation.child?, work] at located
+              simp [Located, locateWork, locateWork.go, WorkLocation.child?, work]
+                at located
 
 /-- Both group notices are initially eligible for every combination of task outcomes.
 Witness: the second, still-unaccounted task contributes to both refs; failure evidence is

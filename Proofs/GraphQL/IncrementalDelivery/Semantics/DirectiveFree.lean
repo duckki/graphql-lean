@@ -87,15 +87,16 @@ mutual
                       : coerceArgumentValues schema variables definition.arguments
                           field.arguments with
                 | error =>
-                    simp [executeResponseField, GraphQL.Execution.executeField, eraseField,
-                  hf, ha, RunMatches, CompletionMatches, Work.size]
+                    simp [executeResponseField, GraphQL.Execution.executeField,
+                      eraseField, hf, ha, RunMatches, CompletionMatches, Work.size]
                 | success arguments =>
                     cases hv
                           : resolveFieldValue resolvers parentType field.fieldName
                               arguments source with
                     | none =>
-                        simp [executeResponseField, GraphQL.Execution.executeField, eraseField,
-                      hf, ha, hv, RunMatches, CompletionMatches, Work.size]
+                        simp [executeResponseField, GraphQL.Execution.executeField,
+                          eraseField, hf, ha, hv, RunMatches, CompletionMatches,
+                          Work.size]
                     | some value =>
                         simp only [executeResponseField, List.map_cons,
                           GraphQL.Execution.executeField,
@@ -160,17 +161,18 @@ mutual
                 cases hi : schema.typeIncludesObjectBool parentType runtimeType
                 · simp [completeValue, GraphQL.Execution.completeValue, hi, RunMatches,
                     CompletionMatches, Work.size]
-                · simp only [completeValue, GraphQL.Execution.completeValue, hi, Bool.not_true,
-                    Bool.false_eq_true, ↓reduceIte]
+                · simp only [completeValue, GraphQL.Execution.completeValue, hi,
+                    Bool.not_true, Bool.false_eq_true, ↓reduceIte]
                   apply runMatches_after_collection _ _ _ _ _
-                    (collectSubfields_plain schema variables runtimeType (.object runtimeType ref)
-                      fields hplain state)
+                    (collectSubfields_plain schema variables runtimeType
+                      (.object runtimeType ref) fields hplain state)
                   intro collection hn hp he
                   apply runMatches_bind _ _ _ _ _
                     (executePlan_plain schema resolvers variables fuel runtimeType
                       (.object runtimeType ref) collection path state _ hn hp
                       (executeCollectedFields_plain schema resolvers variables fuel
-                        runtimeType (.object runtimeType ref) collection.collectedFieldsMap hp path state))
+                        runtimeType (.object runtimeType ref)
+                        collection.collectedFieldsMap hp path state))
                   intro completed hc
                   apply runMatches_pure
                   simpa [he] using completionMatches_catchNull ResponseValue.object completed _ hc

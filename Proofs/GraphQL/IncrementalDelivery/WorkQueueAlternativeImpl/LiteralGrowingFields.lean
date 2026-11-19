@@ -88,7 +88,8 @@ theorem literal_responseField_maps (schema : Schema) (resolvers : Resolvers Obje
                   (head :: tail) resolved (path ++ [.field name]) usages context true
                   (literal head (by simp) arguments resolved actual) keys start fresh
                 simp only [List.map_cons, field] at transported
-                simp only [run_bind, transported, StateT.run_pure, id_pure_eq, completion_map]
+                simp only [run_bind, transported, StateT.run_pure, id_pure_eq,
+                  completion_map]
 
 /-- One actual literal field constructs its full run certificate at arbitrary paired
 supplies. Its map is unchanged; only its caller's fatal suffix can extend the map. -/

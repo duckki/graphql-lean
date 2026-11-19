@@ -60,13 +60,15 @@ theorem State.CachedFailuresSupported.handleGraphEvent_contribution {queue work 
   | taskFailure occurrence errors =>
       cases found : queue.taskNode? occurrence with
       | none =>
-          simpa [State.handleGraphEvent, State.taskFailure, State.objectFailureContribution,
-            found] using supported
+          simpa [State.handleGraphEvent, State.taskFailure,
+            State.objectFailureContribution, found]
+            using supported
       | some node =>
           cases accepted : queue.taskHasHealthyOwner node.task with
           | false =>
-              simpa [State.handleGraphEvent, State.taskFailure, State.objectFailureContribution,
-                found, accepted] using supported.removeTask occurrence
+              simpa [State.handleGraphEvent, State.taskFailure,
+                State.objectFailureContribution, found, accepted]
+                using supported.removeTask occurrence
           | true =>
               have enlarged := supported.weaken
                 (List.subset_append_right [occurrence] failed)

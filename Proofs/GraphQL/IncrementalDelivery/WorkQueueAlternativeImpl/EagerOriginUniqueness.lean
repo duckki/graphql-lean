@@ -38,8 +38,9 @@ mutual
           source rest path usages context (route ++ [1])
           ((EagerRecordedExecution.executeResponseField schema resolvers variables fuel parentType
             source name group path usages context (route ++ [0])).run state).2
-        simpa only [EagerRecordedExecution.executeCollectedFields, run_bind, StateT.run_pure,
-          id_pure_eq] using combine_scoped List.append _ _ route head tail
+        simpa only [EagerRecordedExecution.executeCollectedFields, run_bind,
+          StateT.run_pure, id_pure_eq]
+          using combine_scoped List.append _ _ route head tail
   termination_by (fuel, 4, 0, sizeOf fields)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -238,8 +239,9 @@ mutual
               state).1) := by
     cases values with
     | nil =>
-        simpa only [EagerRecordedExecution.completeStreamItems, StateT.run_pure, id_pure_eq,
-          itemOrigins, List.flatMap_nil] using Scoped.empty route
+        simpa only [EagerRecordedExecution.completeStreamItems, StateT.run_pure,
+          id_pure_eq, itemOrigins, List.flatMap_nil]
+          using Scoped.empty route
     | cons value rest =>
         have head := completeValue_origins schema resolvers variables fuel itemType fields
           value (path ++ [.index index]) [] [] false (route ++ [0]) state
@@ -251,8 +253,9 @@ mutual
             fields rest path (index + 1) (route ++ [1])
             ((EagerRecordedExecution.completeValue schema resolvers variables fuel itemType fields
               value (path ++ [.index index]) [] [] false (route ++ [0])).run state).2
-          simpa only [run_bind, StateT.run_pure, id_pure_eq, itemOrigins, List.flatMap_cons,
-            RecordedCompletion.origins] using Scoped.join head tail
+          simpa only [run_bind, StateT.run_pure, id_pure_eq, itemOrigins,
+            List.flatMap_cons, RecordedCompletion.origins]
+            using Scoped.join head tail
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -298,8 +301,9 @@ mutual
             state).1.origins := by
     cases partitions with
     | nil =>
-        simpa only [EagerRecordedExecution.collectExecutionGroups, StateT.run_pure, id_pure_eq,
-          RecordedWork.origins] using Scoped.empty route
+        simpa only [EagerRecordedExecution.collectExecutionGroups, StateT.run_pure,
+          id_pure_eq, RecordedWork.origins]
+          using Scoped.empty route
     | cons partition rest =>
         obtain ⟨usages, fields⟩ := partition
         have head := executeCollectedFields_origins schema resolvers variables fuel parentType

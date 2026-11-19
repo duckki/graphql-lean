@@ -33,8 +33,9 @@ theorem list_cuts_of_values (schema : Schema) (resolvers : Resolvers ObjectRef)
           right).1 := by
   induction sources generalizing index route keys left right with
   | nil =>
-      simpa only [RecordedExecution.completeListValue, EagerRecordedExecution.completeListValue,
-        StateT.run_pure, id_pure_eq] using CompletionCutTrace.pure ([] : List ResponseValue)
+      simpa only [RecordedExecution.completeListValue,
+        EagerRecordedExecution.completeListValue, StateT.run_pure, id_pure_eq]
+        using CompletionCutTrace.pure ([] : List ResponseValue)
   | cons source rest ih =>
       have head := children itemType fields source (path ++ [.index index]) usages context false
         (route ++ [0]) keys left right supplies ordered usageBound contextBound
@@ -42,7 +43,8 @@ theorem list_cuts_of_values (schema : Schema) (resolvers : Resolvers ObjectRef)
         (path ++ [.index index]) usages context false (route ++ [0]) keys left right supplies ordered
         usageBound contextBound
       dsimp only [eraseCompletionRun] at mapped
-      simp only [RecordedExecution.completeListValue, EagerRecordedExecution.completeListValue, run_bind]
+      simp only [RecordedExecution.completeListValue,
+        EagerRecordedExecution.completeListValue, run_bind]
       cases outcome
             : ((RecordedExecution.completeValue schema resolvers variables fuel itemType
                   fields source (path ++ [.index index]) usages context false
@@ -88,8 +90,9 @@ theorem streamItems_cuts_of_values (schema : Schema) (resolvers : Resolvers Obje
           right).1 := by
   induction sources generalizing index route keys left right with
   | nil =>
-      simpa only [RecordedExecution.completeStreamItems, EagerRecordedExecution.completeStreamItems,
-        StateT.run_pure, id_pure_eq] using ItemsCutTrace.nil
+      simpa only [RecordedExecution.completeStreamItems,
+        EagerRecordedExecution.completeStreamItems, StateT.run_pure, id_pure_eq]
+        using ItemsCutTrace.nil
   | cons source rest ih =>
       have head := children itemType fields source (path ++ [.index index]) [] [] false (route ++ [0])
         keys left right supplies ordered (by simp) (by simp)
@@ -98,7 +101,8 @@ theorem streamItems_cuts_of_values (schema : Schema) (resolvers : Resolvers Obje
       simp only [List.map_nil] at head mapped
       dsimp only [eraseCompletionRun] at mapped
       have same := head.1.refines.1.1
-      simp only [RecordedExecution.completeStreamItems, EagerRecordedExecution.completeStreamItems, run_bind]
+      simp only [RecordedExecution.completeStreamItems,
+        EagerRecordedExecution.completeStreamItems, run_bind]
       cases outcome : ((RecordedExecution.completeValue schema resolvers variables fuel itemType fields source
           (path ++ [.index index]) [] [] false (route ++ [0])).run left).1.report.outcome
       <;> cases eagerOutcome : ((EagerRecordedExecution.completeValue schema resolvers variables fuel itemType
@@ -130,8 +134,8 @@ theorem listWithStream_cuts_of_values (schema : Schema)
             fuel itemType (fields.map (field keys)) sources path (usages.map keys)
             (context.map (fragment keys)) allowStream route).run
           right).1 := by
-  simp only [RecordedExecution.completeListValueWithStream, EagerRecordedExecution.completeListValueWithStream,
-    mapped_field_directives]
+  simp only [RecordedExecution.completeListValueWithStream,
+    EagerRecordedExecution.completeListValueWithStream, mapped_field_directives]
   split
   · simp_all only [StateT.run_pure, id_pure_eq]
     exact CompletionCutTrace.fault _ _
@@ -181,8 +185,8 @@ theorem listWithStream_cuts_of_values (schema : Schema)
           rw [mapped_stream_fields]
           simp [List.map_map, field, Function.comp_def]
         rw [mappedFields] at tail
-        simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq,
-          CompletionCutTrace]
+        simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+          StateT.run_pure, id_pure_eq, CompletionCutTrace]
         exact ⟨(initial.catchNull ResponseValue.list).1,
           .combine (initial.catchNull ResponseValue.list).2 (.stream tail)⟩
 

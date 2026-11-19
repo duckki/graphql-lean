@@ -456,7 +456,8 @@ theorem ValidGraphEvents.groupSettlement_producerBefore
   induction valid with
   | nil => simp at settled
   | @append before event _ matching fresh ready ih =>
-      simp only [List.flatMap_append, List.flatMap_singleton, List.mem_append] at settled ⊢
+      simp only [List.flatMap_append, List.flatMap_singleton, List.mem_append]
+        at settled ⊢
       rcases settled with earlier | latest
       · exact Or.inl (ih earlier)
       · left

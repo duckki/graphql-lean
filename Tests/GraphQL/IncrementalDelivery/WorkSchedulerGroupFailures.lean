@@ -294,7 +294,8 @@ theorem full_source_valid
   refine ⟨?_, by cbv⟩
   change ValidGraphEvents work (priorInputs.flatten ++ [.taskFailure rightTask 2])
   refine .append prior_source_valid.1 ⟨_, _, _, right_known⟩ ?_ ?_
-  · simp [priorInputs, first, GraphEvent.Fresh, GraphEvent.identities, leftTask, rightTask]
+  · simp [priorInputs, first, GraphEvent.Fresh, GraphEvent.identities, leftTask,
+      rightTask]
   · exact ⟨_, _, _, right_known, by intro source impossible; cases impossible⟩
 
 /-- The actual output distinguishes the two earlier one-error failures from the last two.

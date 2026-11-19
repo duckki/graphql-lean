@@ -52,8 +52,9 @@ theorem owner_after_object
     : PublicationOwner work initial matching (events ++ [.groupValues carrier values])
         failed owners node
       ↔ PublicationOwner work initial matching events failed owners node := by
-  simp [PublicationOwner, HealthyOpenOwner, OpenOwner, Open, announcedRefs, pendingRefs, completedRefs,
-    List.flatMap_append, eventPending, eventCompleted, (causality_append_eq bounded _).1]
+  simp [PublicationOwner, HealthyOpenOwner, OpenOwner, Open, announcedRefs, pendingRefs,
+    completedRefs, List.flatMap_append, eventPending, eventCompleted,
+    (causality_append_eq bounded _).1]
 
 /-- Two distinct ready object tasks may publish in this order with the same owners.
 Witness: publish the first, transport readiness and owner availability, then the second.

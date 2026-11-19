@@ -156,7 +156,8 @@ theorem allocate_valid (parents : Assignment) (state : Nat) (parent : Option Def
     | none => simp [allocate] at ha
     | some usage =>
         have hh := hu usage rfl
-        simp only [allocate, ↓reduceIte, Option.map_some, Option.getD_some, List.mem_cons] at ha
+        simp only [allocate, ↓reduceIte, Option.map_some, Option.getD_some, List.mem_cons]
+          at ha
         have hlu : parents usage.ref = usage.ancestors := hh.2
         rcases ha with rfl | ha
         · refine ⟨hh.1, ?_⟩

@@ -84,9 +84,11 @@ mutual
     cases selections with
     | nil => simp [collectFields, GroupsNonempty]
     | cons selection rest =>
-        simp only [collectFields, run_bind, StateT.run_pure, id_pure_eq, FieldCollection.append]
+        simp only [collectFields, run_bind, StateT.run_pure, id_pure_eq,
+          FieldCollection.append]
         exact groupsNonempty_merge _ _
-          (collectSelection_nonempty schema variables parentType source selection usage state)
+          (collectSelection_nonempty schema variables parentType source selection usage
+            state)
           (collectFields_nonempty schema variables parentType source rest usage _)
   termination_by sizeOf selections
 end
@@ -100,9 +102,11 @@ theorem collectSubfields_nonempty (schema : Schema) (variables : VariableValues)
   induction fields generalizing state with
   | nil => simp [collectSubfields, GroupsNonempty]
   | cons field rest ih =>
-      simp only [collectSubfields, run_bind, StateT.run_pure, id_pure_eq, FieldCollection.append]
+      simp only [collectSubfields, run_bind, StateT.run_pure, id_pure_eq,
+        FieldCollection.append]
       exact groupsNonempty_merge _ _
-        (collectFields_nonempty schema variables parentType source field.selectionSet field.deferUsage state)
+        (collectFields_nonempty schema variables parentType source field.selectionSet
+          field.deferUsage state)
         (ih _)
 
 theorem buildExecutionPlan_nonempty (groups : CollectedFieldsMap) (parent : List Nat)

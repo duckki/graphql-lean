@@ -41,7 +41,8 @@ mutual
     | nil => rfl
     | cons head rest =>
         rcases head with ⟨name, value⟩
-        simp [ConstInputValue.objectFieldsToInputFields, referencedVariableObjectFieldsCoercionFuel,
+        simp [ConstInputValue.objectFieldsToInputFields,
+          referencedVariableObjectFieldsCoercionFuel,
           referencedVariableValuesCoercionFuel_const values value,
           referencedVariableValuesCoercionFuel_constFields values rest]
 end
@@ -185,8 +186,9 @@ mutual
     cases values with
     | nil => rfl
     | cons head rest =>
-        simp [ConstInputValue.valuesToInputValues, ConstInputValue.inputValuesToConstInputValues?,
-          ofInputValue_toInputValue head, ofInputValues_toInputValues rest]
+        simp [ConstInputValue.valuesToInputValues,
+          ConstInputValue.inputValuesToConstInputValues?, ofInputValue_toInputValue head,
+          ofInputValues_toInputValues rest]
 
   theorem ofInputFields_toInputFields (fields : List (Name × ConstInputValue))
       : ConstInputValue.inputFieldsToConstInputFields?
@@ -196,8 +198,9 @@ mutual
     | nil => rfl
     | cons head rest =>
         rcases head with ⟨name, value⟩
-        simp [ConstInputValue.objectFieldsToInputFields, ConstInputValue.inputFieldsToConstInputFields?,
-          ofInputValue_toInputValue value, ofInputFields_toInputFields rest]
+        simp [ConstInputValue.objectFieldsToInputFields,
+          ConstInputValue.inputFieldsToConstInputFields?, ofInputValue_toInputValue value,
+          ofInputFields_toInputFields rest]
 end
 
 -- Custom-scalar payloads are returned unchanged, independently of variable values.

@@ -93,7 +93,8 @@ mutual
         have hf := continuous_deferred final lower _ deferMap usages owners path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
           _ hfv ((hm.extend he hle).extend het hlt) hl hpart.1 hpart.2.1 hpart.2.2.2 (hw.extend het hlt)
-        simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [collectExecutionGroups, executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         exact ⟨
           Nat.le_trans hle hlt,
           final,
@@ -304,8 +305,15 @@ mutual
             (Nat.le_refl _) hav (by intro f hf; obtain ⟨old, _, rfl⟩ := List.mem_map.mp hf; rfl)
           have hea := allocate_extends middle middleState []
           have heall := hea.trans het (Nat.le_succ middleState)
-          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
-          refine ⟨by dsimp only [middleState] at *; omega, final, he.trans heall hle, hfv, ?_⟩
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+            StateT.run_pure, id_pure_eq]
+          refine ⟨
+            by dsimp only [middleState] at *; omega,
+            final,
+            he.trans heall hle,
+            hfv,
+            ?_
+          ⟩
           apply continuous_append (continuous_catchNull final lower _ usages _ _
             (hw.extend heall (by dsimp only [middleState] at *; omega)))
           apply continuous_stream final lower _ usages _ _ (Nat.le_trans hls hle)

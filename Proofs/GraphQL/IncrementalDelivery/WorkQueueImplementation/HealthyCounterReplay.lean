@@ -123,12 +123,12 @@ theorem State.HealthyCounterAccounting.handleGraphEvent {queue work parents befo
         exact matching.streamItem_childTasksFresh valid fresh member taskMember
           (GraphEvent.taskSettlements_subsetIdentities before earlier)
     | streamSuccess stream =>
-        dsimp only [GraphEvent.recordTaskOutcome, GraphEvent.groupFailures, List.nil_append,
-          State.handleGraphEvent, State.streamSuccess]
+        dsimp only [GraphEvent.recordTaskOutcome, GraphEvent.groupFailures,
+          List.nil_append, State.handleGraphEvent, State.streamSuccess]
         split <;> exact prior.healthy
     | streamFailure stream errors =>
-        dsimp only [GraphEvent.recordTaskOutcome, GraphEvent.groupFailures, List.nil_append,
-          State.handleGraphEvent, State.streamFailure]
+        dsimp only [GraphEvent.recordTaskOutcome, GraphEvent.groupFailures,
+          List.nil_append, State.handleGraphEvent, State.streamFailure]
         split <;> exact prior.healthy
   have nextSupport : (queue.handleGraphEvent event).1.CachedFailuresSupported work
       (GraphEvent.failureSettlements (before ++ [event])) := by

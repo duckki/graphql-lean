@@ -80,7 +80,8 @@ mutual
                   EagerRecordedExecution.completeValue]
                   using NoStreamOriginsRefine.pure ResponseValue.null
             | scalar scalar =>
-                simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
+                simp only [RecordedExecution.completeValue,
+                  EagerRecordedExecution.completeValue]
                 split
                 · exact NoStreamOriginsRefine.fault route (.ok (ResponseValue.null, 1))
                 · exact NoStreamOriginsRefine.pure (ResponseValue.scalar scalar)
@@ -142,8 +143,8 @@ mutual
         intro supply
         obtain ⟨related, headSupply, eagerHeadSupply⟩ := head supply
         obtain ⟨restRelated, tailSupply, eagerTailSupply⟩ := tail supply
-        simp only [RecordedExecution.completeListValue, EagerRecordedExecution.completeListValue,
-          run_bind, headSupply, eagerHeadSupply]
+        simp only [RecordedExecution.completeListValue,
+          EagerRecordedExecution.completeListValue, run_bind, headSupply, eagerHeadSupply]
         cases outcome
               : ((RecordedExecution.completeValue schema resolvers variables fuel itemType
                     fields value (path ++ [.index index]) usages context false
@@ -222,7 +223,8 @@ theorem literal_completeStreamItems_origins (schema : Schema)
         = supply := by
   induction values generalizing index route with
   | nil =>
-      simp only [RecordedExecution.completeStreamItems, EagerRecordedExecution.completeStreamItems]
+      simp only [RecordedExecution.completeStreamItems,
+        EagerRecordedExecution.completeStreamItems]
       exact ⟨.nil, rfl, rfl⟩
   | cons value rest ih =>
       obtain ⟨related, headSupply, eagerHeadSupply⟩ :=
@@ -232,8 +234,8 @@ theorem literal_completeStreamItems_origins (schema : Schema)
         fun value member => literal value (List.mem_cons_of_mem _ member)
       obtain ⟨tail, tailSupply, eagerTailSupply⟩ := ih (index + 1) (route ++ [1]) restLiteral
       have same := related.1.1.1
-      simp only [RecordedExecution.completeStreamItems, EagerRecordedExecution.completeStreamItems,
-        run_bind, headSupply, eagerHeadSupply]
+      simp only [RecordedExecution.completeStreamItems,
+        EagerRecordedExecution.completeStreamItems, run_bind, headSupply, eagerHeadSupply]
       cases outcome :
           ((RecordedExecution.completeValue schema resolvers variables fuel itemType fields value
             (path ++ [.index index]) [] [] false (route ++ [0])).run supply).1.report.outcome
@@ -399,7 +401,8 @@ theorem literal_completeValue_withStream_origins (schema : Schema)
                 EagerRecordedExecution.completeValue]
                 using (NoStreamOriginsRefine.pure ResponseValue.null).literal
           | scalar scalar =>
-              simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
+              simp only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue]
               split
               · exact (NoStreamOriginsRefine.fault route (.ok (ResponseValue.null, 1))).literal
               · exact (NoStreamOriginsRefine.pure (ResponseValue.scalar scalar)).literal

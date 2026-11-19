@@ -57,7 +57,8 @@ mutual
         have hr := collectExecutionGroups_streamAllocations schema resolvers variables fuel
           parentType source rest path deferMap
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).2
-        simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [collectExecutionGroups, executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         apply streams_combine
         · simpa only [StreamsCompleted, StreamAllocated, streamAllocationRefs] using hl
         · exact hr
@@ -233,7 +234,8 @@ mutual
           have hr := completeStreamItems_streamAllocations schema resolvers variables fuel inner
             (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount (middle + 1)
-          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+            StateT.run_pure, id_pure_eq]
           apply streams_combine (streams_catchNull _ _ hl)
           simpa only [StreamAllocated, streamAllocationRefs, itemAllocationRefs] using hr.fresh
   termination_by (fuel, 3, 0, 0)
@@ -288,13 +290,15 @@ mutual
           fields value (path ++ [.index index]) [] [] false state
         simp only [completeStreamItems, run_bind]
         split
-        · simpa only [StateT.run_pure, id_pure_eq, itemAllocationRefs, List.flatMap_cons, List.flatMap_nil, streamAllocationRefs,
-            List.append_nil] using RefsAllocated.empty hl.monotone
+        · simpa only [StateT.run_pure, id_pure_eq, itemAllocationRefs, List.flatMap_cons,
+            List.flatMap_nil, streamAllocationRefs, List.append_nil]
+            using RefsAllocated.empty hl.monotone
         · have hr := completeStreamItems_streamAllocations schema resolvers variables fuel
             itemType fields rest path (index + 1)
             ((completeValue schema resolvers variables fuel itemType fields value
               (path ++ [.index index]) [] [] false).run state).2
-          simp only [run_bind, StateT.run_pure, id_pure_eq, itemAllocationRefs, List.flatMap_cons]
+          simp only [run_bind, StateT.run_pure, id_pure_eq, itemAllocationRefs,
+            List.flatMap_cons]
           exact hl.append hr
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by

@@ -706,7 +706,8 @@ theorem closure_counts_unexplained {events : List Execution.WorkQueueEvent}
   intro explained
   have rootAllowed := explained.2.2 i _ atRoot
   have childAllowed := explained.2.2 j _ atChild
-  simp only [EventAllowed, failedBefore_filter _ (Nat.le_refl _)] at rootAllowed childAllowed
+  simp only [EventAllowed, failedBefore_filter _ (Nat.le_refl _)]
+    at rootAllowed childAllowed
   obtain ⟨firstRecorded, noSecond⟩ := root_count rootAllowed.2.2.2
   have unique : (failedBefore failures (events.take j).length).Nodup :=
     explained.failures_nodup.sublist (List.filter_sublist.map Prod.snd)
@@ -797,7 +798,8 @@ private theorem batching_failureControls {events batches}
   induction batching with
   | nil => rfl
   | cons _ values _ ih =>
-      simp only [List.flatten_cons, List.filter_append, grouping_failureControls values, ih]
+      simp only [List.flatten_cons, List.filter_append, grouping_failureControls values,
+        ih]
 
 /-- Preserving the runner's failure controls forces both incompatible count statements.
 Witness: recover their event indices from filter membership, independently of batching.

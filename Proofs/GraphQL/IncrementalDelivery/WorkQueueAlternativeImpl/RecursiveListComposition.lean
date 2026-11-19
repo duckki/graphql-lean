@@ -137,7 +137,8 @@ theorem streamItems_run_of_values (schema : Schema) (resolvers : Resolvers Objec
         [] [] false keys left right supplies ordered (by simp) (by simp)
       simp only [List.map_nil] at head
       have same := head.completion.1.1
-      simp only [ScheduledExecution.completeStreamItems, Execution.completeStreamItems, run_bind]
+      simp only [ScheduledExecution.completeStreamItems, Execution.completeStreamItems,
+        run_bind]
       cases cutOutcome :
           ((ScheduledExecution.completeValue schema resolvers variables fuel itemType fields
             value (path ++ [.index index]) [] [] false).run left).1.result
@@ -221,7 +222,8 @@ theorem RunRefines.withStream {initial middle next left right}
     rcases (mem_allRefs_combine _ _ _).mp member with inInitial | inStream
     · exact Nat.lt_of_lt_of_le (caught.bounded key inInitial)
         (by have := items.scheduledMonotone; omega)
-    · simp only [allRefs, rootRefs, hiddenRegions, List.mem_append, List.mem_singleton] at inStream
+    · simp only [allRefs, rootRefs, hiddenRegions, List.mem_append, List.mem_singleton]
+        at inStream
       rcases inStream with rfl | member
       · exact items.scheduledMonotone
       · obtain ⟨region, inRegions, inRegion⟩ := List.mem_flatten.mp member
@@ -265,8 +267,8 @@ theorem listWithStream_run_of_values (schema : Schema) (resolvers : Resolvers Ob
               (fields.map (field keys)) values path (usages.map keys)
               (context.map (fragment keys)) allowStream).run
             right) := by
-  simp only [ScheduledExecution.completeListValueWithStream, Execution.completeListValueWithStream,
-    mapped_field_directives]
+  simp only [ScheduledExecution.completeListValueWithStream,
+    Execution.completeListValueWithStream, mapped_field_directives]
   split
   · simp_all only
     exact ⟨keys, pureResult_run supplies _⟩

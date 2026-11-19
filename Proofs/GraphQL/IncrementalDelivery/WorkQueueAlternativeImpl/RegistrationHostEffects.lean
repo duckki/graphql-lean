@@ -215,9 +215,10 @@ theorem State.streamItems_acknowledges_once (state : State)
   · rfl
   · change (receiptEffects (items.foldl streamRegistrationStep (state, [], [], [], [], []))
       stream.ref).filterMap HostEffect.acknowledgedStream? = _
-    simp only [receiptEffects, List.filterMap_append, streamFold_acknowledgements, streamEffects,
-      cleanupEffects_acknowledgedStreams, List.filterMap_cons, HostEffect.acknowledgedStream?,
-      List.filterMap_nil, List.nil_append, List.append_nil]
+    simp only [receiptEffects, List.filterMap_append, streamFold_acknowledgements,
+      streamEffects, cleanupEffects_acknowledgedStreams, List.filterMap_cons,
+      HostEffect.acknowledgedStream?, List.filterMap_nil, List.nil_append,
+      List.append_nil]
 
 /-- Earlier item cleanup and the post-ACK drain suffix telescope to the actual cumulative
 target list. This equality licenses any returned target by a real receipt effect, without
@@ -236,8 +237,9 @@ theorem State.streamItems_cleanupStarts_eq (state : State)
     streamFold_cleanupTargets items (state, [], [], [], [], []) List.nodup_nil rfl
   have later := acc.1.drainReadyGroups_targets (streamTargets acc) tracked.1
   change (receiptEffects acc stream.ref).filterMap HostEffect.cleanupStart? = _
-  simp only [receiptEffects, List.filterMap_append, List.filterMap_cons, HostEffect.cleanupStart?,
-    List.filterMap_nil, List.append_nil, cleanupEffects_starts, tracked.2]
+  simp only [receiptEffects, List.filterMap_append, List.filterMap_cons,
+    HostEffect.cleanupStart?, List.filterMap_nil, List.append_nil, cleanupEffects_starts,
+    tracked.2]
   obtain ⟨more, joined⟩ := later.2
   rw [← joined]
   simp
@@ -259,8 +261,9 @@ theorem State.streamItems_cleanupStarts_nodup (state : State)
       streamFold_cleanupTargets items (state, [], [], [], [], []) List.nodup_nil rfl
     have later := acc.1.drainReadyGroups_targets (streamTargets acc) tracked.1
     change ((receiptEffects acc stream.ref).filterMap HostEffect.cleanupStart?).Nodup
-    simp only [receiptEffects, List.filterMap_append, List.filterMap_cons, HostEffect.cleanupStart?,
-      List.filterMap_nil, List.append_nil, cleanupEffects_starts, tracked.2]
+    simp only [receiptEffects, List.filterMap_append, List.filterMap_cons,
+      HostEffect.cleanupStart?, List.filterMap_nil, List.append_nil,
+      cleanupEffects_starts, tracked.2]
     have telescoped : streamTargets acc ++
         ((acc.1.drainReadyGroups (streamTargets acc)).2.2.drop (streamTargets acc).length)
         = (acc.1.drainReadyGroups (streamTargets acc)).2.2 := by

@@ -71,7 +71,8 @@ theorem State.sourceRunBlocks_handlerBlocks (queue : State)
           refine ⟨terminal, ?_⟩
           rw [State.sourceRunBlocks, remaining, blocks]
           rw [state, mapper, raw, ← exactState, ← exactPublisher]
-          simp only [List.flatten_cons, State.sourceOutputBlocks_append, List.append_assoc]
+          simp only [List.flatten_cons, State.sourceOutputBlocks_append,
+            List.append_assoc]
 
 -----------------------------------------------------------------------------------------
 -- A selected block keeps its actual source label and pre-handler queue

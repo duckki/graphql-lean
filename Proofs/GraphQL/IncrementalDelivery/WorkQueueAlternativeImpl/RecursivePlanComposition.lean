@@ -96,8 +96,9 @@ theorem collectExecutionGroups_run_of_fields (schema : Schema)
               right)) := by
   induction partitions generalizing keys left right with
   | nil =>
-      simp only [ScheduledExecution.collectExecutionGroups, Execution.collectExecutionGroups,
-        KeyRenaming.partitions, List.map_nil, StateT.run_pure, id_pure_eq, workRun]
+      simp only [ScheduledExecution.collectExecutionGroups,
+        Execution.collectExecutionGroups, KeyRenaming.partitions, List.map_nil,
+        StateT.run_pure, id_pure_eq, workRun]
       refine ⟨keys, ⟨fun _ _ => rfl, supplies, Nat.le_refl _, Nat.le_refl _, ?_, ?_⟩⟩
       · simp [allRefs, rootRefs, hiddenRegions]
       · exact ⟨ResultRefines.refl _, .empty⟩
@@ -128,9 +129,10 @@ theorem collectExecutionGroups_run_of_fields (schema : Schema)
         variables fuel parentType source (partition :: rest) path context left contextBound
       simp only [partition, ScheduledExecution.collectExecutionGroups, run_bind,
         StateT.run_pure, id_pure_eq] at regions
-      simp only [ScheduledExecution.collectExecutionGroups, Execution.collectExecutionGroups,
-        Execution.executeExecutionGroup, KeyRenaming.partitions, List.map_cons,
-        lookup_groups_maps supplies.injective, run_bind, StateT.run_pure, id_pure_eq, workRun]
+      simp only [ScheduledExecution.collectExecutionGroups,
+        Execution.collectExecutionGroups, Execution.executeExecutionGroup,
+        KeyRenaming.partitions, List.map_cons, lookup_groups_maps supplies.injective,
+        run_bind, StateT.run_pure, id_pure_eq, workRun]
       refine ⟨next, ⟨prefixSame, tail.supplies,
         Nat.le_trans head.scheduledMonotone tail.scheduledMonotone,
         Nat.le_trans head.eagerMonotone tail.eagerMonotone, regions.bounded, ?_⟩⟩

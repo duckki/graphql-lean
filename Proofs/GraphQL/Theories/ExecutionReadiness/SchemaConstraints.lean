@@ -135,8 +135,9 @@ theorem schemaInterfaceArgumentDefaultsPreserved_lookupField {schema : Schema}
   cases hparent : schema.lookupType parent with
   | none => simp [Schema.lookupDeclaredField, hparent] at hdeclared
   | some definition =>
-      cases definition <;>
-        try (simp [Schema.lookupDeclaredField, hparent, TypeDefinition.fields?] at hdeclared)
+      cases definition
+      <;> try (simp [Schema.lookupDeclaredField, hparent, TypeDefinition.fields?]
+                at hdeclared)
       case object objectType =>
         have heq : runtime = parent := object_typeIncludesObjectBool_eq_self schema
           ⟨objectType, hparent⟩ (by simpa [Schema.typeIncludesObjectBool] using hpossible)
@@ -149,8 +150,9 @@ theorem schemaInterfaceArgumentDefaultsPreserved_lookupField {schema : Schema}
       case interface interfaceType =>
         have hparentName : interfaceType.name = parent := by
           simpa [TypeDefinition.name] using List.find?_some hparent
-        simp only [Schema.getPossibleTypes, hparent, Schema.objectTypesImplementingInterface,
-          List.mem_map, List.mem_filter] at hpossible
+        simp only [Schema.getPossibleTypes, hparent,
+          Schema.objectTypesImplementingInterface, List.mem_map, List.mem_filter]
+          at hpossible
         obtain ⟨objectType, ⟨hobject, himplements⟩, hname⟩ := hpossible
         have hmem := objectType_mem_types hobject
         have hobjectWell : objectTypeWellFormed schema objectType :=

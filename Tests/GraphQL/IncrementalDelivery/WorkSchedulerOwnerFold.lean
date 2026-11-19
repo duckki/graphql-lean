@@ -117,10 +117,12 @@ private theorem forest : queue.RemovalForest parents := by
   · simp [State.ChildLinksCanonical, queue, left, right, leftLeaf, rightLeaf,
       parents, firstOwner, lastOwner, leftChild, rightChild]
   · intro parent child parentMember childMember linked
-    simp only [queue, List.mem_cons, List.not_mem_nil, or_false] at parentMember childMember
-    rcases parentMember with rfl | rfl | rfl | rfl <;>
-      rcases childMember with rfl | rfl | rfl | rfl <;>
-      simp_all [left, right, leftLeaf, rightLeaf, firstOwner, lastOwner, leftChild, rightChild]
+    simp only [queue, List.mem_cons, List.not_mem_nil, or_false]
+      at parentMember childMember
+    rcases parentMember with rfl | rfl | rfl | rfl
+    <;> rcases childMember with rfl | rfl | rfl | rfl
+    <;> simp_all [left, right, leftLeaf, rightLeaf, firstOwner, lastOwner, leftChild,
+          rightChild]
 
 /-- A child released early in the owner fold stays covered while a later owner closes.
 Witness: the generic retained-root coverage theorem, with activation after both passes.

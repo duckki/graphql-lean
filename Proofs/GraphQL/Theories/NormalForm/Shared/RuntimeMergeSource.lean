@@ -193,12 +193,15 @@ private theorem runtimeFields_without_mem (schema : Schema)
             ∈ fieldSelectionsWithResponseNameInScope schema parentType responseName
                 selectionSet
   | [], field, hfield => by
-      simp [withoutFieldSelectionsWithResponseName, fieldSelectionsWithResponseNameInScope] at hfield
+      simp [withoutFieldSelectionsWithResponseName,
+        fieldSelectionsWithResponseNameInScope]
+        at hfield
   | selection :: rest, field, hfield => by
       cases selection with
       | field name fieldName arguments directives children =>
           by_cases hremoved : (name == removed) = true
-          · simp only [withoutFieldSelectionsWithResponseName, hremoved, ↓reduceIte] at hfield
+          · simp only [withoutFieldSelectionsWithResponseName, hremoved, ↓reduceIte]
+              at hfield
             have htail := runtimeFields_without_mem schema parentType responseName removed
               rest field hfield
             simp only [fieldSelectionsWithResponseNameInScope]
@@ -207,8 +210,9 @@ private theorem runtimeFields_without_mem (schema : Schema)
             · exact htail
           · have hremoved' : (name == removed) = false := by
               cases h : name == removed <;> simp_all
-            simp only [withoutFieldSelectionsWithResponseName, hremoved', Bool.false_eq_true,
-              ↓reduceIte, fieldSelectionsWithResponseNameInScope] at hfield ⊢
+            simp only [withoutFieldSelectionsWithResponseName, hremoved',
+              Bool.false_eq_true, ↓reduceIte, fieldSelectionsWithResponseNameInScope]
+              at hfield ⊢
             split at hfield
             · rename_i hname
               simp only [hname, ↓reduceIte]

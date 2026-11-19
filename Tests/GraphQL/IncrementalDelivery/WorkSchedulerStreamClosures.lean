@@ -121,8 +121,8 @@ theorem stream_order_alone_is_not_openness
         ([.groupSuccess node [] [], .streamValues node [⟨.null, 0⟩] [] []].filterMap
           streamAction)
       ∧ ¬Open [node.ref] [.groupSuccess node [] []] node.ref := by
-  simp [List.filterMap_cons, streamAction, Open, announcedRefs, pendingRefs, completedRefs,
-    eventPending, eventCompleted]
+  simp [List.filterMap_cons, streamAction, Open, announcedRefs, pendingRefs,
+    completedRefs, eventPending, eventCompleted]
 
 -----------------------------------------------------------------------------------------
 -- Generated non-null item failure retains the successful prefix and exact error task

@@ -131,7 +131,8 @@ theorem Explains.stream_address_unique
   have firstSeed := sourceTasks_seeded seeded firstMember
   have secondSeed := sourceTasks_seeded seeded secondMember
   simp only [SourceTask.Seeded, firstOccurrence, firstPayload, Nat.add_zero] at firstSeed
-  simp only [SourceTask.Seeded, secondOccurrence, secondPayload, Nat.add_zero] at secondSeed
+  simp only [SourceTask.Seeded, secondOccurrence, secondPayload, Nat.add_zero]
+    at secondSeed
   obtain ⟨before, start, origin, cursor, firstIndex⟩ := firstSeed
   obtain ⟨after, next, otherOrigin, otherCursor, secondIndex⟩ := secondSeed
   have paths : firstNode.path = secondNode.path := by

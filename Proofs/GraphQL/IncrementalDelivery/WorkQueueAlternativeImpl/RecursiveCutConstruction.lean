@@ -36,10 +36,12 @@ theorem valueCutConstruction_holds (schema : Schema) (resolvers : Resolvers Obje
                 ordered usageBound contextBound
               cases source with
               | null =>
-                  simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.pure ResponseValue.null
+                  simpa only [RecordedExecution.completeValue,
+                    EagerRecordedExecution.completeValue, StateT.run_pure, id_pure_eq]
+                    using CompletionCutTrace.pure ResponseValue.null
               | scalar scalar =>
-                  simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue]
+                  simp only [RecordedExecution.completeValue,
+                    EagerRecordedExecution.completeValue]
                   split
                   · simpa only [StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
                   · simpa only [StateT.run_pure, id_pure_eq] using CompletionCutTrace.pure (ResponseValue.scalar scalar)
@@ -47,21 +49,25 @@ theorem valueCutConstruction_holds (schema : Schema) (resolvers : Resolvers Obje
                   exact object_cuts_of_plan schema resolvers variables fuel plans name runtimeType reference
                     fields path usages context allowStream route keys left right supplies ordered usageBound contextBound
               | list items =>
-                  simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
+                  simpa only [RecordedExecution.completeValue,
+                    EagerRecordedExecution.completeValue, StateT.run_pure, id_pure_eq]
+                    using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
           | list inner _ =>
               intro fields source path usages context allowStream route keys left right supplies
                 ordered usageBound contextBound
               cases source with
               | null =>
-                  simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.pure ResponseValue.null
+                  simpa only [RecordedExecution.completeValue,
+                    EagerRecordedExecution.completeValue, StateT.run_pure, id_pure_eq]
+                    using CompletionCutTrace.pure ResponseValue.null
               | scalar scalar =>
-                  simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
+                  simpa only [RecordedExecution.completeValue,
+                    EagerRecordedExecution.completeValue, StateT.run_pure, id_pure_eq]
+                    using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
               | object runtimeType reference =>
-                  simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                    StateT.run_pure, id_pure_eq] using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
+                  simpa only [RecordedExecution.completeValue,
+                    EagerRecordedExecution.completeValue, StateT.run_pure, id_pure_eq]
+                    using CompletionCutTrace.fault route (.ok (ResponseValue.null, 1))
               | list items =>
                   simpa only [RecordedExecution.completeValue,
                     EagerRecordedExecution.completeValue]
@@ -74,8 +80,10 @@ theorem valueCutConstruction_holds (schema : Schema) (resolvers : Resolvers Obje
                 ordered usageBound contextBound
               have completed := child fields source path usages context allowStream (route ++ [0]) keys left right
                 supplies ordered usageBound contextBound
-              simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                run_bind, StateT.run_pure, id_pure_eq] using completed.nonNull route
+              simpa only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue, run_bind, StateT.run_pure,
+                id_pure_eq]
+                using completed.nonNull route
 
 theorem fieldCutConstruction_holds (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat)
@@ -114,8 +122,9 @@ theorem root_cut_trace (schema : Schema) (resolvers : Resolvers ObjectRef)
   rw [supplies.boundary] at collectedMapped
   have plannedMapped := build_plan supplies.injective collected.1.collectedFieldsMap ([] : List Nat)
   simp only [List.map_nil] at plannedMapped
-  simp only [RecordedExecution.executeRootSelectionSetCore, EagerRecordedExecution.executeRootSelectionSetCore,
-    run_bind, collectedMapped, collection]
+  simp only [RecordedExecution.executeRootSelectionSetCore,
+    EagerRecordedExecution.executeRootSelectionSetCore, run_bind, collectedMapped,
+    collection]
   rw [plannedMapped]
   simpa only [List.map_nil, collected] using child
 

@@ -94,9 +94,10 @@ private theorem stringShape
 
 private theorem concreteField_implements
     : fieldDefinitionImplements schema concreteField declaredField := by
-  simp [fieldDefinitionImplements, Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype, Schema.isSubType,
-    Schema.isOutputType, TypeDefinition.isOutputType,
-    argumentDefinitionsImplement, Schema.lookupArgumentDefinition]
+  simp [fieldDefinitionImplements, Schema.outputTypeSubtype,
+    Schema.namedOutputTypeSubtype, Schema.isSubType, Schema.isOutputType,
+    TypeDefinition.isOutputType, argumentDefinitionsImplement,
+    Schema.lookupArgumentDefinition]
 
 private theorem schema_valid : schemaWellFormed schema := by
   have htypes : ∀ definition ∈ schema.types, typeDefinitionWellFormed schema definition := by
@@ -160,9 +161,10 @@ private theorem schema_valid : schemaWellFormed schema := by
         have heq : concreteField = expected := by simpa [Schema.lookupDeclaredField] using hlookup
         subst expected
         refine ⟨concreteField, rfl, ?_⟩
-        simp [fieldDefinitionImplements, Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype, Schema.isSubType,
-          Schema.isOutputType, TypeDefinition.isOutputType,
-          argumentDefinitionsImplement, Schema.lookupArgumentDefinition]
+        simp [fieldDefinitionImplements, Schema.outputTypeSubtype,
+          Schema.namedOutputTypeSubtype, Schema.isSubType, Schema.isOutputType,
+          TypeDefinition.isOutputType, argumentDefinitionsImplement,
+          Schema.lookupArgumentDefinition]
       · have hfield : "dead" = field ∧ deadField = expected := by
           by_cases hd : field = "dead"
           · subst field
@@ -170,9 +172,9 @@ private theorem schema_valid : schemaWellFormed schema := by
           · simp [Schema.lookupDeclaredField, Ne.symm hf, Ne.symm hd] at hlookup
         rcases hfield with ⟨rfl, rfl⟩
         refine ⟨deadField, rfl, ?_⟩
-        simp [fieldDefinitionImplements, Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype, Schema.isSubType,
-          Schema.isOutputType, TypeDefinition.isOutputType,
-          argumentDefinitionsImplement]
+        simp [fieldDefinitionImplements, Schema.outputTypeSubtype,
+          Schema.namedOutputTypeSubtype, Schema.isSubType, Schema.isOutputType,
+          TypeDefinition.isOutputType, argumentDefinitionsImplement]
     · simp [hI, hQ] at hpossible
 
 private def nameSelections : List Selection := [.field "name" "name" [] [] []]
@@ -244,11 +246,12 @@ private theorem deadOperation_valid
     ?_,
     by simp [deadOperation, Validation.operationVariablesUsed]
   ⟩
-  · simp [deadOperation, nameSelections, Validation.selectionSetValid, Validation.selectionValid,
-      Validation.directivesValid, Validation.argumentsValid, Validation.fieldSelectionSetValid,
-      Schema.lookupField, Schema.lookupDeclaredField, TypeRef.namedType, TypeRef.isOutputType,
-      Schema.isOutputType, Schema.isLeafType, Schema.isCompositeType, TypeDefinition.isOutputType,
-      TypeDefinition.isLeafType, TypeDefinition.isCompositeType]
+  · simp [deadOperation, nameSelections, Validation.selectionSetValid,
+      Validation.selectionValid, Validation.directivesValid, Validation.argumentsValid,
+      Validation.fieldSelectionSetValid, Schema.lookupField, Schema.lookupDeclaredField,
+      TypeRef.namedType, TypeRef.isOutputType, Schema.isOutputType, Schema.isLeafType,
+      Schema.isCompositeType, TypeDefinition.isOutputType, TypeDefinition.isLeafType,
+      TypeDefinition.isCompositeType]
   · refine .intro _ _ ?_
     dsimp only
     intro left hleft right hright _

@@ -104,7 +104,8 @@ mutual
     | cons hlc hlt =>
         cases hr with
         | cons hrc hrt =>
-            simp only [List.length_cons, List.length_append, hlc.length_eq hrc, hlt.length_eq hrt]
+            simp only [List.length_cons, List.length_append, hlc.length_eq hrc,
+              hlt.length_eq hrt]
 end
 
 /-- The same payload at two positions has identical typed entries if its paths agree.
@@ -169,7 +170,8 @@ mutual
             obtain ⟨children, tail⟩ := List.append_inj
               (by simpa only [List.map_append] using rest) (by
                 simpa only [List.length_map] using hlc.length_eq hrc)
-            rw [result_value_of_paths _ head, hlc.of_paths hrc children, hlt.of_paths hrt tail]
+            rw [result_value_of_paths _ head, hlc.of_paths hrc children,
+              hlt.of_paths hrt tail]
 end
 
 end SourceReconstruction

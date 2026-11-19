@@ -125,7 +125,8 @@ theorem State.startNewWork_terminated (state : State) (roots : ReferenceWorkQueu
   cases running : state.stopped with
   | true => simp only [State.startNewWork, running, ↓reduceIte]
   | false =>
-      rw [State.startNewWork_queue _ _ _ _ running, ReferenceWorkQueue.State.startNewWork_terminated]
+      rw [State.startNewWork_queue _ _ _ _ running,
+        ReferenceWorkQueue.State.startNewWork_terminated]
       have step (queue : ReferenceWorkQueue.State) (task : ReferenceWorkQueue.Task)
           : (queue.startTask task.occurrence).terminated = queue.terminated := by
         unfold ReferenceWorkQueue.State.startTask

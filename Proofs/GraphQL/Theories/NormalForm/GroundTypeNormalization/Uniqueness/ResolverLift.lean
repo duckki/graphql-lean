@@ -100,8 +100,9 @@ theorem liftResolvers_resolveFieldValue_liftResolverValue
           liftResolverValue := by
   by_cases hmeta : fieldName = "__typename"
   · subst fieldName
-    cases source <;>
-      simp [Execution.resolveFieldValue, Execution.resolveTypenameField, liftResolverValue]
+    cases source
+    <;> simp [Execution.resolveFieldValue, Execution.resolveTypenameField,
+          liftResolverValue]
   · simp [Execution.resolveFieldValue, hmeta, liftResolvers_resolve_liftResolverValue]
 
 theorem runtimeObjectType?_liftResolverValue

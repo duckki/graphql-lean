@@ -383,8 +383,9 @@ theorem State.finishGroupSuccess_value {queue : State} {group : GroupNode}
   rw [events] at emitted
   split at emitted
   · simp at emitted
-  · simp only [List.mem_append, List.mem_singleton, Execution.WorkQueueEvent.groupValues.injEq,
-      reduceCtorEq, or_false] at emitted
+  · simp only [List.mem_append, List.mem_singleton,
+      Execution.WorkQueueEvent.groupValues.injEq, reduceCtorEq, or_false]
+      at emitted
     obtain ⟨same, exactValues⟩ := emitted
     rw [exactValues] at member
     obtain ⟨node, selectedNode, stored⟩ := List.mem_filterMap.mp member

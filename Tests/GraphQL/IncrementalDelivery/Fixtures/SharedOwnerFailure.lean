@@ -265,7 +265,8 @@ theorem staged_coverage : StopCoverage staged.state leases := by
   · subst target
     cbv
     exact .tail _ (.tail _ (.tail _ (.head _)))
-  · simp [leases, ResourceState.adopt, ResourceState.set, ResourceState.empty, same] at owned
+  · simp [leases, ResourceState.adopt, ResourceState.set, ResourceState.empty, same]
+      at owned
 
 theorem failure_loses_reachability
     : (.stream 2 : CleanupTarget) ∉ lastFailure.state.cleanupTargets := by

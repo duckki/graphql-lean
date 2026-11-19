@@ -63,7 +63,8 @@ mutual
         have hd := workAt_deferred final _ deferMap usages path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
           _ ((hm.extend he hle).extend het hlt) (hw.extend het hlt)
-        simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [collectExecutionGroups, executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,
           workAt_combine hd hwt⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
@@ -241,7 +242,8 @@ mutual
             path usage.initialCount (markStream middle frontier) (frontier + 1)
           have heall := (markStream_extends middle frontier).trans het (Nat.le_succ frontier)
           have hrole : final frontier = true := (het frontier (Nat.lt_succ_self _)).trans (by simp [markStream])
-          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+            StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [frontier] at *; omega, final, he.trans heall hle, ?_⟩
           apply workAt_combine (workAt_catchNull final _ _ _
             (hw.extend heall (by dsimp only [frontier] at *; omega)))

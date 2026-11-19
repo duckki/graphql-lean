@@ -58,12 +58,15 @@ theorem State.PreparedMembershipsCleared.handler_membershipAbsent
               let released := node.task.groups.foldl successGroupStep (prepared, [], {})
               let active := released.1.startNewWork released.2.2
               have final := ready.drain active.groupNodes.length (Nat.le_refl _) publication
-              rw [State.handleGraphEvent, queue.taskSuccess_eq occurrence result node found]
+              rw [State.handleGraphEvent,
+                queue.taskSuccess_eq occurrence result node found]
               simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
               apply final
-              simpa only [State.handleGraphEvent, queue.taskSuccess_eq occurrence result node found,
-                healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte, State.drainReadyGroups,
-                active, released, prepared, stored] using member
+              simpa only [State.handleGraphEvent,
+                queue.taskSuccess_eq occurrence result node found, healthy, Bool.not_true,
+                Bool.false_eq_true, ↓reduceIte, State.drainReadyGroups, active, released,
+                prepared, stored]
+                using member
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>

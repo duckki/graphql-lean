@@ -57,8 +57,10 @@ theorem sameTypeShape_isCompositeBool_eq (schema : Schema)
           have hrightNotLeaf : ¬rightDefinition.isLeafType := by
             intro hdefinitionLeaf
             exact hright ⟨rightDefinition, hrightLookup, hdefinitionLeaf⟩
-          cases leftDefinition <;> cases rightDefinition <;>
-            simp [TypeDefinition.isLeafType, TypeDefinition.isOutputType] at hleftOutput hrightOutput hleftNotLeaf hrightNotLeaf ⊢
+          cases leftDefinition
+          <;> cases rightDefinition
+          <;> simp [TypeDefinition.isLeafType, TypeDefinition.isOutputType]
+                at hleftOutput hrightOutput hleftNotLeaf hrightNotLeaf ⊢
 
 theorem named_isCompositeBool_eq_true_of_typeIncludesObjectBool
     (schema : Schema) (typeName objectName : Name)
@@ -172,8 +174,10 @@ theorem output_mergeResponse {ObjectRef : Type} (left right : FieldCacheValue Ob
       simpa [motive2] using ih)
     (by
       intro existing incoming hExisting hIncoming hNotObject hNotList
-      cases existing <;> cases incoming <;>
-        simp [motive1, mergeResponse, ExecutionUngroupedUncached.mergeResponse] at hExisting hIncoming hNotObject hNotList ⊢
+      cases existing
+      <;> cases incoming
+      <;> simp [motive1, mergeResponse, ExecutionUngroupedUncached.mergeResponse]
+            at hExisting hIncoming hNotObject hNotList ⊢
       · exact False.elim ((hNotObject _ _ _ _ rfl rfl rfl) rfl)
       · exact False.elim ((hNotList _ _ _ _ rfl rfl rfl) rfl))
     (by

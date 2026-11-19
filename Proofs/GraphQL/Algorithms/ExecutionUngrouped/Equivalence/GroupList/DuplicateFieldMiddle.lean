@@ -214,7 +214,8 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
         rcases hlaterLookup with ⟨_laterDefinition, hlaterLookup⟩
         have hlaterNull : laterResponse = .null := by
           rw [hlaterResponse]
-          simp [executableField, executeField, hlaterLookup, GraphQL.Execution.Result.getD, reusablePreviousValue?_null]
+          simp [executableField, executeField, hlaterLookup,
+            GraphQL.Execution.Result.getD, reusablePreviousValue?_null]
         have hlaterDataNull :
             Result.getD default
               (executeField schema resolvers variableValues completionDepth
@@ -230,7 +231,10 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
             symm
             simpa [laterField] using hlaterResponse
           exact hdata.trans hlaterNull
-        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, mergeResponseFieldResult, executeField, executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus, combineVisitStatus, GraphQL.Execution.Result.combine]
+        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject,
+          mergeResponseField, mergeResponse, mergeResponseFieldResult, executeField,
+          executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus,
+          combineVisitStatus, GraphQL.Execution.Result.combine]
     | scalar value =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]
@@ -428,7 +432,8 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
         rcases hlaterLookup with ⟨_laterDefinition, hlaterLookup⟩
         have hlaterNull : laterResponse = .null := by
           rw [hlaterResponse]
-          simp [executableField, executeField, hlaterLookup, GraphQL.Execution.Result.getD, reusablePreviousValue?_null]
+          simp [executableField, executeField, hlaterLookup,
+            GraphQL.Execution.Result.getD, reusablePreviousValue?_null]
         have hlaterDataNull :
             Result.getD default
               (executeField schema resolvers variableValues completionDepth
@@ -444,7 +449,10 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
             symm
             simpa [laterField] using hlaterResponse
           exact hdata.trans hlaterNull
-        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, mergeResponseFieldResult, executeField, executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus, combineVisitStatus, GraphQL.Execution.Result.combine]
+        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject,
+          mergeResponseField, mergeResponse, mergeResponseFieldResult, executeField,
+          executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus,
+          combineVisitStatus, GraphQL.Execution.Result.combine]
     | scalar value =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]

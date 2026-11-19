@@ -89,7 +89,8 @@ theorem inputs_valid_started
       (by simp [first, GraphEvent.Fresh, GraphEvent.identities])
       ⟨_, _, _, producerKnown, by intro source impossible; cases impossible⟩
   refine ⟨.append before ⟨_, _, sharedKnown, by cbv, by cbv⟩ ?_ ?_, by cbv⟩
-  · simp [first, shared, producerTask, sharedTask, GraphEvent.Fresh, GraphEvent.identities]
+  · simp [first, shared, producerTask, sharedTask, GraphEvent.Fresh,
+      GraphEvent.identities]
   · exact ⟨_, _, _, sharedKnown, by intro source impossible; cases impossible⟩
 
 /-- The produced stream is structurally below the buffered producer task.
@@ -761,8 +762,10 @@ theorem equal_payloads_do_not_identify_producer
     | succ index =>
         cases index with
         | zero =>
-            simp only [equalPayloadEvents, List.getElem?_cons_succ, List.getElem?_cons_zero,
-              Option.some.injEq, Execution.WorkQueueEvent.groupSuccess.injEq] at atEvent
+            simp only [equalPayloadEvents, List.getElem?_cons_succ,
+              List.getElem?_cons_zero, Option.some.injEq,
+              Execution.WorkQueueEvent.groupSuccess.injEq]
+              at atEvent
             obtain ⟨rfl, rfl, rfl⟩ := atEvent
             have same := List.mem_singleton.mp member
             subst noticed
@@ -778,7 +781,8 @@ theorem equal_payloads_do_not_identify_producer
         [parent.ref] (some producerTask) streamKnown
     have same := Option.some.inj producer
     subst occurrence
-    simp [equalPayloadEvents, WorkQueueEvent.objectValues, producerTask, sharedTask] at earlier
+    simp [equalPayloadEvents, WorkQueueEvent.objectValues, producerTask, sharedTask]
+      at earlier
 
 /-- Publisher remapping retains the correct labels and still rejects the swapped inventory.
 Witness: transport the raw witness without changing its labels; after normalization the

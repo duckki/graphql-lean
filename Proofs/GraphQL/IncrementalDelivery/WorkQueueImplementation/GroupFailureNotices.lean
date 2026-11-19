@@ -422,8 +422,8 @@ theorem IncrementalPublisher.normalizeBatch_groupNotices
   | nil => rfl
   | cons event rest ih =>
       rw [IncrementalPublisher.normalizeBatch_cons]
-      simp only [List.flatMap_append, IncrementalPublisher.handleWorkQueueEvent_groupNotices,
-        ih, List.flatMap_cons]
+      simp only [List.flatMap_append,
+        IncrementalPublisher.handleWorkQueueEvent_groupNotices, ih, List.flatMap_cons]
 
 /-- Publisher normalization preserves strict notice-before-failure ordering.
 Witness: each normalized head uses its old refs and passes its exact notices to the tail.

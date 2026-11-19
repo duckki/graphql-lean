@@ -157,7 +157,8 @@ private theorem SourceBuffer.step_creditInvariant (budget : Nat) (positive : 0 <
               have room : rest.length < budget := by
                 simp only [SourceBuffer.occupied, entries, List.length_cons] at bounded
                 split at bounded <;> omega
-              simp [SourceBuffer.step, entries, room, SourceBuffer.CreditInvariant, SourceBuffer.occupied]
+              simp [SourceBuffer.step, entries, room, SourceBuffer.CreditInvariant,
+                SourceBuffer.occupied]
               simp only [SourceBuffer.occupied, entries, List.length_cons] at bounded
               omega
   | acknowledge => exact And.intro bounded unparked
@@ -168,7 +169,8 @@ private theorem SourceBuffer.step_creditInvariant (budget : Nat) (positive : 0 <
       simp only [SourceBuffer.occupied] at bounded
       split at bounded <;> omega
   | cancel =>
-      simp [SourceBuffer.step, SourceBuffer.CreditInvariant, SourceBuffer.occupied, positive]
+      simp [SourceBuffer.step, SourceBuffer.CreditInvariant, SourceBuffer.occupied,
+        positive]
 
 private theorem SourceBuffer.run_creditInvariant (budget : Nat) (positive : 0 < budget)
     (state : SourceBuffer value) (actions : List (SourceCreditAction value))

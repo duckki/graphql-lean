@@ -78,13 +78,15 @@ theorem ownsCompletion_combine {containers : Bool} {pa : α → List ResponsePat
     : OwnsCompletion containers pc sc (Completion.combine f left right) := by
   cases he : left.result with
   | error errors =>
-      cases hre : right.result <;>
-        simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine, ownsCompletion_error]
+      cases hre : right.result
+      <;> simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
+            ownsCompletion_error]
   | ok leftData =>
       rcases leftData with ⟨a, ea⟩
       cases hre : right.result with
       | error errors =>
-          simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine, ownsCompletion_error]
+          simp [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
+            ownsCompletion_error]
       | ok rightData =>
           rcases rightData with ⟨b, eb⟩
           obtain ⟨sl, hsl, hol⟩ := hl
@@ -160,8 +162,9 @@ theorem ownsCompletion_nonNull {containers : Bool} {path : ResponsePath}
         GraphQL.Execution.nonNullCompletion, ownsCompletion_error]
   | ok data =>
       rcases data with ⟨data, errors⟩
-      cases data <;>
-        simp only [Completion.nonNull, he, nonNullCompletion, GraphQL.Execution.nonNullCompletion]
+      cases data
+      <;> simp only [Completion.nonNull, he, nonNullCompletion,
+            GraphQL.Execution.nonNullCompletion]
       · exact ownsCompletion_error _ _ _ _
       all_goals
         obtain ⟨slices, hw, ho⟩ := h

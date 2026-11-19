@@ -31,12 +31,14 @@ mutual
           exact ⟨directives, by simp [NormalForm.fieldSelectionsWithResponseNameInScope]⟩
         · have hfalse : selectionDirectivesAllowBool values directives = false := by
             cases h : selectionDirectivesAllowBool values directives <;> simp_all
-          simp [GraphQL.Execution.collectSelection, hfalse, collectedExecutableEntries] at hfield
+          simp [GraphQL.Execution.collectSelection, hfalse, collectedExecutableEntries]
+            at hfield
     | inlineFragment condition directives children =>
         by_cases hallows : selectionDirectivesAllowBool values directives = true
         · cases condition with
           | none =>
-              simp only [GraphQL.Execution.collectSelection, hallows, ↓reduceIte] at hfield
+              simp only [GraphQL.Execution.collectSelection, hallows, ↓reduceIte]
+                at hfield
               simpa [NormalForm.fieldSelectionsWithResponseNameInScope]
                 using collectFields_entry_runtimeField schema values collectParent
                   runtimeType identity hobject children responseName field hfield

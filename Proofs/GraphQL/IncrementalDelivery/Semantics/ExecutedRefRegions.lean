@@ -21,8 +21,10 @@ theorem output_combine {inherited : List Nat} {start middle finish : Nat}
     (hr : Output inherited middle finish right.work)
     (hi : ∀ ref ∈ inherited, ref < start)
     : Output inherited start finish (Completion.combine f left right).work := by
-  cases hleft : left.result <;> cases hright : right.result <;>
-    simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine, Completion.error]
+  cases hleft : left.result
+  <;> cases hright : right.result
+  <;> simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine,
+        Completion.error]
   all_goals first | exact hl.append hr hi | exact Output.empty _ (Nat.le_trans hl.monotone hr.monotone)
 
 theorem output_map {inherited : List Nat} {start finish : Nat} (f : α → β)
@@ -109,7 +111,8 @@ mutual
         have hd := hl.executionGroup (usages.filterMap (lookupDeferredFragment? deferMap)) path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path
             usages deferMap).run state).1.result (mapRefs_filterMap_subset deferMap usages) hm
-        simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [collectExecutionGroups, executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         exact hd.append hr hm
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
@@ -294,7 +297,8 @@ mutual
           have hr := completeStreamItems_regions schema resolvers variables fuel inner
             (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount (middle + 1)
-          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+            StateT.run_pure, id_pure_eq]
           apply Output.append (output_catchNull _ _ hl) _ hm
           exact Output.stream _ {ref := middle, path := path, label := usage.label} hr
   termination_by (fuel, 3, 0, 0)

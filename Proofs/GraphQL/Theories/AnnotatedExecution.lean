@@ -96,9 +96,11 @@ private theorem completeNonNullAnnotatedResponseValue_toResponse
   | error errors => rfl
   | ok completed =>
       rcases completed with ⟨outcome, errors⟩
-      cases outcome <;> cases errors <;>
-        simp [completeNonNullAnnotatedResponseValue, annotatedResponseValueResultToResponse,
-          nonNullCompletion, AnnotatedResponseValue.toResponseValue]
+      cases outcome
+      <;> cases errors
+      <;> simp [completeNonNullAnnotatedResponseValue,
+            annotatedResponseValueResultToResponse, nonNullCompletion,
+            AnnotatedResponseValue.toResponseValue]
 
 private theorem catchAnnotatedResponseBubbleObject_toResponse
     (runtimeType : Name)
@@ -176,9 +178,10 @@ private theorem annotatedResponseExecution_toResponse_all
       catchAnnotatedResponseBubbleObject_toResponse,
       catchAnnotatedResponseBubbleList_toResponse, outOfFuel]
   all_goals
-    simp_all [annotatedResponseFieldsResultToResponse, annotatedResponseValueResultToResponse,
-      annotatedResponseValuesResultToResponse, AnnotatedResponseValue.toResponseValue,
-      annotatedResponseFieldsToResponseFields, annotatedResponseValuesToResponseValues]
+    simp_all [annotatedResponseFieldsResultToResponse,
+      annotatedResponseValueResultToResponse, annotatedResponseValuesResultToResponse,
+      AnnotatedResponseValue.toResponseValue, annotatedResponseFieldsToResponseFields,
+      annotatedResponseValuesToResponseValues]
   case case6 =>
     intro parentType source responseName field definition hlookup hresolve
     cases definition.outputType <;>

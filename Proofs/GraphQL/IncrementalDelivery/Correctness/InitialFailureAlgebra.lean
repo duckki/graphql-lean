@@ -165,7 +165,8 @@ theorem BubblesPreserved.catchNull (wrap : α → ResponseValue)
         exact Or.inr ⟨count, by simp [GraphQL.Execution.catchBubbleAsNull, failed]⟩
     | ok result =>
         obtain ⟨data, count⟩ := result
-        simp only [Completion.catchNull, outcome, Except.ok.injEq, Prod.mk.injEq] at isNull
+        simp only [Completion.catchNull, outcome, Except.ok.injEq, Prod.mk.injEq]
+          at isNull
         exact False.elim (notNull data isNull.1)
 
 /-- Non-null completion preserves initial failure, including initial nullable null.
@@ -193,7 +194,8 @@ theorem ValueFailuresPreserved.nonNull {ordinary : Result ResponseValue}
             · obtain ⟨count, ordinaryNull⟩ := isNull
               cases count <;> simp [GraphQL.Execution.nonNullCompletion, ordinaryNull]
         | scalar _ | object _ | list _ =>
-            simp [Completion.nonNull, outcome, GraphQL.Execution.nonNullCompletion] at failed
+            simp [Completion.nonNull, outcome, GraphQL.Execution.nonNullCompletion]
+              at failed
   · intro errors isNull
     cases outcome : initial.result with
     | error count => simp [Completion.nonNull, Completion.error, outcome,

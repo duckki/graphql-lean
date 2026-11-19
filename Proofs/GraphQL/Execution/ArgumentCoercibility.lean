@@ -70,9 +70,10 @@ theorem omittedNonNullArgumentsHaveDefaults_of_valid
   | some value => rfl
   | none =>
       have hrequired : Validation.isRequiredArgument definition := by
-        cases htype : definition.inputType <;>
-          simp_all [Validation.isRequiredArgument, Validation.isRequiredInputValueDefinition,
-            InputValueDefinition.isRequired, TypeRef.isNonNull]
+        cases htype : definition.inputType
+        <;> simp_all [Validation.isRequiredArgument,
+              Validation.isRequiredInputValueDefinition, InputValueDefinition.isRequired,
+              TypeRef.isNonNull]
       obtain ⟨argument, hargument, _⟩ := hvalid.2.2 definition hdefinition hrequired
       have hmem : argument ∈ arguments := List.mem_of_find?_eq_some hargument
       have hname : argument.name = definition.name := by

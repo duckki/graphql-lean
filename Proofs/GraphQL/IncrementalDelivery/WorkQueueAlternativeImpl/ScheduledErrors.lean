@@ -52,7 +52,8 @@ theorem eager_errors (siblings : List (Sibling α))
   induction siblings with
   | nil => rfl
   | cons sibling rest ih =>
-      simp only [eager, countedErrors_combine, ih, errorTotal, List.map_cons, List.sum_cons]
+      simp only [eager, countedErrors_combine, ih, errorTotal, List.map_cons,
+        List.sum_cons]
 
 theorem eager_fatal (siblings : List (Sibling α))
     : isFatal (eager siblings)

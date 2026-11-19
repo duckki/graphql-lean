@@ -72,10 +72,11 @@ private theorem valueChildrenMerge
   refine .intro _ _ ?_
   dsimp only
   intro left hleft right hright _
-  have hcollect : FieldMerge.collectFields exampleSchema "I"
-      (valueSelections ++ valueSelections)
-    = [valueScope "I" (.named "String"), valueScope "I" (.named "String")] := by
-      simp [FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField, valueSelections, valueScope]
+  have hcollect
+      : FieldMerge.collectFields exampleSchema "I" (valueSelections ++ valueSelections)
+        = [valueScope "I" (.named "String"), valueScope "I" (.named "String")] := by
+    simp [FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField,
+      valueSelections, valueScope]
   rw [hcollect] at hleft hright
   simp only [List.mem_cons, List.not_mem_nil, or_false, or_self] at hleft hright
   subst left
@@ -101,18 +102,21 @@ theorem sourceOperation_valid
     ?_,
     by simp [operation, Validation.operationVariablesUsed]
   ⟩
-  · simp [operation, valueSelections, Validation.selectionSetValid, Validation.selectionValid,
-      Validation.directivesValid, Validation.argumentsValid, Validation.fieldSelectionSetValid,
-      Schema.lookupField, Schema.lookupDeclaredField, TypeRef.namedType, TypeRef.isOutputType, Schema.isOutputType,
-      Schema.isLeafType, Schema.isCompositeType, TypeDefinition.isOutputType,
-      TypeDefinition.isLeafType, TypeDefinition.isCompositeType]
+  · simp [operation, valueSelections, Validation.selectionSetValid,
+      Validation.selectionValid, Validation.directivesValid, Validation.argumentsValid,
+      Validation.fieldSelectionSetValid, Schema.lookupField, Schema.lookupDeclaredField,
+      TypeRef.namedType, TypeRef.isOutputType, Schema.isOutputType, Schema.isLeafType,
+      Schema.isCompositeType, TypeDefinition.isOutputType, TypeDefinition.isLeafType,
+      TypeDefinition.isCompositeType]
   · refine .intro _ _ ?_
     dsimp only
     intro left hleft right hright _
-    have hcollect : FieldMerge.collectFields exampleSchema
-        (operation.rootType exampleSchema) operation.selectionSet
-      = [nodeScope valueSelections] := by
-        simp [operation, FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField, nodeScope]
+    have hcollect
+        : FieldMerge.collectFields exampleSchema
+            (operation.rootType exampleSchema) operation.selectionSet
+          = [nodeScope valueSelections] := by
+      simp [operation, FieldMerge.collectFields, Schema.lookupField,
+        Schema.lookupDeclaredField, nodeScope]
     rw [hcollect] at hleft hright
     simp only [List.mem_singleton] at hleft hright
     subst left
@@ -158,21 +162,29 @@ theorem groundedOperation_invalid
           (normalizeOperation exampleSchema operation) := by
   intro hvalid
   have hmerge := Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
-  have hroot : FieldMerge.fieldsForNameCanMerge exampleSchema
-      (nodeScope groundedChildren) (nodeScope groundedChildren) := by
+  have hroot
+      : FieldMerge.fieldsForNameCanMerge exampleSchema
+          (nodeScope groundedChildren) (nodeScope groundedChildren) := by
     apply FieldMerge.fieldsInSetCanMerge_pair hmerge
     · rw [normalizationSnapshot]
-      simp [FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField, nodeScope]
+      simp [FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField,
+        nodeScope]
     · rw [normalizationSnapshot]
-      simp [FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField, nodeScope]
+      simp [FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField,
+        nodeScope]
     · rfl
-  have hchildren : FieldMerge.collectSubfields exampleSchema
-      (nodeScope groundedChildren) (nodeScope groundedChildren)
-    = [valueScope "Query" (.nonNull (.named "String")), valueScope "Plain" (.named "String"),
-        valueScope "Query" (.nonNull (.named "String")), valueScope "Plain" (.named "String")]
-      := by
-        simp [FieldMerge.collectSubfields, FieldMerge.collectFields, Schema.lookupField, Schema.lookupDeclaredField,
-          nodeScope, valueScope, groundedChildren, valueSelections, TypeRef.namedType]
+  have hchildren
+      : FieldMerge.collectSubfields exampleSchema
+          (nodeScope groundedChildren) (nodeScope groundedChildren)
+        = [
+          valueScope "Query" (.nonNull (.named "String")),
+          valueScope "Plain" (.named "String"),
+          valueScope "Query" (.nonNull (.named "String")),
+          valueScope "Plain" (.named "String")
+        ] := by
+    simp [FieldMerge.collectSubfields, FieldMerge.collectFields, Schema.lookupField,
+      Schema.lookupDeclaredField, nodeScope, valueScope, groundedChildren,
+      valueSelections, TypeRef.namedType]
   have hpair := FieldMerge.fieldsForNameCanMerge_collected_subfields hroot (Or.inl rfl)
     (valueScope "Query" (.nonNull (.named "String"))) (by rw [hchildren]; simp)
     (valueScope "Plain" (.named "String")) (by rw [hchildren]; simp) rfl

@@ -208,7 +208,8 @@ private theorem known
 private theorem valid : ReferenceWorkQueue.ValidGraphEvents work [event] :=
   .append .nil ⟨_, _, known, rfl, rfl⟩
     (by
-      simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities, event])
+      simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities,
+        event])
     ⟨_, _, _, known, by intro other impossible; cases impossible⟩
 
 example

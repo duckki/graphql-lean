@@ -23,7 +23,8 @@ example : ({} : SourceBuffer Nat).Legal 2 fullWindow := by
 example
     : let full := ({} : SourceBuffer Nat).run 2 fullWindow
       full.1.occupied = 2 ∧ full.1.waiting = true ∧ ¬ full.1.Enabled .beginPull := by
-  simp [SourceBuffer.run, SourceBuffer.Enabled, SourceBuffer.step, SourceBuffer.occupied, fullWindow]
+  simp [SourceBuffer.run, SourceBuffer.Enabled, SourceBuffer.step, SourceBuffer.occupied,
+    fullWindow]
 
 -- The settled second slot cannot overtake the pending first slot.
 example : (({} : SourceBuffer Nat).run 2 (fullWindow ++ [.take])).2 = [] := by
@@ -40,7 +41,8 @@ private def refillBeforeAck : List (SourceCreditAction Nat) :=
   fullWindow ++ [.settle 0 (.fulfilled 10), .take, .beginPull, .push .pending]
 
 example : ({} : SourceBuffer Nat).Legal 2 refillBeforeAck := by
-  simp [SourceBuffer.Legal, SourceBuffer.Enabled, SourceBuffer.step, fullWindow, refillBeforeAck]
+  simp [SourceBuffer.Legal, SourceBuffer.Enabled, SourceBuffer.step, fullWindow,
+    refillBeforeAck]
 
 example
     : let observed := ({} : SourceBuffer Nat).run 2 refillBeforeAck

@@ -57,7 +57,8 @@ theorem State.PendingAccounting.healthyTaskLinks
   have notFailed := (accounted.matching task.task registered).not_failed_of_healthy
     contributor healthy
   have unprocessed : task.task.occurrence ∉ GraphEvent.taskSettlements events := by
-    simp only [GraphEvent.mem_taskSettlements, unsettled, notFailed, or_self, not_false_eq_true]
+    simp only [GraphEvent.mem_taskSettlements, unsettled, notFailed, or_self,
+      not_false_eq_true]
   exact accounted.links task.task registered unprocessed node nodeMember contributor
 
 /-- Valid started generated replay recovers both healthy pending counts and task links.

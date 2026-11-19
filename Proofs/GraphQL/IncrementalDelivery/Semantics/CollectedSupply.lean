@@ -53,8 +53,8 @@ mutual
                     ref := state
                     label := label
                     ancestors := (usage.map (fun value => value.ref :: value.ancestors)).getD [] }) (state + 1)
-                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
-                  ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
+                simp only [collectSelection, ha, Bool.not_true, Bool.false_eq_true,
+                  ↓reduceIte, ht, hd, freshNodeRef, run_bind, StateT.run_pure, id_pure_eq,
                   StateT.run_get, StateT.run_set]
                 refine ⟨by have := hc.1; omega, ?_⟩
                 intro value hv

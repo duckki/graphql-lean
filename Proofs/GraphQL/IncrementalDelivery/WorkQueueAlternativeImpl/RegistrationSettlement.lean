@@ -296,16 +296,18 @@ theorem successGroupFold_activateRegisteredTasks
               change (queue.rootGroups.contains group.ref && node.pending - 1 == 0
                 && node.failure.isNone) = true at ready
               dsimp only [next, updated] at closed
-              simp only [ReferenceWorkQueue.successGroupStep, completeSuccessAcc, original,
-                activation_groupNode?, found, ← activateRegisteredTasks_putGroupNode,
-                activation_rootGroups, putGroupNode_rootGroups, ready, ↓reduceIte, closed]
+              simp only [ReferenceWorkQueue.successGroupStep, completeSuccessAcc,
+                original, activation_groupNode?, found,
+                ← activateRegisteredTasks_putGroupNode, activation_rootGroups,
+                putGroupNode_rootGroups, ready, ↓reduceIte, closed]
               exact ⟨nextKeys.finishGroupSuccess updated,
                 nextBound.finishGroupSuccess updated all, True.intro⟩
             · change ¬(queue.rootGroups.contains group.ref && node.pending - 1 == 0
                 && node.failure.isNone) = true at ready
-              simp only [ReferenceWorkQueue.successGroupStep, completeSuccessAcc, original,
-                activation_groupNode?, found, ← activateRegisteredTasks_putGroupNode,
-                activation_rootGroups, putGroupNode_rootGroups, ready, Bool.false_eq_true, ↓reduceIte]
+              simp only [ReferenceWorkQueue.successGroupStep, completeSuccessAcc,
+                original, activation_groupNode?, found,
+                ← activateRegisteredTasks_putGroupNode, activation_rootGroups,
+                putGroupNode_rootGroups, ready, Bool.false_eq_true, ↓reduceIte]
               exact ⟨nextKeys, nextBound, True.intro⟩
       rw [List.foldl_cons, List.foldl_cons, step.2.2]
       exact ih tailUnique _ step.1 step.2.1

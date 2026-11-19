@@ -56,9 +56,9 @@ theorem decode_eventPositionAtoms_value
     obtain ⟨address, ordinal, occurrence⟩ := sourceTask_item_occurrence member payload
     have cursor := sourceHistoryCursors_item explained seeded initialHistory disjoint
       member occurrence payload selected value matched
-    simp [eventPositionAtoms, decodeAtoms, PositionAtom.decode, cursor, SourceTask.positions,
-      SourceTask.cursorUpdates, SourceTask.cursors, payload, resultCursors,
-      DeliveryPaths.result]
+    simp [eventPositionAtoms, decodeAtoms, PositionAtom.decode, cursor,
+      SourceTask.positions, SourceTask.cursorUpdates, SourceTask.cursors, payload,
+      resultCursors, DeliveryPaths.result]
 
 /-- Controls have no source label, by inspection of their event constructor. -/
 theorem sourceEventTask_control {tasks matching index event} (control : ¬IsValue event)

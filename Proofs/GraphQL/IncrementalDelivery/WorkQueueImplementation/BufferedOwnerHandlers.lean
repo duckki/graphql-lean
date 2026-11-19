@@ -148,7 +148,8 @@ theorem State.taskFailure_uncancelled_present (queue : State) (occurrence : Occu
             Function.comp_def]
             using present
       | true =>
-          simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at uncancelled ⊢
+          simp only [healthy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+            at uncancelled ⊢
           apply failureGroupFold_uncancelled_present _ _ _ ?_ uncancelled
           simpa only [State.removeTask, List.map_map, Function.comp_def] using present
 

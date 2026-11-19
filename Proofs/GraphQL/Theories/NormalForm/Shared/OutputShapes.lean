@@ -35,7 +35,8 @@ theorem selectionSetFieldsSameOutputShape_without (schema : Schema) (responseNam
         selectionSetFieldsSameOutputShape schema selections
         -> selectionSetFieldsSameOutputShape schema
             (withoutFieldSelectionsWithResponseName schema responseName selections)
-  | [], _ => by simp [withoutFieldSelectionsWithResponseName, selectionSetFieldsSameOutputShape]
+  | [], _ => by
+      simp [withoutFieldSelectionsWithResponseName, selectionSetFieldsSameOutputShape]
   | .field name field arguments directives children :: rest, hshape => by
       simp only [withoutFieldSelectionsWithResponseName]
       split
@@ -43,10 +44,12 @@ theorem selectionSetFieldsSameOutputShape_without (schema : Schema) (responseNam
       · exact ⟨hshape.1,
           selectionSetFieldsSameOutputShape_without schema responseName rest hshape.2⟩
   | .inlineFragment condition directives children :: rest, hshape => by
-      simp only [withoutFieldSelectionsWithResponseName, selectionSetFieldsSameOutputShape,
-        selectionFieldsSameOutputShape]
-      exact ⟨selectionSetFieldsSameOutputShape_without schema responseName children hshape.1,
-        selectionSetFieldsSameOutputShape_without schema responseName rest hshape.2⟩
+      simp only [withoutFieldSelectionsWithResponseName,
+        selectionSetFieldsSameOutputShape, selectionFieldsSameOutputShape]
+      exact ⟨
+        selectionSetFieldsSameOutputShape_without schema responseName children hshape.1,
+        selectionSetFieldsSameOutputShape_without schema responseName rest hshape.2
+      ⟩
 
 theorem selectionSetFieldsSameOutputShape_matching (schema : Schema)
     (parentType responseName : Name)
@@ -55,7 +58,8 @@ theorem selectionSetFieldsSameOutputShape_matching (schema : Schema)
         -> selectionSetFieldsSameOutputShape schema
             (fieldSelectionsWithResponseNameInScope schema parentType responseName
               selections)
-  | [], _ => by simp [fieldSelectionsWithResponseNameInScope, selectionSetFieldsSameOutputShape]
+  | [], _ => by
+      simp [fieldSelectionsWithResponseNameInScope, selectionSetFieldsSameOutputShape]
   | .field name field arguments directives children :: rest, hshape => by
       simp only [fieldSelectionsWithResponseNameInScope]
       split

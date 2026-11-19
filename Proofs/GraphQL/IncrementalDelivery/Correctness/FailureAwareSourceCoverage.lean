@@ -98,16 +98,26 @@ theorem replayResponse_source_addressed
     obtain ⟨kind, dependencies, birth, known⟩ := explained_nodes explained node member
     exact (workAt_node coherent known).2
   have atoms := workBatching_positionAtoms batching nodePaths
-  have decoded : decodeAtoms containers (ResponsePositions.listCursors [] response.data)
-      (batches.flatten.flatten.flatMap eventPositionAtoms)
-      = some
-          ((sourcePrefixTasks (sourceTasks [] none (ResponsePositions.listCursors [] response.data)
-              work) matching events events.length).flatMap (SourceTask.positions containers),
-            sourceHistoryCursors (sourceTasks [] none (ResponsePositions.listCursors [] response.data)
-              work) matching events (ResponsePositions.listCursors [] response.data) events.length) := by
+  have decoded
+      : decodeAtoms containers (ResponsePositions.listCursors [] response.data)
+          (batches.flatten.flatten.flatMap eventPositionAtoms)
+        = some
+            (
+              (sourcePrefixTasks
+                (sourceTasks [] none (ResponsePositions.listCursors [] response.data)
+                  work)
+                matching events events.length).flatMap
+                (SourceTask.positions containers),
+              sourceHistoryCursors
+                (sourceTasks [] none (ResponsePositions.listCursors [] response.data)
+                  work)
+                matching events (ResponsePositions.listCursors [] response.data)
+                events.length
+            ) := by
     rw [atoms]
-    simpa only [List.take_length, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
-      eventPositionAtoms, List.append_nil] using exactDecode
+    simpa only [List.take_length, List.flatMap_append, List.flatMap_cons,
+      List.flatMap_nil, eventPositionAtoms, List.append_nil]
+      using exactDecode
   obtain ⟨slices, delivered, flattened⟩ := replayResponse_positions coherent
     (Or.inr ⟨events, matching, failures, explained, terminal, batching⟩) safe decoded
   refine ⟨slices, delivered, ?_⟩

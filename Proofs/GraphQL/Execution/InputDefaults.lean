@@ -48,7 +48,8 @@ private theorem constField_lookup_map (fields : List (Name × ConstInputValue))
     : lookupInputObjectFieldValue? (ConstInputValue.objectFieldsToInputFields fields) name
       = (Schema.getConstInputObjectField? fields name).map
           ConstInputValue.toInputValue := by
-  rw [lookupInputObjectFieldValue_eq_validation, Validation.objectFieldsToInputFields_eq_map]
+  rw [lookupInputObjectFieldValue_eq_validation,
+    Validation.objectFieldsToInputFields_eq_map]
   exact Validation.inputObjectField_map fields name
 
 -- The cycle checker follows value nodes; the execution budget also covers type wrappers.
@@ -102,8 +103,10 @@ theorem coerceConstInputValueBounded_success_of_no_default_cycle
           exact ⟨
             coerced,
             by
-              rw [coerceInputValueBounded_nonNull schema values fuel inner value.toInputValue
-                (Validation.toInputValue_ne_null hnotNull) (Validation.toInputValue_ne_variable value), hcoerced]
+              rw [
+                coerceInputValueBounded_nonNull schema values fuel inner
+                  value.toInputValue (Validation.toInputValue_ne_null hnotNull)
+                  (Validation.toInputValue_ne_variable value), hcoerced]
           ⟩
       | list items inner _ hitems =>
           have hwidthInner : inputTypeCoercionDepth inner ≤ width := by
@@ -218,7 +221,8 @@ theorem coerceConstInputValueBounded_success_of_no_default_cycle
                                 · simpa [hchildLookup, hsupplied] using hfieldCycle)
                             hfieldWidth
                             (by omega)
-                        simp [coerceInputObjectFieldValueBounded, constField_lookup_map, hsupplied, hcoerced]
+                        simp [coerceInputObjectFieldValueBounded, constField_lookup_map,
+                          hsupplied, hcoerced]
                     | none =>
                         cases hdefault : definition.defaultValue with
                         | none =>
@@ -239,7 +243,9 @@ theorem coerceConstInputValueBounded_success_of_no_default_cycle
                                 : Schema.ConstInputValueIsCorrectType schema defaultValue
                                     definition.inputType := by
                               have hwell := (hobjectWell.2.2 definition hdefinition).2
-                              simpa [hdefault, ConstInputValue.isCorrectType, Schema.constInputValueIsCorrectType] using hwell
+                              simpa [hdefault, ConstInputValue.isCorrectType,
+                                Schema.constInputValueIsCorrectType]
+                                using hwell
                             have hentry := inputDefaultEntries_mem hlookup hdefinition
                             cases hchildLookup
                                   : schema.lookupInputObject
@@ -267,13 +273,15 @@ theorem coerceConstInputValueBounded_success_of_no_default_cycle
                                       intro childObject himpossible; simp [hchildLookup] at himpossible)
                                     hfieldWidth
                                     (by omega)
-                                simp [coerceInputObjectFieldValueBounded, constField_lookup_map, hsupplied,
-                                  hdefault, hcoerced]
+                                simp [coerceInputObjectFieldValueBounded,
+                                  constField_lookup_map, hsupplied, hdefault, hcoerced]
                             | some childObject =>
                                 let coordinate := (inputObject.name, definition.name)
                                 have hnotmem : coordinate ∉ visited := by
                                   intro hmem
-                                  simp [hchildLookup, hsupplied, hdefault, coordinate, hmem] at hfieldCycle
+                                  simp [hchildLookup, hsupplied, hdefault, coordinate,
+                                    hmem]
+                                    at hfieldCycle
                                 have hremove := remainingDefaultFuel_remove hentry hnotmem
                                   (by simp [hchildLookup])
                                 have hsize
@@ -300,17 +308,20 @@ theorem coerceConstInputValueBounded_success_of_no_default_cycle
                                       constructor
                                       · omega
                                       · change (inputObject.name, definition.name) ∉ visited at hnotmem
-                                        simpa [hchildLookup, hsupplied, hdefault, hnotmem, coordinate] using hfieldCycle)
+                                        simpa [hchildLookup, hsupplied, hdefault, hnotmem,
+                                          coordinate]
+                                          using hfieldCycle)
                                     hfieldWidth
                                     (by omega)
-                                simp [coerceInputObjectFieldValueBounded, constField_lookup_map, hsupplied,
-                                  hdefault, hcoerced]
+                                simp [coerceInputObjectFieldValueBounded,
+                                  constField_lookup_map, hsupplied, hdefault, hcoerced]
                   obtain ⟨coerced, hcoerced⟩ :=
                     coerceInputObjectFieldsBounded_success_of_fields hfieldCoercion
                   exact ⟨
                     .object coerced,
                     by
-                      simp [ConstInputValue.toInputValue, coerceInputValueBounded, hlookup, hknownBool, hcoerced]
+                      simp [ConstInputValue.toInputValue, coerceInputValueBounded,
+                        hlookup, hknownBool, hcoerced]
                   ⟩
       | objectAsListItem fields inner _ hitem =>
           cases hitem with
@@ -382,8 +393,8 @@ theorem schemaWellFormed_schemaInputDefaultsCoercible
           simpa [inputValueDefinitionCoercionFuel, hdefault, constInputValueSize_eq_fuel]
             using hleaf
         refine ⟨[], 0, ?_, ?_⟩
-        · simp only [defaultReserve, hchild, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
-            Nat.zero_add]
+        · simp only [defaultReserve, hchild, Option.isSome_none, Bool.false_eq_true,
+            ↓reduceIte, Nat.zero_add]
           omega
         · intro childObject himpossible; cases himpossible
     | some childObject =>

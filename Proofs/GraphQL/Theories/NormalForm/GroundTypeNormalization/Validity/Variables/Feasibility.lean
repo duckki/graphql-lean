@@ -158,7 +158,8 @@ theorem collectedField_feasible (schema : Schema) (parentType responseName : Nam
       | inlineFragment condition directives children =>
           cases condition with
           | none =>
-              simp only [fieldSelectionsWithResponseNameInScope, List.mem_append] at hfield
+              simp only [fieldSelectionsWithResponseNameInScope, List.mem_append]
+                at hfield
               exact hfield.elim
                 (collectedField_feasible schema parentType responseName
                   conditions children field hfeasible.1)

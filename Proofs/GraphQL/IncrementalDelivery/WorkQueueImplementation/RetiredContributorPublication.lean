@@ -134,7 +134,8 @@ theorem ExecutedWork.healthy_success_published_or_buffered
       ((initial.rawEventReplay events).2.flatMap WorkQueueEvent.objectValues).length
     rw [split, State.rawEventReplay_append]
     dsimp only
-    rw [State.rawEventReplay_state, List.flatMap_append, List.length_append, List.take_add]
+    rw [State.rawEventReplay_state, List.flatMap_append, List.length_append,
+      List.take_add]
     exact List.mem_append_right _ emitted
   · right
     rw [finalState] at buffered

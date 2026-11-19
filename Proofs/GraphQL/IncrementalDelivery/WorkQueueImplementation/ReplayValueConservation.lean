@@ -65,7 +65,8 @@ theorem State.ReplayClosuresCovered.conserves {queue : State} {work events publi
       rcases covered.2.2.1 occurrence node value found stored
           ⟨contributor, contributes, currentOwner, currentLive⟩ with now | retained
       · apply Or.inl
-        rw [State.rawEventReplay_cons, List.flatMap_append, List.length_append, List.take_add]
+        rw [State.rawEventReplay_cons, List.flatMap_append, List.length_append,
+          List.take_add]
         exact List.mem_append_left _ now
       · have remaining := ih covered.tail next.1 next.2.1
           (started.handleGraphEvent event)
@@ -73,7 +74,8 @@ theorem State.ReplayClosuresCovered.conserves {queue : State} {work events publi
         rcases remaining occurrence node value retained stored
             ⟨contributor, contributes, owner, survives⟩ with later | still
         · apply Or.inl
-          rw [State.rawEventReplay_cons, List.flatMap_append, List.length_append, List.take_add]
+          rw [State.rawEventReplay_cons, List.flatMap_append, List.length_append,
+            List.take_add]
           exact List.mem_append_right _ later
         · exact Or.inr still
 

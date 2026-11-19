@@ -80,11 +80,13 @@ theorem IncrementalPublisher.normalizeBatch_groupSuccess_controls
           ((List.getElem?_append_right later).symm.trans selected)
         refine ⟨sourceIndex + 1, atSource, ?_, ?_⟩
         · change ((head.2 ++ tail.2).take index).flatMap groupNoticeRefs = _
-          rw [List.take_append, List.take_of_length_le later, List.flatMap_append, notices]
+          rw [List.take_append, List.take_of_length_le later, List.flatMap_append,
+            notices]
           rw [publisher.handleWorkQueueEvent_groupNotices event]
           rfl
         · change ((head.2 ++ tail.2).take index).flatMap groupClosureRefs = _
-          rw [List.take_append, List.take_of_length_le later, List.flatMap_append, closures]
+          rw [List.take_append, List.take_of_length_le later, List.flatMap_append,
+            closures]
           rw [publisher.handleWorkQueueEvent_groupClosureRefs event]
           rfl
 
@@ -194,11 +196,13 @@ theorem IncrementalPublisher.normalizeBatch_itemNotice_controls
           ((List.getElem?_append_right later).symm.trans selected)
         refine ⟨sourceIndex + 1, sourceValues, atSource, ?_, ?_⟩
         · change ((head.2 ++ tail.2).take index).flatMap groupNoticeRefs = _
-          rw [List.take_append, List.take_of_length_le later, List.flatMap_append, notices]
+          rw [List.take_append, List.take_of_length_le later, List.flatMap_append,
+            notices]
           rw [publisher.handleWorkQueueEvent_groupNotices event]
           rfl
         · change ((head.2 ++ tail.2).take index).flatMap groupClosureRefs = _
-          rw [List.take_append, List.take_of_length_le later, List.flatMap_append, closures]
+          rw [List.take_append, List.take_of_length_le later, List.flatMap_append,
+            closures]
           rw [publisher.handleWorkQueueEvent_groupClosureRefs event]
           rfl
 

@@ -29,7 +29,8 @@ theorem State.streamItems_groupNotice_boundary (queue : State)
   rw [queue.streamItems_eq stream items] at selected ⊢
   cases active : queue.rootStreams.contains stream.ref with
   | false =>
-      simp only [active, Bool.not_false, ↓reduceIte, List.getElem?_nil, reduceCtorEq] at selected
+      simp only [active, Bool.not_false, ↓reduceIte, List.getElem?_nil, reduceCtorEq]
+        at selected
   | true =>
       simp only [active, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at selected ⊢
       cases position with

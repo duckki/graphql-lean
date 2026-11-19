@@ -75,9 +75,11 @@ mutual
     cases selections with
     | nil => simp [collectFields, GroupsUnder, GroupsSatisfy]
     | cons selection rest =>
-        simp only [collectFields, run_bind, StateT.run_pure, id_pure_eq, FieldCollection.append]
+        simp only [collectFields, run_bind, StateT.run_pure, id_pure_eq,
+          FieldCollection.append]
         exact groupsSatisfy_merge _ _ _
-          (collectSelection_under schema variables parentType source selection usage owners state h)
+          (collectSelection_under schema variables parentType source selection usage
+            owners state h)
           (collectFields_under schema variables parentType source rest usage owners _ h)
   termination_by sizeOf selections
 end
@@ -91,7 +93,8 @@ theorem collectSubfields_under (schema : Schema) (variables : VariableValues)
   induction fields generalizing state with
   | nil => simp [collectSubfields, GroupsUnder, GroupsSatisfy]
   | cons field rest ih =>
-      simp only [collectSubfields, run_bind, StateT.run_pure, id_pure_eq, FieldCollection.append]
+      simp only [collectSubfields, run_bind, StateT.run_pure, id_pure_eq,
+        FieldCollection.append]
       exact groupsSatisfy_merge _ _ _
         (collectFields_under schema variables parentType source field.selectionSet
           field.deferUsage owners state (h field (by simp)))

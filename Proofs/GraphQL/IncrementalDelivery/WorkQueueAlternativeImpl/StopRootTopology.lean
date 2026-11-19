@@ -55,8 +55,9 @@ private theorem drain_rootSublist (queue : State) (fuel : Nat)
         | some errors =>
             apply rootSublist_append (first := ((queue.finishGroupFailure node errors).1,
               [(queue.finishGroupFailure node errors).2])) _ (ih _)
-            simpa only [State.finishGroupFailure, List.flatMap_singleton, rawGroupNoticeRefs,
-              List.append_nil] using removeGroup_rootSublist queue node.group.node.ref
+            simpa only [State.finishGroupFailure, List.flatMap_singleton,
+              rawGroupNoticeRefs, List.append_nil]
+              using removeGroup_rootSublist queue node.group.node.ref
 
 private theorem taskFailure_rootSublist (queue : State) (occurrence : Occurrence)
     (errors : Nat)

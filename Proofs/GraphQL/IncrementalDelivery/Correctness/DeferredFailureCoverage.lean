@@ -75,8 +75,8 @@ theorem partitionWork_success_positions (containers : Bool) (path : ResponsePath
               change position ∈ ResponsePositions.fields containers path (initial ++ suffix)
                 at member
               rw [responsePositions_fields_append, List.mem_append] at member
-              simp only [partitionWork, sourceTasks, List.flatMap_append, List.flatMap_cons,
-                SourceTask.positions, first, DeliveryPaths.result]
+              simp only [partitionWork, sourceTasks, List.flatMap_append,
+                List.flatMap_cons, SourceTask.positions, first, DeliveryPaths.result]
               rcases member with initialMember | suffixMember
               · exact List.mem_append_left _ (List.mem_append_left _ initialMember)
               · exact List.mem_append_right _ (tailPositions suffixMember)

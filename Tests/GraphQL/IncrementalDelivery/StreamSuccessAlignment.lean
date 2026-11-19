@@ -91,7 +91,8 @@ example (containers : Bool)
     · have flag : containers = true := visible
       exact Or.inl (by simp [ResponsePositions.value, flag])
     · have flag : containers = true := visible
-      exact Or.inl (by simp [ResponsePositions.value, ResponsePositions.fields, path, flag])
+      exact Or.inl
+        (by simp [ResponsePositions.value, ResponsePositions.fields, path, flag])
     · have covered := tailCovered containers
         (path ++ [ResponsePathSegment.index 0], TypedResponse.Atom.null)
         (by simp [TypedResponse.items, TypedResponse.value]) rfl

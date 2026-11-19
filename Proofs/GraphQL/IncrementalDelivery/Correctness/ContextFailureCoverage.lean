@@ -119,16 +119,19 @@ theorem preparedResponseCovers_singleDefer (schema : Schema)
           (buildExecutionPlan collected.1.collectedFieldsMap)).run (state + 1)).1.result)
     ((executeExecutionPlan schema resolvers variables fuel parentType source [usage]
       (buildExecutionPlan collected.1.collectedFieldsMap)).run (state + 1)).1.work containers
-  have ordinary : GraphQL.Execution.executeRootSelectionSet schema resolvers variables fuel
-      parentType source (SelectionSet.eraseIncrementalDirectives
-        [.inlineFragment none [.defer (.boolean true) label] children])
-      = GraphQL.Execution.executeCollectedFields schema resolvers variables fuel parentType
-          source (eraseGroups collected.1.collectedFieldsMap) := by
+  have ordinary
+      : GraphQL.Execution.executeRootSelectionSet schema resolvers variables fuel
+          parentType source
+          (SelectionSet.eraseIncrementalDirectives
+            [.inlineFragment none [.defer (.boolean true) label] children])
+        = GraphQL.Execution.executeCollectedFields schema resolvers variables fuel
+            parentType source (eraseGroups collected.1.collectedFieldsMap) := by
     rw [show eraseGroups collected.1.collectedFieldsMap = _ from erased]
-    simp [GraphQL.Execution.executeRootSelectionSet, SelectionSet.eraseIncrementalDirectives,
-      Selection.eraseIncrementalDirectives, DirectiveApplication.eraseIncremental?,
-      GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
-      List.filterMap_cons, List.filterMap_nil, GraphQL.Execution.selectionDirectivesAllowBool,
+    simp [GraphQL.Execution.executeRootSelectionSet,
+      SelectionSet.eraseIncrementalDirectives, Selection.eraseIncrementalDirectives,
+      DirectiveApplication.eraseIncremental?, GraphQL.Execution.collectFields,
+      GraphQL.Execution.collectSelection, List.filterMap_cons, List.filterMap_nil,
+      GraphQL.Execution.selectionDirectivesAllowBool,
       GraphQL.Execution.mergeExecutableGroups]
   rw [ordinary]
   by_cases empty : collected.1.collectedFieldsMap = []

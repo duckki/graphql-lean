@@ -108,7 +108,8 @@ private theorem projectBatch_work_valid {work : Work}
             | none => rfl
             | some current =>
                 have accepted := streams [] event rest current rfl action
-                simp only [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil] at accepted
+                simp only [ReferenceWorkQueue.State.replayGraphEvents, List.foldl_nil]
+                  at accepted
                 rw [live] at accepted
                 cases accepted
           have noItems (key : Nat)
@@ -116,11 +117,14 @@ private theorem projectBatch_work_valid {work : Work}
             cases event with
             | taskSuccess | taskFailure | streamSuccess | streamFailure => rfl
             | streamItems stream items => cases noAction
-          have nextCursors : ∀ key,
-              ReferenceWorkQueue.GraphEvent.itemsBefore retained key
-                = ReferenceWorkQueue.GraphEvent.itemsBefore (before ++ [event]) key := by
+          have nextCursors
+              : ∀ key,
+                  ReferenceWorkQueue.GraphEvent.itemsBefore retained key
+                  = ReferenceWorkQueue.GraphEvent.itemsBefore (before ++ [event])
+                      key := by
             intro key
-            rw [ReferenceWorkQueue.GraphEvent.itemsBefore_append, noItems, List.append_nil]
+            rw [ReferenceWorkQueue.GraphEvent.itemsBefore_append, noItems,
+              List.append_nil]
             exact cursors key
           have next := ih queue (before ++ [event]) retained support valid tailRaw
             (included.trans (List.sublist_append_left _ _)) nextCursors

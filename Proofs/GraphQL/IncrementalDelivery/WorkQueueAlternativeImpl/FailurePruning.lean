@@ -79,7 +79,8 @@ private theorem pruningTasks_witness (state : State) (occurrences : List Occurre
                 (uniqueCleanupTargets_nodup _)
               refine ⟨current, state.cancelTask occurrence ++ targets, ?_,
                 .dispose found ownerless trace⟩
-              simp only [List.foldl_cons, fusedRemovalTaskStep, found, ownerless, ↓reduceIte]
+              simp only [List.foldl_cons, fusedRemovalTaskStep, found, ownerless,
+                ↓reduceIte]
               rw [same, uniqueCleanupTargets_unique_append, List.append_assoc]
 
 /-- Task disposal changes memberships, never the number of live group records. -/

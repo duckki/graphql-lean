@@ -129,7 +129,8 @@ theorem completeListValue_work_refines_of_children
         ((Execution.completeListValue schema resolvers variables fuel itemType eagerFields
             values path index eagerUsages eagerContext).run
           right).1 := by
-  rw [ScheduledExecution.completeListValue_actions, ScheduledErrors.completeListValue_actions]
+  rw [ScheduledExecution.completeListValue_actions,
+    ScheduledErrors.completeListValue_actions]
   exact (siblingWorkRefinement_holds _ _ keys supplies List.cons [] _ _ left right
     children initial).1
 

@@ -47,8 +47,9 @@ private theorem ancestorsHealthy_eq (queue : ReferenceWorkQueue.State)
       | some key =>
           cases found : queue.groupNode? key with
           | none =>
-              simp [ancestorsHealthy, ReferenceWorkQueue.State.groupIsHealthy.ancestorsHealthy,
-                found, first key rfl found]
+              simp [ancestorsHealthy,
+                ReferenceWorkQueue.State.groupIsHealthy.ancestorsHealthy, found,
+                first key rfl found]
           | some node =>
               simp only [ancestorsHealthy, found,
                 ReferenceWorkQueue.State.groupIsHealthy.ancestorsHealthy]

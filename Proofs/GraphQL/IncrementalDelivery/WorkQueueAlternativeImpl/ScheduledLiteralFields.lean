@@ -55,7 +55,8 @@ theorem literal_executeResponseField_refines (schema : Schema)
             Semantics.executeResponseField, Completion.error]
             using literal_pure_result (α := List (Name × ResponseValue)) (.error 1)
       | cons field rest =>
-          simp only [ScheduledExecution.executeResponseField, Semantics.executeResponseField]
+          simp only [ScheduledExecution.executeResponseField,
+            Semantics.executeResponseField]
           split
           · simp_all only [Completion.error]
             exact literal_pure_result _

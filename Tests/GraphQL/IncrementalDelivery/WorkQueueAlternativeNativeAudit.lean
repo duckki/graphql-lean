@@ -73,7 +73,8 @@ private theorem sourceMatching
 
 private theorem fresh
     : ReferenceWorkQueue.GraphEvent.Fresh [] (.streamItems stream items) := by
-  simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities, items, first, second]
+  simp [ReferenceWorkQueue.GraphEvent.Fresh, ReferenceWorkQueue.GraphEvent.identities,
+    items, first, second]
 
 private theorem ready
     : ReferenceWorkQueue.GraphEvent.Ready sourceWork [] (.streamItems stream items) := by

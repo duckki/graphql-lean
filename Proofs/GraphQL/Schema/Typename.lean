@@ -52,9 +52,10 @@ theorem lookupField_ne_typename_of_includesObject {schema : Schema}
   intro hmeta
   subst fieldName
   rcases lookupField_eq_some_cases hlookup with ⟨_, rfl, _⟩ | ⟨hne, _⟩
-  · simp [typenameFieldDefinition, TypeRef.namedType, typeIncludesObjectBool, getPossibleTypes,
-      lookupType, allTypes, builtinScalarDefinitions, TypeDefinition.name,
-      BuiltinScalar.name, List.find?] at hincludes
+  · simp [typenameFieldDefinition, TypeRef.namedType, typeIncludesObjectBool,
+      getPossibleTypes, lookupType, allTypes, builtinScalarDefinitions,
+      TypeDefinition.name, BuiltinScalar.name, List.find?]
+      at hincludes
   · exact hne rfl
 
 end GraphQL.Schema

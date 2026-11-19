@@ -698,7 +698,8 @@ private theorem fuelImplementations_canceling_eager_aligned
             | list values =>
                 cases previous with
                 | none =>
-                    simp [completeValue, Eager.completeValue, StrongResultAligned, ErrorPresenceEquivalent]
+                    simp [completeValue, Eager.completeValue, StrongResultAligned,
+                      ErrorPresenceEquivalent]
                 | some previous =>
                     cases previous <;>
                       simp [completeValue, Eager.completeValue, StrongResultAligned,
@@ -718,7 +719,8 @@ private theorem fuelImplementations_canceling_eager_aligned
             | scalar scalar =>
                 cases previous with
                 | none =>
-                    simp [completeValue, Eager.completeValue, StrongResultAligned, ErrorPresenceEquivalent]
+                    simp [completeValue, Eager.completeValue, StrongResultAligned,
+                      ErrorPresenceEquivalent]
                 | some previous =>
                     cases previous <;>
                       simp [completeValue, Eager.completeValue, StrongResultAligned,
@@ -726,7 +728,8 @@ private theorem fuelImplementations_canceling_eager_aligned
             | object runtimeType ref =>
                 cases previous with
                 | none =>
-                    simp [completeValue, Eager.completeValue, StrongResultAligned, ErrorPresenceEquivalent]
+                    simp [completeValue, Eager.completeValue, StrongResultAligned,
+                      ErrorPresenceEquivalent]
                 | some previous =>
                     cases previous <;>
                       simp [completeValue, Eager.completeValue, StrongResultAligned,

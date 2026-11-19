@@ -164,7 +164,8 @@ mutual
     have partitioned := buildExecutionPlan_preserves_property _
       collection.collectedFieldsMap usages known
     have newCoherent := coherent_getNewDeferMap collection.newDeferUsages path coherent
-    simp only [executeExecutionPlan, Execution.executeExecutionPlan, build_eq coherent trace]
+    simp only [executeExecutionPlan, Execution.executeExecutionPlan,
+      build_eq coherent trace]
     apply (executeCollectedFields_refines schema resolvers variables fuel parentType
             source _ path usages _ parents state valid chains metadata partitioned.1
             newCoherent).bind

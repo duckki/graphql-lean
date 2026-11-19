@@ -751,9 +751,10 @@ theorem completeValue_null_eq_spec
           parentType fields (.null : ResolverValue ObjectIdentity) := by
   cases previous? with
   | none =>
-      simp [resultValueOrNull, GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
-        GraphQL.Execution.completeValueData,
-        GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD]
+      simp [resultValueOrNull,
+        GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
+        GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
+        GraphQL.Execution.Result.getD]
   | some previous =>
       cases previous <;>
         simp [resultValueOrNull,
@@ -927,8 +928,9 @@ theorem spec_completeValue_scalar_any_depth_eq_scalar
         GraphQL.Execution.Result.getD, outOfFuel, scalarCompletionAtDepth]
   | succ depth =>
       by_cases hcomposite :
-          (TypeRef.named parentType).isCompositeBool schema = true <;>
-        simp [GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD, scalarCompletionAtDepth, hcomposite]
+          (TypeRef.named parentType).isCompositeBool schema = true
+      <;> simp [GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
+            GraphQL.Execution.Result.getD, scalarCompletionAtDepth, hcomposite]
 
 theorem completeValue_duplicate_scalar_merge_eq_spec
     {ObjectIdentity : Type}
@@ -980,10 +982,11 @@ theorem completeValue_duplicate_null_merge_eq_spec
             (some first)))
       = GraphQL.Execution.completeValueData schema resolvers variableValues depth
           parentType fields (.null : ResolverValue ObjectIdentity) := by
-  cases depth <;>
-    simp [resultValueOrNull, GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
-      GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
-      GraphQL.Execution.Result.getD, outOfFuel, mergeResponse]
+  cases depth
+  <;> simp [resultValueOrNull,
+        GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
+        GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
+        GraphQL.Execution.Result.getD, outOfFuel, mergeResponse]
 
 theorem completeValue_scalar_list_fold_fst
     {ObjectIdentity : Type}

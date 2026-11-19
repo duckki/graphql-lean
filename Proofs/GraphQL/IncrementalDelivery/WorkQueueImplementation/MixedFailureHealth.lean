@@ -67,8 +67,8 @@ private theorem merge_filter_left (predicate : Nat × Occurrence → Bool)
           · simp only [List.filter_cons, keep entry List.mem_cons_self, ↓reduceIte]
             exact congrArg (entry :: ·)
               (ih _ (fun _ member => keep _ (List.mem_cons_of_mem _ member)) drop)
-          · simp only [List.filter_cons, drop stream List.mem_cons_self, Bool.false_eq_true,
-              ↓reduceIte]
+          · simp only [List.filter_cons, drop stream List.mem_cons_self,
+              Bool.false_eq_true, ↓reduceIte]
             exact next (fun _ member => drop _ (List.mem_cons_of_mem _ member))
 
 /-- A mixed object cut retains its exact object-settlement prefix, including equal cuts.

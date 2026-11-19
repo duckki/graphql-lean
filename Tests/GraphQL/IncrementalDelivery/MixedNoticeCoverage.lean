@@ -229,8 +229,8 @@ theorem reporting_metadata
       ∧ GroupScopeOrigins work := by
   refine ⟨?_, ?_, ?_, ?_⟩
   · simp [work, ExecutionPaths.WorkUnder, ExecutionPaths.ItemsUnder, node]
-  · simp [work, ScopeMetadata.WorkScoped, ScopeMetadata.ItemsScoped, ScopeMetadata.MapScoped,
-      ScopeMetadata.FragmentScoped, node]
+  · simp [work, ScopeMetadata.WorkScoped, ScopeMetadata.ItemsScoped,
+      ScopeMetadata.MapScoped, ScopeMetadata.FragmentScoped, node]
   · simp [work, ExecutionErrors.WorkPositive, ExecutionErrors.ItemsPositive,
       Semantics.BasicErrors.PositiveFailure]
   · intro other parents birth known

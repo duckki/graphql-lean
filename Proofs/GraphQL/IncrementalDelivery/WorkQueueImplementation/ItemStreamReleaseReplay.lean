@@ -41,7 +41,8 @@ theorem ItemStreamReleasePublications.append {work first second left right}
     obtain ⟨occurrence, known, source⟩ :=
       after (index - left.length) owner items groups streams atRight child noticed
     refine ⟨occurrence, known, ?_⟩
-    rw [List.take_append (l₁ := left), List.take_of_length_le (by omega : left.length ≤ index + 1),
+    rw [List.take_append (l₁ := left),
+      List.take_of_length_le (by omega : left.length ≤ index + 1),
       show index + 1 - left.length = index - left.length + 1 by omega,
       List.flatMap_append, List.length_append, ← size, List.take_append (l₁ := first)]
     simp only [List.take_of_length_le (Nat.le_add_right _ _), Nat.add_sub_cancel_left,

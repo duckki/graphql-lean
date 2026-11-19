@@ -463,8 +463,9 @@ theorem completeStreamItems_failure_bubbles (schema : Schema)
       | error count =>
           obtain ⟨ordinaryCount, ordinaryFailed⟩ := preserved _ outcome
           cases tail : GraphQL.Execution.completeValueList schema resolvers variables fuel
-              itemType (selected.map eraseField) rest <;>
-            simp [GraphQL.Execution.completeValueList, Result.combine, ordinaryFailed, tail]
+              itemType (selected.map eraseField) rest
+          <;> simp [GraphQL.Execution.completeValueList, Result.combine, ordinaryFailed,
+                tail]
       | ok pair =>
           have completed := outcome
           dsimp only [head, action] at completed
@@ -474,7 +475,8 @@ theorem completeStreamItems_failure_bubbles (schema : Schema)
             simpa [completeStreamItems, completed, next, action] using failed
           obtain ⟨ordinaryCount, ordinaryFailed⟩ := ih (index + 1) next tailFailed
           cases item : GraphQL.Execution.completeValue schema resolvers variables fuel
-              itemType (selected.map eraseField) value <;>
-            simp [GraphQL.Execution.completeValueList, Result.combine, item, ordinaryFailed]
+              itemType (selected.map eraseField) value
+          <;> simp [GraphQL.Execution.completeValueList, Result.combine, item,
+                ordinaryFailed]
 
 end GraphQL.IncrementalDelivery.Correctness.InitialFailures

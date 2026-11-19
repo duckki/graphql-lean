@@ -165,7 +165,8 @@ theorem State.runNormalized_termination_mem (queue : State)
     : Execution.WorkQueueEvent.workQueueTermination
         ∈ (queue.runNormalized inputs).2.flatten
       ↔ (queue.runNormalized inputs).1.terminated = true := by
-  rw [← publicationAtoms_list_termination_mem, queue.runNormalized_terminalShape inputs running]
+  rw [← publicationAtoms_list_termination_mem,
+    queue.runNormalized_terminalShape inputs running]
   simp only [List.mem_append, queue.nonterminalAtoms_noTermination inputs, false_or]
   cases (queue.runNormalized inputs).1.terminated <;> simp
 

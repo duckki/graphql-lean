@@ -118,8 +118,9 @@ theorem generatedPreparedTask_progress {work inputs event task}
       | some input =>
           cases healthy : queue.taskHasHealthyOwner input.task with
           | false =>
-              simp only [snapshot, registrationSnapshot, found, healthy, Bool.false_eq_true,
-                ↓reduceIte] at links owned
+              simp only [snapshot, registrationSnapshot, found, healthy,
+                Bool.false_eq_true, ↓reduceIte]
+                at links owned
               have different : task.occurrence ≠ incoming := fun same =>
                 pending (same ▸ List.mem_cons_self)
               simp only [State.handleGraphEvent, State.taskSuccess, found, healthy,
@@ -129,7 +130,8 @@ theorem generatedPreparedTask_progress {work inputs event task}
               obtain ⟨owner, member, group, lookup⟩ := owned
               refine ⟨owner, member, ?_⟩
               apply ownerFromKey
-              simp only [ReferenceWorkQueue.State.removeTask, List.map_map, Function.comp_def]
+              simp only [ReferenceWorkQueue.State.removeTask, List.map_map,
+                Function.comp_def]
               exact List.mem_map.mpr ⟨group, List.mem_of_find?_eq_some lookup,
                 ReferenceWorkQueue.State.groupNode?_ref lookup⟩
           | true =>
@@ -171,8 +173,9 @@ theorem generatedPreparedTask_progress {work inputs event task}
               have readyCatalogue : active.1.queue.task? task.occurrence = some task := by
                 change (({ integrated.1 with queue := released.1 }).startNewWork
                   released.2.2 integrated.2).1.queue.tasks.find? _ = some task
-                rw [(State.startNewWork_catalogues { integrated.1 with queue := released.1 }
-                  released.2.2 integrated.2).1, successGroupFold_tasks]
+                rw [
+                  (State.startNewWork_catalogues { integrated.1 with queue := released.1 }
+                    released.2.2 integrated.2).1, successGroupFold_tasks]
                 exact catalogue
               have sourceFound : ReferenceWorkQueue.State.taskNode?
                   ((ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).replayGraphEvents inputs.flatten)
@@ -198,8 +201,11 @@ theorem generatedPreparedTask_progress {work inputs event task}
   | streamItems stream items =>
       cases active : queue.rootStreams.contains stream.ref with
       | false =>
-          simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true, ↓reduceIte] at links owned
-          simp only [State.handleGraphEvent, State.streamItems, active, Bool.not_false, ↓reduceIte]
+          simp only [snapshot, registrationSnapshot, active, Bool.false_eq_true,
+            ↓reduceIte]
+            at links owned
+          simp only [State.handleGraphEvent, State.streamItems, active, Bool.not_false,
+            ↓reduceIte]
           exact .inl (taskRepresented links owned)
       | true =>
           let acc := items.foldl streamRegistrationStep (({ queue } : State), [], [], [], [], [])
@@ -222,7 +228,8 @@ theorem generatedPreparedTask_progress {work inputs event task}
             acc.2.2.2.2.1 running frame forest catalogue links bounded pending owned unique
           simp only [State.handleGraphEvent]
           rcases classified with retained | aborted
-          · simp only [State.streamItems, active, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          · simp only [State.streamItems, active, Bool.not_true, Bool.false_eq_true,
+              ↓reduceIte]
             exact .inl retained
           · apply Or.inr
             apply cleanupTask_effect

@@ -278,7 +278,8 @@ theorem Output.stream (inherited : List Nat) (node : DeliveryNode)
     have := (h.bounds region hr node.ref hregion).1
     omega
   · intro ref hk
-    simp only [allRefs, rootRefs, hiddenRegions, List.mem_append, List.mem_singleton] at hk
+    simp only [allRefs, rootRefs, hiddenRegions, List.mem_append, List.mem_singleton]
+      at hk
     rcases hk with rfl | hk
     · exact h.monotone
     · obtain ⟨region, hr, hk⟩ := List.mem_flatten.mp hk

@@ -150,8 +150,8 @@ theorem
             variableValues (fuel + 1) runtimeType runtimeType
             (.object runtimeType objectRef) bodySelectionSet [] happly
       refine ⟨responseField, responseFields, bodyErrors, ?_⟩
-      simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-        hmiddle, hflatten, hbodyExecute]
+      simp [Execution.executeSelectionSetAsResponse,
+        Execution.selectionSetResultToResponse, hmiddle, hflatten, hbodyExecute]
 
 theorem
     executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_fuel_ge_size
@@ -402,9 +402,9 @@ theorem
               (runtimeType := sourceRuntimeType) objectRef
               hparentNonObject hfree hnormal hruntimeMem
           refine ⟨[], 0, ?_⟩
-          simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-            Execution.executeSelectionSet, Execution.executeRootSelectionSet,
-            hcollect, Execution.executeCollectedFields]
+          simp [Execution.executeSelectionSetAsResponse,
+            Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
+            Execution.executeRootSelectionSet, hcollect, Execution.executeCollectedFields]
 
 theorem
     executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_deepProbeFuel

@@ -112,8 +112,8 @@ example : duplicateCompletion.idsEventuallyComplete := by
 #guard !duplicateCompletion.lifecycleValid
 
 example : ¬duplicateCompletion.idUsageValid := by
-  simp [duplicateCompletion, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
-    List.nodup_cons]
+  simp [duplicateCompletion, ExecutionObservation.idUsageValid,
+    DeliveryTrace.idUsageValid, List.nodup_cons]
 
 /-- Announcement uniqueness and causal patch references do not establish unique
 completions.
@@ -176,8 +176,8 @@ def lateAnnouncement : ExecutionObservation :=
     ]
 
 example : ¬lateAnnouncement.patchesAnnounced := by
-  simp [lateAnnouncement, ExecutionObservation.patchesAnnounced, DeliveryTrace.patchesAnnounced,
-    IncrementalResult.id]
+  simp [lateAnnouncement, ExecutionObservation.patchesAnnounced,
+    DeliveryTrace.patchesAnnounced, IncrementalResult.id]
 
 /-- History-based resolution is deliberately weaker than requiring an open ID. -/
 def closedReference : ExecutionObservation :=
@@ -213,8 +213,8 @@ def incompleteObservation : ExecutionObservation :=
     { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true } []
 
 example : incompleteObservation.idUsageValid := by
-  simp [incompleteObservation, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
-    List.nodup_cons]
+  simp [incompleteObservation, ExecutionObservation.idUsageValid,
+    DeliveryTrace.idUsageValid, List.nodup_cons]
 
 example : ¬incompleteObservation.idsCompleteExactlyOnce := by
   simp [incompleteObservation, ExecutionObservation.idsCompleteExactlyOnce,
@@ -320,7 +320,7 @@ example (id : String)
             { hasNext := true, completed := [{ id }] },
             { hasNext := false, pending := [{ id, path := [] }] }
           ]) := by
-  simp [ExecutionObservation.idsEventuallyComplete, DeliveryTrace.announcementsEventuallyComplete,
-    DeliveryTrace.completedIDs]
+  simp [ExecutionObservation.idsEventuallyComplete,
+    DeliveryTrace.announcementsEventuallyComplete, DeliveryTrace.completedIDs]
 
 end GraphQL.IncrementalDelivery.Tests.Correctness

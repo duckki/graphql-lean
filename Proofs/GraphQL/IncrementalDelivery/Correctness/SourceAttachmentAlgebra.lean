@@ -155,7 +155,8 @@ theorem attached_nonNull {available : List Entry} {path : ResponsePath}
   refine ⟨seeded_nonNull h.1, ?_⟩
   cases he : completed.result with
   | error errors =>
-      simp only [Completion.nonNull, he, nonNullCompletion, GraphQL.Execution.nonNullCompletion]
+      simp only [Completion.nonNull, he, nonNullCompletion,
+        GraphQL.Execution.nonNullCompletion]
       exact ⟨[], .empty, .empty⟩
   | ok data =>
       rcases data with ⟨data, errors⟩

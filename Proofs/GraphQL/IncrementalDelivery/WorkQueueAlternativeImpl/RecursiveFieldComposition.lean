@@ -144,8 +144,8 @@ theorem responseField_run_of_values (schema : Schema) (resolvers : Resolvers Obj
                 using pureResult_run supplies (.error 1)
           ⟩
       | cons head tail =>
-          simp only [ScheduledExecution.executeResponseField, Semantics.executeResponseField,
-            List.map_cons, field]
+          simp only [ScheduledExecution.executeResponseField,
+            Semantics.executeResponseField, List.map_cons, field]
           split
           · simp_all only
             exact ⟨keys, pureResult_run supplies _⟩

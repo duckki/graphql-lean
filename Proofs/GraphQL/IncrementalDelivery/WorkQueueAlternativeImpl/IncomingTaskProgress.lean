@@ -90,7 +90,8 @@ theorem acceptedChildTask_after_registered {queue : Kernel} {event task}
           ↓reduceIte, List.not_mem_nil] at returned
       | true =>
           simp only [acceptedChildTasks, active, ↓reduceIte] at returned
-          rw [ReferenceWorkQueue.State.handleGraphEvent, queue.streamItems_tasks stream items active]
+          rw [ReferenceWorkQueue.State.handleGraphEvent,
+            queue.streamItems_tasks stream items active]
           exact List.mem_append_right _ returned
   | taskFailure | streamSuccess | streamFailure => cases returned
 

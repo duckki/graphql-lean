@@ -61,8 +61,8 @@ theorem ExecutedWork.handleGraphEvent_noEarlierGroupNotice
   | streamItems stream items =>
       exact generated.streamItems_noEarlierGroupNotice matching matched announced
   | taskFailure occurrence errors =>
-      simp only [State.handleGraphEvent, State.taskFailure_groupNoticeRefs, List.not_mem_nil,
-        not_false_eq_true]
+      simp only [State.handleGraphEvent, State.taskFailure_groupNoticeRefs,
+        List.not_mem_nil, not_false_eq_true]
   | streamSuccess stream =>
       simp only [State.handleGraphEvent, State.streamSuccess]
       split <;> simp [rawGroupNoticeRefs]

@@ -94,8 +94,10 @@ theorem workAt_completionCombine (parents : Assignment) (lower bound : Nat)
     (hl : WorkAt parents lower bound left.work)
     (hr : WorkAt parents lower bound right.work)
     : WorkAt parents lower bound (Completion.combine f left right).work := by
-  cases hleft : left.result <;> cases hright : right.result <;>
-    simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine, Completion.error, WorkAt]
+  cases hleft : left.result
+  <;> cases hright : right.result
+  <;> simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine,
+        Completion.error, WorkAt]
   exact ⟨hl, hr⟩
 
 theorem workAt_map (parents : Assignment) (lower bound : Nat)

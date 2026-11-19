@@ -140,7 +140,8 @@ private theorem activeSource_progress (before : State) (event : GraphEvent) {key
       apply RecordTargetRepresented.activeStream
       change key ∈ (before.handleGraphEvent (.taskFailure occurrence errors)).1.queue.rootStreams
       rw [congrArg (fun pair => pair.1.rootStreams) projection]
-      rwa [ReferenceWorkQueue.State.handleGraphEvent, ReferenceWorkQueue.State.taskFailure_rootStreams]
+      rwa [ReferenceWorkQueue.State.handleGraphEvent,
+        ReferenceWorkQueue.State.taskFailure_rootStreams]
   | streamItems stream items =>
       apply Or.inl
       apply RecordTargetRepresented.activeStream
@@ -261,10 +262,12 @@ theorem ResourceState.observeDispatch_completedSource_not_owned
         change ((resources.observeNormalCompletion before.queue (.streamSuccess stream)).1.observeAdoptions
           inventories (graphEffects before.queue (.streamSuccess stream))).1 (.stream key) = .owned .queue
           at earlier
-        simp only [graphEffects, ResourceState.observeAdoptions, ResourceState.observeNormalCompletion,
-          normalCompletionTarget?] at earlier
+        simp only [graphEffects, ResourceState.observeAdoptions,
+          ResourceState.observeNormalCompletion, normalCompletionTarget?]
+          at earlier
         simp only [active, ↓reduceIte] at earlier
-        exact resources.finishQueueTarget_not_owned (.stream stream.ref) (same.symm ▸ earlier)
+        exact resources.finishQueueTarget_not_owned (.stream stream.ref)
+          (same.symm ▸ earlier)
       · cases completed
 
 /-- Still-queue-owned sources with old record locations retain current locations after any

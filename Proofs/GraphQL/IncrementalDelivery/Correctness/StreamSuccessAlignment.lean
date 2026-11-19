@@ -78,8 +78,9 @@ theorem completeStreamItems_aligns_ordinarySuccess (schema : Schema)
               obtain ⟨tailData, tailErrors⟩ := pair
               have referenceEq : reference = headData :: tailData := by
                 have equation := success
-                simp only [GraphQL.Execution.completeValueList, ordinaryHead, ordinaryTail,
-                  Result.combine, Except.ok.injEq, Prod.mk.injEq] at equation
+                simp only [GraphQL.Execution.completeValueList, ordinaryHead,
+                  ordinaryTail, Result.combine, Except.ok.injEq, Prod.mk.injEq]
+                  at equation
                 exact equation.1.symm
               subst reference
               let action := completeValue schema resolvers variables fuel itemType selected

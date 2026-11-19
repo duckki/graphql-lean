@@ -254,8 +254,9 @@ mutual
             fields rest path (index + 1) (route ++ [1])
             ((RecordedExecution.completeValue schema resolvers variables fuel itemType fields
               value (path ++ [.index index]) [] [] false (route ++ [0])).run state).2
-          simpa only [run_bind, StateT.run_pure, id_pure_eq, itemOrigins, List.flatMap_cons,
-            RecordedCompletion.origins] using Scoped.join head tail
+          simpa only [run_bind, StateT.run_pure, id_pure_eq, itemOrigins,
+            List.flatMap_cons, RecordedCompletion.origins]
+            using Scoped.join head tail
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf

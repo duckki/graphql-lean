@@ -142,7 +142,8 @@ theorem State.runNormalized_after_termination (queue : State)
   let start : NormalizedAcc := (queue, publisher, [])
   have fixed : ∀ input, normalizedStep start input = start := by
     intro input
-    simp [normalizedStep, start, queue.handleGraphEvents_after_termination input terminated]
+    simp [normalizedStep, start,
+      queue.handleGraphEvents_after_termination input terminated]
   have folded := foldl_fixed normalizedStep start inputs fixed
   change ((inputs.foldl normalizedStep start).1, (inputs.foldl normalizedStep start).2.2)
     = (queue, [])

@@ -82,7 +82,8 @@ theorem objectAnnotation_length {work : Execution.Work}
             List.length_append, ← first, Nat.zero_add]
           exact later
       | some occurrence =>
-          simp only [selected, Option.toList_some, List.length_cons, List.length_nil] at first
+          simp only [selected, Option.toList_some, List.length_cons, List.length_nil]
+            at first
           simp only [List.filterMap_cons, selected, List.length_cons, List.map_cons,
             List.flatMap_cons, List.length_append, ← first, later]
           omega

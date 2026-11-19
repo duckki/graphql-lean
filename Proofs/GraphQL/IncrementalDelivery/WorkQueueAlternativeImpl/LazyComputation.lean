@@ -144,14 +144,17 @@ private theorem CachedComputation.step_evaluationCredit
   | abort reason =>
       cases cached : state.cache with
       | none =>
-          simp [CachedComputation.step, CachedComputation.abort, cached, CachedComputation.evaluationCredit]
+          simp [CachedComputation.step, CachedComputation.abort, cached,
+            CachedComputation.evaluationCredit]
       | some result =>
           cases result <;> cases available : state.abortAvailable <;>
             simp [CachedComputation.step, CachedComputation.abort, cached, available,
               CachedComputation.evaluationCredit, ComputationEffect.isEvaluation]
   | settle outcome =>
-      cases outcome <;> cases pending : state.continuation <;>
-        simp [CachedComputation.step, CachedComputation.settle, pending, CachedComputation.evaluationCredit]
+      cases outcome
+      <;> cases pending : state.continuation
+      <;> simp [CachedComputation.step, CachedComputation.settle, pending,
+            CachedComputation.evaluationCredit]
 
 private theorem CachedComputation.step_abortCredit (state : CachedComputation value error)
     (action : ComputationAction value error)
@@ -165,14 +168,17 @@ private theorem CachedComputation.step_abortCredit (state : CachedComputation va
   | abort reason =>
       cases cached : state.cache with
       | none =>
-          simp [CachedComputation.step, CachedComputation.abort, cached, CachedComputation.abortCredit]
+          simp [CachedComputation.step, CachedComputation.abort, cached,
+            CachedComputation.abortCredit]
       | some result =>
           cases result <;> cases available : state.abortAvailable <;>
             simp [CachedComputation.step, CachedComputation.abort, cached, available,
               CachedComputation.abortCredit, ComputationEffect.isAbortCallback]
   | settle outcome =>
-      cases outcome <;> cases pending : state.continuation <;>
-        simp [CachedComputation.step, CachedComputation.settle, pending, CachedComputation.abortCredit]
+      cases outcome
+      <;> cases pending : state.continuation
+      <;> simp [CachedComputation.step, CachedComputation.settle, pending,
+            CachedComputation.abortCredit]
 
 /-- Any finite call/continuation history has at most one evaluation and one cleanup start.
 Late fulfilment does not replenish either invocation credit.
@@ -233,7 +239,8 @@ theorem CachedComputation.abort_before_prime (hasAbort : Bool) (reason : error)
     : let initial : CachedComputation value error := ⟨none, hasAbort, false⟩
       initial.run [.abort reason, .prime started]
       = (⟨some (.rejected reason), hasAbort, false⟩, []) := by
-  simp [CachedComputation.run, CachedComputation.step, CachedComputation.abort, CachedComputation.prime]
+  simp [CachedComputation.run, CachedComputation.step, CachedComputation.abort,
+    CachedComputation.prime]
 
 /-- Cleanup of fulfilled unpublished work does not erase or replace its cached result. -/
 theorem CachedComputation.abort_fulfilled (state : CachedComputation value error)
@@ -263,8 +270,8 @@ theorem CachedComputation.pending_abort_late_fulfilment (reason : error) (result
         initial.run [.prime .pending, .abort reason, .settle (.ok result), .abort reason]
       observed.1.cache = some (.fulfilled result)
       ∧ observed.2 = [.evaluate, .abortCallback] := by
-  simp [CachedComputation.run, CachedComputation.step, CachedComputation.prime, CachedComputation.abort,
-    CachedComputation.settle, ComputationResult.isPending]
+  simp [CachedComputation.run, CachedComputation.step, CachedComputation.prime,
+    CachedComputation.abort, CachedComputation.settle, ComputationResult.isPending]
 
 /-- Even a fulfilled late result cannot map a batch through the actual closed reader.
 The callback-to-batch function is arbitrary; admission and disposing its resources remain

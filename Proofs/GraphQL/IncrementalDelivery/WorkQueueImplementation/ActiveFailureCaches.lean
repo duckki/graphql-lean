@@ -111,7 +111,8 @@ theorem State.NoActiveCachedFailure.taskSuccess {queue : State}
     | false =>
         simpa only [eligible, Bool.not_false, ↓reduceIte] using clear.removeTask occurrence
     | true =>
-        simp only [eligible, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at finalUnique ⊢
+        simp only [eligible, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          at finalUnique ⊢
         exact State.drainReadyGroups_noActiveCachedFailure _ finalUnique
 
 /-- Item processing clears every active cache after integrating and announcing children.

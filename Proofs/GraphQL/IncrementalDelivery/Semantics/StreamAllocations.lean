@@ -102,8 +102,10 @@ theorem streams_completionCombine {start middle finish : Nat} (f : α → β →
     (hl : StreamAllocated start left.work middle)
     (hr : StreamAllocated middle right.work finish)
     : StreamAllocated start (Completion.combine f left right).work finish := by
-  cases hleft : left.result <;> cases hright : right.result <;>
-    simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine, Completion.error]
+  cases hleft : left.result
+  <;> cases hright : right.result
+  <;> simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine,
+        Completion.error]
   · exact streams_empty_of_le (Nat.le_trans hl.monotone hr.monotone)
   · exact streams_empty_of_le (Nat.le_trans hl.monotone hr.monotone)
   · exact streams_empty_of_le (Nat.le_trans hl.monotone hr.monotone)

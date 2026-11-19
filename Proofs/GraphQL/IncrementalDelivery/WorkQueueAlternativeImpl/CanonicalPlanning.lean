@@ -125,7 +125,8 @@ theorem partitionKey_eq_iff (left right : List Nat)
 
 private theorem setsEquivalent_iff (left right : List Nat)
     : deferUsageSetsEquivalent left right = true ↔ ∀ key, key ∈ left ↔ key ∈ right := by
-  simp only [deferUsageSetsEquivalent, Bool.and_eq_true, List.all_eq_true, List.contains_iff_mem]
+  simp only [deferUsageSetsEquivalent, Bool.and_eq_true, List.all_eq_true,
+    List.contains_iff_mem]
   constructor
   · rintro ⟨forward, backward⟩ key
     exact ⟨forward key, backward key⟩
@@ -204,7 +205,8 @@ private theorem addPartition_keysUnique (usages : List Nat)
       by_cases equal : partition.key = partitionKey usages
       · simpa [addPartition, equal] using unique
       · obtain ⟨absent, tail⟩ := List.nodup_cons.mp unique
-        simp only [addPartition, beq_iff_eq, equal, ↓reduceIte, List.map_cons, List.nodup_cons]
+        simp only [addPartition, beq_iff_eq, equal, ↓reduceIte, List.map_cons,
+          List.nodup_cons]
         refine ⟨?_, ih tail⟩
         intro member
         rcases (addPartition_memKey usages group rest partition.key).mp member with old | fresh
@@ -220,8 +222,8 @@ theorem addPartition_project (usages : List Nat) (group : Name × List FieldDeta
   | cons partition rest ih =>
       have head := matching partition (by simp)
       have tail := ih (fun item member => matching item (List.mem_cons_of_mem _ member))
-      simp only [addPartition, List.map_cons, KeyedPartition.project, addExecutionPartition,
-        head, partitionKey_beq]
+      simp only [addPartition, List.map_cons, KeyedPartition.project,
+        addExecutionPartition, head, partitionKey_beq]
       split <;> simp [KeyedPartition.project, tail]
 
 private theorem KeyedPlan.step_keysMatch (parent : List Nat) (plan : KeyedPlan)
@@ -270,7 +272,8 @@ private theorem fold_project (groups : CollectedFieldsMap) (parent : List Nat)
   induction groups generalizing plan with
   | nil => rfl
   | cons group rest ih =>
-      rw [List.foldl_cons, List.foldl_cons, ih _ (plan.step_keysMatch parent group matching)]
+      rw [List.foldl_cons, List.foldl_cons,
+        ih _ (plan.step_keysMatch parent group matching)]
       dsimp only [KeyedPlan.step]
       cases condition
             : deferUsageSetsEquivalent (getFilteredDeferUsageSet group.2) parent with

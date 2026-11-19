@@ -123,8 +123,10 @@ theorem generatedReplay_beforeBatchRunning {work inputs batch}
       before.stopped = false ∧ before.queue.terminated = false := by
   dsimp only
   obtain ⟨raw, priorStarted, _⟩ := generatedReplay_beforeBatch generated valid started
-  have flag : ((State.initialize work).runNormalized inputs).1.queue.terminated = false := by
-    rw [raw, ← ReferenceWorkQueue.State.rawEventReplay_state, ReferenceWorkQueue.State.rawEventReplay_terminated]
+  have flag
+      : ((State.initialize work).runNormalized inputs).1.queue.terminated = false := by
+    rw [raw, ← ReferenceWorkQueue.State.rawEventReplay_state,
+      ReferenceWorkQueue.State.rawEventReplay_terminated]
     exact ReferenceWorkQueue.createWorkQueue_terminated _
   refine ⟨?_, flag⟩
   rw [State.runNormalized_initialize work inputs generated valid priorStarted] at flag ⊢
@@ -180,7 +182,8 @@ theorem GeneratedResourceBatchInvariant_holds : GeneratedResourceBatchInvariant 
       → ∀ target, (State.observeResourceBatch before resources inventories batch).resources target ≠ .owned .queue)
   change before.stopped = false at running
   change before.queue.terminated = false at active
-  simp only [State.observeResourceBatch, running, active, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+  simp only [State.observeResourceBatch, running, active, Bool.false_or,
+    Bool.false_eq_true, ↓reduceIte]
   by_cases empty :
     (reduced.dispatch.state.queue.rootGroups.isEmpty
       && reduced.dispatch.state.queue.rootStreams.isEmpty)

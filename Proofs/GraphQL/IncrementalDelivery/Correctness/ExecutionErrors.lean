@@ -77,8 +77,9 @@ theorem map (f : α → β) (completed : Completion α) (h : Positive completed)
 theorem catchNull (f : α → ResponseValue) (completed : Completion α)
     (h : Positive completed)
     : Positive (Completion.catchNull f completed) := by
-  cases he : completed.result <;>
-    simp [Positive, Completion.catchNull, he, BasicErrors.PositiveFailure, WorkPositive, h.2]
+  cases he : completed.result
+  <;> simp [Positive, Completion.catchNull, he, BasicErrors.PositiveFailure, WorkPositive,
+        h.2]
 
 /-- Non-null completion preserves or introduces a positive error, by result cases. -/
 

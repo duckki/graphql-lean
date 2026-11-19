@@ -52,13 +52,13 @@ private theorem ClosingFrontier.handleGraphEvent
         matching := frontier.matching.handleGraphEvent (.taskFailure occurrence errors) matching
       }
   | streamSuccess stream =>
-      simp only [State.handleGraphEvent, State.streamSuccess, State.objectFailureContribution,
-        List.nil_append]
+      simp only [State.handleGraphEvent, State.streamSuccess,
+        State.objectFailureContribution, List.nil_append]
       split <;> exact ⟨frontier.healthy, frontier.frontier, frontier.present,
         frontier.registered, frontier.matching⟩
   | streamFailure stream errors =>
-      simp only [State.handleGraphEvent, State.streamFailure, State.objectFailureContribution,
-        List.nil_append]
+      simp only [State.handleGraphEvent, State.streamFailure,
+        State.objectFailureContribution, List.nil_append]
       split <;> exact ⟨frontier.healthy, frontier.frontier, frontier.present,
         frontier.registered, frontier.matching⟩
 

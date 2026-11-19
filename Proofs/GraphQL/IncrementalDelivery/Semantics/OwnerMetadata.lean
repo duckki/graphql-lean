@@ -135,7 +135,8 @@ theorem mapAt_new (paths : Assignment) (start finish : Nat) (path : ResponsePath
         · obtain ⟨ref, _, hk⟩ := List.mem_filterMap.mp hn
           obtain ⟨fragment, hf, hn⟩ := Option.map_eq_some_iff.mp hk
           subst node
-          exact mapAt_lookup hm ref fragment hf fragment.node (by simp [mapNodes, fragmentNodes])
+          exact mapAt_lookup hm ref fragment hf fragment.node
+            (by simp [mapNodes, fragmentNodes])
 
 theorem output_empty (paths : Assignment) (state : Nat)
     : Output paths state .empty state :=

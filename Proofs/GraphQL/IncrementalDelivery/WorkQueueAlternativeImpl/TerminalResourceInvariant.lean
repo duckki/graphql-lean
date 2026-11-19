@@ -85,11 +85,16 @@ theorem generatedDispatch_recordRootEvidence {work inputs event}
     (ReferenceWorkQueue.GraphEvent.taskSettlements_subsetIdentities _) event matching fresh
     (generatedReplay_nextAccepted generated valid started)
   refine ⟨next.sound, next.started, ?_, ?_⟩
-  · have accepted : (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
-        (inputs.flatten ++ [event]) = true := by
+  · have accepted
+        : (ReferenceWorkQueue.State.initialize
+            (ReferenceWorkQueue.Work.fromExecution work)).acceptsBatch
+            (inputs.flatten ++ [event])
+          = true := by
       have all := (ReferenceWorkQueue.State.initialize (ReferenceWorkQueue.Work.fromExecution work)).batchesStarted_acceptsBatch
         (inputs ++ [[event]]) (by rwa [← ReferenceWorkQueue.inputsStarted_eq_batchesStarted])
-      simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil, List.append_nil] using all
+      simpa only [List.flatten_append, List.flatten_cons, List.flatten_nil,
+        List.append_nil]
+        using all
     have covered := generated.replayGraphEvents_liveContributorsCovered _ valid accepted
     rw [ReferenceWorkQueue.State.replayGraphEvents_append] at covered
     rwa [raw]
@@ -193,8 +198,9 @@ theorem GeneratedResourceSingletonBatchInvariant_holds
   obtain ⟨running, active⟩ := generatedReplay_nextRunning generated valid started
   have after := GeneratedDispatchResourcesRepresented_holds work inputs event generated valid started
     resources inventories represented taskIdentity sourceIdentity
-  simp only [State.observeResourceBatch, running, active, Bool.false_or, Bool.false_eq_true,
-    ↓reduceIte, List.foldl_cons, List.foldl_nil, ResourceBatchObservation.handleGraphEvent]
+  simp only [State.observeResourceBatch, running, active, Bool.false_or,
+    Bool.false_eq_true, ↓reduceIte, List.foldl_cons, List.foldl_nil,
+    ResourceBatchObservation.handleGraphEvent]
   by_cases empty :
     ((({ state := before } : GraphBatchResult).handleGraphEvent
         event).state.queue.rootGroups.isEmpty

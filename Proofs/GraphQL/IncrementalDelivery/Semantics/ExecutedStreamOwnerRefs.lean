@@ -70,7 +70,8 @@ mutual
         have hd := streamRefs_deferred state deferMap usages path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
           _ hm ⟨hw, ho⟩
-        simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
+        simp only [collectExecutionGroups, executeExecutionGroup, run_bind,
+          StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt,
           streamRefs_combine hd ⟨hwt.mono hle, hot⟩⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
@@ -256,12 +257,15 @@ mutual
             (fields.map (fun field => { field with deferUsage := none })) (values.drop usage.initialCount)
             path usage.initialCount (middle + 1)
             (by intro f hf; obtain ⟨old, _, rfl⟩ := List.mem_map.mp hf; simp [UsageBefore])
-          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
+          simp only [freshNodeRef, run_bind, StateT.run_get, StateT.run_set,
+            StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [middle] at *; omega, ?_⟩
           apply streamRefs_combine (streamRefs_catchNull state _ _ ⟨hw, ho⟩)
           simp only [StreamRefsFrom, StreamOwnersOrdered]
-          exact ⟨⟨hle, fun item hi => (hitems item hi).1.mono (by dsimp only [middle]; omega)⟩,
-            fun item hi => (hitems item hi).2⟩
+          exact ⟨
+            ⟨hle, fun item hi => (hitems item hi).1.mono (by dsimp only [middle]; omega)⟩,
+            fun item hi => (hitems item hi).2
+          ⟩
   termination_by (fuel, 3, 0, 0)
   decreasing_by
     all_goals subst_vars; simp_wf

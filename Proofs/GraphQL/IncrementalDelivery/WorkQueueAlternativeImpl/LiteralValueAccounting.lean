@@ -20,8 +20,10 @@ theorem Report.nonNull_unique (route : List Nat) (report : Report ResponseValue)
   | error errors => exact unique
   | ok value =>
       obtain ⟨value, errors⟩ := value
-      cases value <;> cases errors <;>
-        simp_all [Report.nonNull, Report.fault, primitiveOrigins, ScheduledErrors.countedErrors]
+      cases value
+      <;> cases errors
+      <;> simp_all [Report.nonNull, Report.fault, primitiveOrigins,
+            ScheduledErrors.countedErrors]
 
 theorem ReportCutAccounting.nonNull (route : List Nat) {cut eager : Report ResponseValue}
     {sites} (known : ReportCutAccounting cut eager sites)
@@ -121,44 +123,53 @@ theorem literal_value_cut_accounting (schema : Schema) (resolvers : Resolvers Ob
       | named name =>
           cases literal with
           | null =>
-              simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                LiteralCuts.streamValue, StateT.run_pure, id_pure_eq, StreamCutAccounting,
-                RecordedCompletion.pure]
+              simp only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue, LiteralCuts.streamValue,
+                StateT.run_pure, id_pure_eq, StreamCutAccounting, RecordedCompletion.pure]
               exact ⟨
                 ReportCutAccounting.refl _ (by simp [Report.pure]),
                 .vacant .empty .empty
               ⟩
           | scalar scalar =>
-              simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                LiteralCuts.streamValue]
+              simp only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue, LiteralCuts.streamValue]
               split
               · exact ⟨ReportCutAccounting.refl _ (Scoped.primitive route 1).unique, .vacant .empty .empty⟩
               · exact ⟨ReportCutAccounting.refl _ (by simp [RecordedCompletion.pure, Report.pure]),
                   .vacant .empty .empty⟩
           | list sources =>
-              simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                LiteralCuts.streamValue, StateT.run_pure, id_pure_eq, StreamCutAccounting,
+              simp only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue, LiteralCuts.streamValue,
+                StateT.run_pure, id_pure_eq, StreamCutAccounting,
                 RecordedCompletion.fault]
-              exact ⟨ReportCutAccounting.refl _ (Scoped.primitive route 1).unique, .vacant .empty .empty⟩
+              exact ⟨
+                ReportCutAccounting.refl _ (Scoped.primitive route 1).unique,
+                .vacant .empty .empty
+              ⟩
       | list inner =>
           cases literal with
           | null =>
-              simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                LiteralCuts.streamValue, StateT.run_pure, id_pure_eq, StreamCutAccounting,
-                RecordedCompletion.pure]
+              simp only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue, LiteralCuts.streamValue,
+                StateT.run_pure, id_pure_eq, StreamCutAccounting, RecordedCompletion.pure]
               exact ⟨
                 ReportCutAccounting.refl _ (by simp [Report.pure]),
                 .vacant .empty .empty
               ⟩
           | scalar scalar =>
-              simp only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                LiteralCuts.streamValue, StateT.run_pure, id_pure_eq, StreamCutAccounting,
+              simp only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue, LiteralCuts.streamValue,
+                StateT.run_pure, id_pure_eq, StreamCutAccounting,
                 RecordedCompletion.fault]
-              exact ⟨ReportCutAccounting.refl _ (Scoped.primitive route 1).unique, .vacant .empty .empty⟩
+              exact ⟨
+                ReportCutAccounting.refl _ (Scoped.primitive route 1).unique,
+                .vacant .empty .empty
+              ⟩
           | @list sources known =>
-              simpa only [RecordedExecution.completeValue, EagerRecordedExecution.completeValue,
-                LiteralCuts.streamValue] using literal_listWithStream_cut_accounting schema resolvers
-                  variables fuel inner fields sources path usages context allowStream (route ++ [0])
+              simpa only [RecordedExecution.completeValue,
+                EagerRecordedExecution.completeValue, LiteralCuts.streamValue]
+                using literal_listWithStream_cut_accounting schema resolvers variables
+                  fuel inner fields sources path usages context allowStream (route ++ [0])
                   supply known
 termination_by (fuel, 1, sizeOf fieldType, 0)
 decreasing_by

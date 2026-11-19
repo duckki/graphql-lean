@@ -144,29 +144,38 @@ theorem swap_equal {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
         left.selectionSet
       = executeSelectionSetAsResponse schema resolvers values fuel "Query" source
           right.selectionSet := by
-  have hleft : collectFields schema values "Query" source left.selectionSet =
-      [("a", [{ fieldName := "f", arguments := [], selectionSet := children }]),
-       ("b", [{ fieldName := "g", arguments := [], selectionSet := children }])] := by
-    simp [left, collectFields, collectSelection, mergeExecutableGroups, addExecutableGroup]
-  have hright : collectFields schema values "Query" source right.selectionSet =
-      [("a", [{ fieldName := "g", arguments := [], selectionSet := children }]),
-       ("b", [{ fieldName := "f", arguments := [], selectionSet := children }])] := by
-    simp [right, collectFields, collectSelection, mergeExecutableGroups, addExecutableGroup]
+  have hleft
+      : collectFields schema values "Query" source left.selectionSet
+        = [
+          ("a", [{ fieldName := "f", arguments := [], selectionSet := children }]),
+          ("b", [{ fieldName := "g", arguments := [], selectionSet := children }])
+        ] := by
+    simp [left, collectFields, collectSelection, mergeExecutableGroups,
+      addExecutableGroup]
+  have hright
+      : collectFields schema values "Query" source right.selectionSet
+        = [
+          ("a", [{ fieldName := "g", arguments := [], selectionSet := children }]),
+          ("b", [{ fieldName := "f", arguments := [], selectionSet := children }])
+        ] := by
+    simp [right, collectFields, collectSelection, mergeExecutableGroups,
+      addExecutableGroup]
   cases fuel with
   | zero =>
-      simp only [executeSelectionSetAsResponse, executeSelectionSet, executeRootSelectionSet,
-        hleft, hright, executeCollectedFields, executeField, outOfFuel, Result.combine,
-        selectionSetResultToResponse, Nat.add_zero]
+      simp only [executeSelectionSetAsResponse, executeSelectionSet,
+        executeRootSelectionSet, hleft, hright, executeCollectedFields, executeField,
+        outOfFuel, Result.combine, selectionSetResultToResponse, Nat.add_zero]
   | succ fuel =>
-      simp only [executeSelectionSetAsResponse, executeSelectionSet, executeRootSelectionSet,
-        hleft, hright, executeCollectedFields]
+      simp only [executeSelectionSetAsResponse, executeSelectionSet,
+        executeRootSelectionSet, hleft, hright, executeCollectedFields]
       rw [executeField_eq_outcome resolvers values fuel source "a" "f" (Or.inl rfl),
         executeField_eq_outcome resolvers values fuel source "b" "g" (Or.inr rfl),
         executeField_eq_outcome resolvers values fuel source "a" "g" (Or.inr rfl),
         executeField_eq_outcome resolvers values fuel source "b" "f" (Or.inl rfl)]
-      rcases fieldOutcome_fixed_or_error resolvers values fuel source "f" with ⟨ferrors, hf⟩ | hf <;>
-        rcases fieldOutcome_fixed_or_error resolvers values fuel source "g" with ⟨gerrors, hg⟩ | hg <;>
-        simp [hf, hg, singleFieldResult, Result.combine, selectionSetResultToResponse, Nat.add_comm]
+      rcases fieldOutcome_fixed_or_error resolvers values fuel source "f" with ⟨ferrors, hf⟩ | hf
+      <;> rcases fieldOutcome_fixed_or_error resolvers values fuel source "g" with ⟨gerrors, hg⟩ | hg
+      <;> simp [hf, hg, singleFieldResult, Result.combine, selectionSetResultToResponse,
+            Nat.add_comm]
 
 #print axioms swap_equal
 
@@ -219,22 +228,28 @@ theorem not_reordered
       rcases hrightMem with rfl | rfl <;> simp [head] at heq
 
 theorem left_normal : NormalForm.operationNormal schema left := by
-  simp [NormalForm.operationNormal, Operation.rootType, OperationType.rootType, left, children,
-    NormalForm.selectionSetNormal, NormalForm.selectionSetGroundTyped, NormalForm.selectionGroundTyped,
-    NormalForm.selectionsAllFields, NormalForm.selectionsAllInlineFragments, NormalForm.objectTypeNameBool,
-    Schema.fieldReturnType?, Schema.lookupField, Schema.lookupDeclaredField, TypeDefinition.fields?,
-    NormalForm.selectionSetNonRedundant, NormalForm.selectionNonRedundant, NormalForm.responseNamesNodup,
+  simp [NormalForm.operationNormal, Operation.rootType, OperationType.rootType, left,
+    children, NormalForm.selectionSetNormal, NormalForm.selectionSetGroundTyped,
+    NormalForm.selectionGroundTyped, NormalForm.selectionsAllFields,
+    NormalForm.selectionsAllInlineFragments, NormalForm.objectTypeNameBool,
+    Schema.fieldReturnType?, Schema.lookupField, Schema.lookupDeclaredField,
+    TypeDefinition.fields?, NormalForm.selectionSetNonRedundant,
+    NormalForm.selectionNonRedundant, NormalForm.responseNamesNodup,
     NormalForm.inlineFragmentTypeConditionsNodup, NormalForm.inlineFragmentTypeCondition?,
-    Selection.responseName?, Selection.isField, Selection.isInlineFragment, List.filterMap]
+    Selection.responseName?, Selection.isField, Selection.isInlineFragment,
+    List.filterMap]
 
 theorem right_normal : NormalForm.operationNormal schema right := by
-  simp [NormalForm.operationNormal, Operation.rootType, OperationType.rootType, right, children,
-    NormalForm.selectionSetNormal, NormalForm.selectionSetGroundTyped, NormalForm.selectionGroundTyped,
-    NormalForm.selectionsAllFields, NormalForm.selectionsAllInlineFragments, NormalForm.objectTypeNameBool,
-    Schema.fieldReturnType?, Schema.lookupField, Schema.lookupDeclaredField, TypeDefinition.fields?,
-    NormalForm.selectionSetNonRedundant, NormalForm.selectionNonRedundant, NormalForm.responseNamesNodup,
+  simp [NormalForm.operationNormal, Operation.rootType, OperationType.rootType, right,
+    children, NormalForm.selectionSetNormal, NormalForm.selectionSetGroundTyped,
+    NormalForm.selectionGroundTyped, NormalForm.selectionsAllFields,
+    NormalForm.selectionsAllInlineFragments, NormalForm.objectTypeNameBool,
+    Schema.fieldReturnType?, Schema.lookupField, Schema.lookupDeclaredField,
+    TypeDefinition.fields?, NormalForm.selectionSetNonRedundant,
+    NormalForm.selectionNonRedundant, NormalForm.responseNamesNodup,
     NormalForm.inlineFragmentTypeConditionsNodup, NormalForm.inlineFragmentTypeCondition?,
-    Selection.responseName?, Selection.isField, Selection.isInlineFragment, List.filterMap]
+    Selection.responseName?, Selection.isField, Selection.isInlineFragment,
+    List.filterMap]
 
 theorem left_not_typenameFree : ¬ NormalForm.operationTypenameFree left := by
   simp [NormalForm.operationTypenameFree, NormalForm.selectionSetTypenameFree,

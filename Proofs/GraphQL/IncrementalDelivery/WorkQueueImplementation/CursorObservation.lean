@@ -203,8 +203,8 @@ theorem ResponseStreamCursor.queryObservation
   have conforms := createWorkQueueForSchedule_conforms_executed (sources _) _ generated
     valid nonempty
   refine ⟨fun _ _ => conforms, ?_⟩
-  simp only [GraphQL.IncrementalDelivery.queryObservation, Execution.executeQueryWithFuel, applies,
-    ↓reduceIte, Correctness.executeRootSelectionSet_fromWork]
+  simp only [GraphQL.IncrementalDelivery.queryObservation, Execution.executeQueryWithFuel,
+    applies, ↓reduceIte, Correctness.executeRootSelectionSet_fromWork]
   exact ResponseStreamCursor.executionObservation _ _ _ inputs complete nonempty
     conforms admitted finished
 

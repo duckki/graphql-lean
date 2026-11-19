@@ -70,7 +70,8 @@ theorem lookup_groups_maps {keys : Nat → Nat} (injective : Function.Injective 
     (context : DeferMap) (usages : List Nat)
     : (usages.map keys).filterMap (lookupDeferredFragment? (context.map (fragment keys)))
       = (usages.filterMap (lookupDeferredFragment? context)).map (fragment keys) := by
-  simp only [List.filterMap_map, Function.comp_def, lookup_fragment injective, List.map_filterMap]
+  simp only [List.filterMap_map, Function.comp_def, lookup_fragment injective,
+    List.map_filterMap]
 
 /-- Adapt a Work-returning actual run to the same full run certificate; the dummy result
 has no error contribution. No task payload is replaced or discarded. -/
@@ -102,8 +103,9 @@ theorem literal_collectExecutionGroups_run (schema : Schema)
               right)) := by
   induction partitions generalizing keys left right with
   | nil =>
-      simp only [ScheduledExecution.collectExecutionGroups, Execution.collectExecutionGroups,
-        KeyRenaming.partitions, List.map_nil, StateT.run_pure, id_pure_eq, workRun]
+      simp only [ScheduledExecution.collectExecutionGroups,
+        Execution.collectExecutionGroups, KeyRenaming.partitions, List.map_nil,
+        StateT.run_pure, id_pure_eq, workRun]
       refine ⟨keys, ⟨fun _ _ => rfl, supplies, Nat.le_refl _, Nat.le_refl _, ?_, ?_⟩⟩
       · simp [allRefs, rootRefs, hiddenRegions]
       · exact ⟨ResultRefines.refl _, .empty⟩
@@ -146,9 +148,10 @@ theorem literal_collectExecutionGroups_run (schema : Schema)
         variables fuel parentType source (partition :: rest) path context left contextBound
       simp only [partition, ScheduledExecution.collectExecutionGroups, run_bind,
         StateT.run_pure, id_pure_eq] at regions
-      simp only [ScheduledExecution.collectExecutionGroups, Execution.collectExecutionGroups,
-        Execution.executeExecutionGroup, KeyRenaming.partitions, List.map_cons,
-        lookup_groups_maps supplies.injective, run_bind, StateT.run_pure, id_pure_eq, workRun]
+      simp only [ScheduledExecution.collectExecutionGroups,
+        Execution.collectExecutionGroups, Execution.executeExecutionGroup,
+        KeyRenaming.partitions, List.map_cons, lookup_groups_maps supplies.injective,
+        run_bind, StateT.run_pure, id_pure_eq, workRun]
       refine ⟨next, ⟨prefixSame, tail.supplies,
         Nat.le_trans head.scheduledMonotone tail.scheduledMonotone,
         Nat.le_trans head.eagerMonotone tail.eagerMonotone, regions.bounded, ?_⟩⟩

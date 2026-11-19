@@ -179,8 +179,9 @@ theorem literal_streamItems_cut_accounting (schema : Schema)
         itemType fields source (path ++ [.index index]) [] [] (route ++ [0]) supply
         (literal source (by simp))
       have same := related.1.1.1
-      simp only [RecordedExecution.completeStreamItems, EagerRecordedExecution.completeStreamItems,
-        LiteralCuts.streamItems, run_bind, headSupply, eagerHeadSupply]
+      simp only [RecordedExecution.completeStreamItems,
+        EagerRecordedExecution.completeStreamItems, LiteralCuts.streamItems, run_bind,
+        headSupply, eagerHeadSupply]
       cases outcome :
           ((RecordedExecution.completeValue schema resolvers variables fuel itemType fields source
             (path ++ [.index index]) [] [] false (route ++ [0])).run supply).1.report.outcome

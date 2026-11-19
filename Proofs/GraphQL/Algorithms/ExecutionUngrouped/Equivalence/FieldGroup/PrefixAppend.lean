@@ -141,17 +141,24 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
           dsimp at hresolveFirst ⊢
           cases hlookup : schema.lookupField parentType fieldName with
           | none =>
-              simp [GraphQL.Execution.executeField, executeField, groupedFieldVisitResult, executableField, hlookup, resultStatus]
+              simp [GraphQL.Execution.executeField, executeField, groupedFieldVisitResult,
+                executableField, hlookup, resultStatus]
           | some fieldDefinition =>
               simp [resolveFieldValueByName, hlookup] at hresolveFirst
               cases resolved with
               | none =>
                   cases fieldDefinition with
                   | mk definitionName outputType definitionArguments =>
-                      cases outputType <;>
-                        simp [executeField, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, executableField, hlookup, hresolveFirst, reusablePreviousValue?, handleFieldError, resultStatus, visitOk]
+                      cases outputType
+                      <;> simp [executeField, groupedFieldVisitResult,
+                            GraphQL.Execution.singleFieldResult, executableField, hlookup,
+                            hresolveFirst, reusablePreviousValue?, handleFieldError,
+                            resultStatus, visitOk]
               | some resolvedValue =>
-                  simp [executeField, GraphQL.Execution.completeValue, completeValue, outOfFuel, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, executableField, hlookup, hresolveFirst, reusablePreviousValue?, resultStatus]
+                  simp [executeField, GraphQL.Execution.completeValue, completeValue,
+                    outOfFuel, groupedFieldVisitResult,
+                    GraphQL.Execution.singleFieldResult, executableField, hlookup,
+                    hresolveFirst, reusablePreviousValue?, resultStatus]
   | succ childDepth =>
       cases field with
       | mk fieldName arguments selectionSet =>
@@ -204,15 +211,20 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                   (by simp [responseObjectField?, lookupResponseField?])
               cases hlookup : schema.lookupField parentType fieldName with
               | none =>
-                  simp [GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult, htailNull, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
+                  simp [GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult,
+                    htailNull, combineVisitStatus, GraphQL.Execution.Result.combine,
+                    visitOk]
               | some fieldDefinition =>
                   simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
                   cases resolved with
                   | none =>
                       cases fieldDefinition with
                       | mk definitionName outputType definitionArguments =>
-                          cases outputType <;>
-                            simp [hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, handleFieldError, htailNull, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
+                          cases outputType
+                          <;> simp [hlookup, hresolveFirst, groupedFieldVisitResult,
+                                GraphQL.Execution.singleFieldResult, handleFieldError,
+                                htailNull, combineVisitStatus,
+                                GraphQL.Execution.Result.combine, visitOk]
                   | some resolvedValue =>
                       cases fieldDefinition with
                       | mk definitionName outputType definitionArguments =>
@@ -220,14 +232,41 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                           | named typeName =>
                               cases resolvedValue with
                               | null =>
-                                  simp [hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk, GraphQL.Execution.completeValue, htailNull]
+                                  simp [hlookup, hresolveFirst, groupedFieldVisitResult,
+                                    GraphQL.Execution.singleFieldResult,
+                                    combineVisitStatus, GraphQL.Execution.Result.combine,
+                                    visitOk, GraphQL.Execution.completeValue, htailNull]
                               | scalar value =>
                                   by_cases hcomposite :
                                       (TypeRef.named typeName).isCompositeBool
                                           schema =
                                         true
-                                  · simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, executableField, hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, combineVisitStatus, GraphQL.Execution.Result.combine, resultStatus, visitOk, GraphQL.Execution.completeValue, reusablePreviousValue?, hcomposite]
-                                  · simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, executableField, hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, combineVisitStatus, GraphQL.Execution.Result.combine, resultStatus, visitOk, GraphQL.Execution.completeValue, reusablePreviousValue?, hcomposite]
+                                  · simp [visitSubfields, visitSelection,
+                                      executableFieldSelections, executableFieldSelection,
+                                      selectionDirectivesAllowBool_empty,
+                                      responseObjectField?, lookupResponseField?,
+                                      executeField, mergeResponseFieldResult,
+                                      mergeResponseFieldIntoObject, mergeResponseField,
+                                      mergeResponse, resultValueOrNull, executableField,
+                                      hlookup, hresolveFirst, groupedFieldVisitResult,
+                                      GraphQL.Execution.singleFieldResult,
+                                      combineVisitStatus,
+                                      GraphQL.Execution.Result.combine, resultStatus,
+                                      visitOk, GraphQL.Execution.completeValue,
+                                      reusablePreviousValue?, hcomposite]
+                                  · simp [visitSubfields, visitSelection,
+                                      executableFieldSelections, executableFieldSelection,
+                                      selectionDirectivesAllowBool_empty,
+                                      responseObjectField?, lookupResponseField?,
+                                      executeField, mergeResponseFieldResult,
+                                      mergeResponseFieldIntoObject, mergeResponseField,
+                                      mergeResponse, resultValueOrNull, executableField,
+                                      hlookup, hresolveFirst, groupedFieldVisitResult,
+                                      GraphQL.Execution.singleFieldResult,
+                                      combineVisitStatus,
+                                      GraphQL.Execution.Result.combine, resultStatus,
+                                      visitOk, GraphQL.Execution.completeValue,
+                                      reusablePreviousValue?, hcomposite]
                               | object runtimeType identity =>
                                   have hspecAppend :
                                       GraphQL.Execution.Result.combine
@@ -333,22 +372,27 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                           (by
                                             simpa [Schema.fieldReturnType?,
                                               hlookup] using hincludes))
-                                  have hrightNeutral :
-                                      resultStatus
-                                        (completeResolvedValue schema resolvers
-                                          variableValues (childDepth + 1)
-                                          (.named typeName)
-                                          laterSelectionSet
-                                          (.object runtimeType identity)
-                                          (some (resultValueOrNull
-                                            (GraphQL.Execution.completeValue
-                                              schema resolvers variableValues
-                                              (childDepth + 1)
-                                              (.named typeName)
-                                              ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
-                                                fields)
-                                              (.object runtimeType identity))))) =
-                                        visitOk := by
+                                  have hrightNeutral
+                                      : resultStatus
+                                          (completeResolvedValue schema resolvers
+                                            variableValues (childDepth + 1)
+                                            (.named typeName)
+                                            laterSelectionSet
+                                            (.object runtimeType identity)
+                                            (some
+                                              (resultValueOrNull
+                                                (GraphQL.Execution.completeValue
+                                                  schema resolvers variableValues
+                                                  (childDepth + 1)
+                                                  (.named typeName)
+                                                  ({
+                                                      fieldName := fieldName,
+                                                      arguments := arguments,
+                                                      selectionSet := selectionSet
+                                                    }
+                                                    :: fields)
+                                                  (.object runtimeType identity)))))
+                                        = visitOk := by
                                     by_cases hincludes :
                                         schema.typeIncludesObjectBool typeName
                                           runtimeType = true
@@ -377,7 +421,9 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                             schema.typeIncludesObjectBool
                                               typeName runtimeType <;>
                                           simp [h] at hincludes ⊢
-                                      simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hnotIncludes, resultValueOrNull, resultStatus, visitOk]
+                                      simp [GraphQL.Execution.completeValue,
+                                        completeResolvedValue_previous_null, hnotIncludes,
+                                        resultValueOrNull, resultStatus, visitOk]
                                   have htailVisit :
                                       visitSubfields schema resolvers
                                         variableValues (childDepth + 2)
@@ -433,7 +479,13 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                                 :: fields)
                                               (.object runtimeType identity) with
                                     | error prefixErrors =>
-                                        simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, htailNull, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk]
+                                        simp [groupedFieldVisitResult,
+                                          GraphQL.Execution.singleFieldResult, htailNull,
+                                          completeResolvedValue_previous_null,
+                                          mergeResponseFieldResult,
+                                          mergeResponseFieldIntoObject,
+                                          mergeResponseField, mergeResponse,
+                                          resultValueOrNull, resultStatus, visitOk]
                                     | ok prefixResult =>
                                         rcases prefixResult with
                                           ⟨prefixValue, prefixErrors⟩
@@ -487,11 +539,16 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                                  laterSelectionSet }]))
                                         (.object runtimeType identity))
                                       hrightNeutral hspecAppend
-                                  simp [hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult] at htailVisit hcombined ⊢
+                                  simp [hlookup, hresolveFirst, groupedFieldVisitResult,
+                                    GraphQL.Execution.singleFieldResult]
+                                    at htailVisit hcombined ⊢
                                   rw [htailVisit]
                                   exact hcombined
                               | list values =>
-                                  simp [hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk, GraphQL.Execution.completeValue, htailNull]
+                                  simp [hlookup, hresolveFirst, groupedFieldVisitResult,
+                                    GraphQL.Execution.singleFieldResult,
+                                    combineVisitStatus, GraphQL.Execution.Result.combine,
+                                    visitOk, GraphQL.Execution.completeValue, htailNull]
                           | list inner =>
                               have happend :=
                                 completeValue_group_append_one_result_eq_spec_and_status
@@ -584,7 +641,13 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                             :: fields)
                                           resolvedValue with
                                 | error prefixErrors =>
-                                    simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, htailNull, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk]
+                                    simp [groupedFieldVisitResult,
+                                      GraphQL.Execution.singleFieldResult, htailNull,
+                                      completeResolvedValue_previous_null,
+                                      mergeResponseFieldResult,
+                                      mergeResponseFieldIntoObject, mergeResponseField,
+                                      mergeResponse, resultValueOrNull, resultStatus,
+                                      visitOk]
                                 | ok prefixResult =>
                                     rcases prefixResult with
                                       ⟨prefixValue, prefixErrors⟩
@@ -634,7 +697,8 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                            laterSelectionSet }])
                                     resolvedValue)
                                   hrightNeutral hspecAppend
-                              simp [hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult]
+                              simp [hlookup, hresolveFirst, groupedFieldVisitResult,
+                                GraphQL.Execution.singleFieldResult]
                                 at htailVisit hcombined ⊢
                               rw [htailVisit]
                               exact hcombined
@@ -731,7 +795,13 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                             :: fields)
                                           resolvedValue with
                                 | error prefixErrors =>
-                                    simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, htailNull, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk]
+                                    simp [groupedFieldVisitResult,
+                                      GraphQL.Execution.singleFieldResult, htailNull,
+                                      completeResolvedValue_previous_null,
+                                      mergeResponseFieldResult,
+                                      mergeResponseFieldIntoObject, mergeResponseField,
+                                      mergeResponse, resultValueOrNull, resultStatus,
+                                      visitOk]
                                 | ok prefixResult =>
                                     rcases prefixResult with
                                       ⟨prefixValue, prefixErrors⟩
@@ -781,7 +851,8 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                            laterSelectionSet }])
                                     resolvedValue)
                                   hrightNeutral hspecAppend
-                              simp [hlookup, hresolveFirst, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult]
+                              simp [hlookup, hresolveFirst, groupedFieldVisitResult,
+                                GraphQL.Execution.singleFieldResult]
                                 at htailVisit hcombined ⊢
                               rw [htailVisit]
                               exact hcombined

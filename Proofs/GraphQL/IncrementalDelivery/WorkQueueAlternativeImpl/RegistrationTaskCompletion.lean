@@ -92,7 +92,8 @@ theorem State.addTask_complete_eq_reference {state : State} {work : Work}
   rw [reference, state.addTask_rootGroups task]
   by_cases active : (state.addTask task).2 = .active
   · have selected := (state.addTask_active_iff task present).mp active
-    simp only [active, ↓reduceIte, selected, Bool.true_and, ReferenceWorkQueue.State.startTask]
+    simp only [active, ↓reduceIte, selected, Bool.true_and,
+      ReferenceWorkQueue.State.startTask]
     cases node : (state.addTask task).1.queue.taskNode? task.occurrence with
     | none => simp only [Option.isSome_none, Option.isNone_none, Bool.false_eq_true,
         ↓reduceIte, lookup]

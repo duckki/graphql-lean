@@ -198,7 +198,9 @@ theorem State.StoredStreamsComplete.integrateSuccess {queue : State}
   apply integrated.1.attachProducer integrated.2 result.work.streams
   · exact fun _ _ known => matching.taskChildStreams_complete known
   · intro stream member
-    simpa only [State.stream?, fold_projection State.streams State.addTask State.addTask_streams,
-      grouped, State.addGroups_streams, stored, State.putTaskNode] using fresh stream member
+    simpa only [State.stream?,
+      fold_projection State.streams State.addTask State.addTask_streams, grouped,
+      State.addGroups_streams, stored, State.putTaskNode]
+      using fresh stream member
 
 end GraphQL.IncrementalDelivery.ReferenceWorkQueue

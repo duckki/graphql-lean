@@ -142,6 +142,8 @@ theorem drain_unsettledTask_ownerCut {before current : Kernel}
                 · simp only [failureRoots, List.filterMap_append, List.filterMap_cons,
                     List.filterMap_nil, List.mem_append]
                   exact Or.inr failed
-                · simpa only [ReferenceWorkQueue.State.finishGroupFailure, List.append_assoc] using path
+                · simpa only [ReferenceWorkQueue.State.finishGroupFailure,
+                    List.append_assoc]
+                    using path
 
 end GraphQL.IncrementalDelivery.AlternativeWorkQueue.NativeRefinement

@@ -65,7 +65,8 @@ theorem eventLoop_patches (event : WorkQueueEvent)
             ?_,
             ⟨fact.1, entries, rfl, ?_⟩
           ⟩
-          · simp [eventLoop, action, StateT.run, StateT.bind, StateT.pure, bind, pure] at h ⊢
+          · simp [eventLoop, action, StateT.run, StateT.bind, StateT.pure, bind, pure]
+              at h ⊢
             rw [h]
           · intro patch member
             obtain ⟨ref, source, known⟩ :=
@@ -94,7 +95,8 @@ theorem eventLoop_patches (event : WorkQueueEvent)
                   by simp [PatchReferences]
                 ⟩
               ⟩
-              simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure] at hc hp ⊢
+              simp [eventLoop, StateT.run, StateT.bind, StateT.pure, bind, pure]
+                at hc hp ⊢
               simp only [hc, hp]
   | groupFailure group errors | streamFailure group errors =>
       cases hc

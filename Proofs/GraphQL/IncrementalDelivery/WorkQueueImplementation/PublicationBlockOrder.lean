@@ -134,7 +134,8 @@ theorem BlocksFollowRegistrations.flush {tasks added group groups streams}
   split
   · exact (BlocksFollowRegistrations.nil tasks added).control rfl
   · change ((added.take (added.map Prod.snd).length).map Prod.fst).Sublist _ ∧ _
-    simp only [WorkQueueEvent.objectValues, List.length_map, List.take_length, List.drop_length]
+    simp only [WorkQueueEvent.objectValues, List.length_map, List.take_length,
+      List.drop_length]
     exact ⟨ordered, (BlocksFollowRegistrations.nil tasks []).control rfl⟩
 
 /-- An indexed raw event selects its exact consecutive ledger slice.

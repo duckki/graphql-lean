@@ -44,8 +44,9 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have safe := deliveryIDUsageValid_holds schema operation resolvers variables fuel source
     createWorkQueue Tests.Correctness.closedReference conforms observed
-  simp [Tests.Correctness.closedReference, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
-    IncrementalResult.id, List.nodup_cons] at safe
+  simp [Tests.Correctness.closedReference, ExecutionObservation.idUsageValid,
+    DeliveryTrace.idUsageValid, IncrementalResult.id, List.nodup_cons]
+    at safe
 
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
@@ -79,7 +80,8 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have safe := deliveryIDUsageValid_holds schema operation resolvers variables fuel source
     createWorkQueue unannouncedCompletion conforms observed
-  simp [unannouncedCompletion, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
-    List.nodup_cons] at safe
+  simp [unannouncedCompletion, ExecutionObservation.idUsageValid,
+    DeliveryTrace.idUsageValid, List.nodup_cons]
+    at safe
 
 end GraphQL.IncrementalDelivery.Tests.IDUsage
