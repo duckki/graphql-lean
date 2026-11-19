@@ -7,7 +7,7 @@ lintDriver = "lint"
 
 [[require]]
 name = "leanfmt"
-git = "https://github.com/duckki/leanfmt.git"
+scope = "duckki"
 rev = "v0.4.8"
 
 [[lean_lib]]
