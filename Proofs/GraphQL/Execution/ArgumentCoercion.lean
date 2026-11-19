@@ -2554,8 +2554,10 @@ private theorem variableDefaultFuelContribution_eq_of_equivalent
   | none =>
       cases hrightLookup : lookupVariableValue? rightValues leftName with
       | none =>
-          cases leftDefault <;> cases rightDefault <;>
-            simp [variableDefaultFuelContribution, hleftLookup, hrightLookup] at hdefault ⊢
+          cases leftDefault
+          <;> cases rightDefault
+          <;> simp [variableDefaultFuelContribution, hleftLookup, hrightLookup]
+                at hdefault ⊢
           exact inputValueCoercionFuel_eq_of_equivalent hdefault
       | some rightValue => simp [hleftLookup, hrightLookup] at hlookup
   | some leftValue =>

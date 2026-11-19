@@ -1450,7 +1450,8 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
               ResponseValueResultEquivalent,
               ResponseValue.semanticEquivalent, ResponseValue.canonical]
       | list values =>
-          simp [completeValue, ResponseValueResultEquivalent, ResponseValue.semanticEquivalent]
+          simp [completeValue, ResponseValueResultEquivalent,
+            ResponseValue.semanticEquivalent]
       | object runtimeType ref =>
           by_cases hincludes :
               schema.typeIncludesObjectBool typeName runtimeType = true
@@ -1494,9 +1495,11 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
           simp only [completeValue, ResponseValueResultEquivalent]
           exact ⟨responseValue_semanticEquivalent_refl .null, trivial⟩
       | scalar scalarValue =>
-          simp [completeValue, ResponseValueResultEquivalent, ResponseValue.semanticEquivalent]
+          simp [completeValue, ResponseValueResultEquivalent,
+            ResponseValue.semanticEquivalent]
       | object runtimeType ref =>
-          simp [completeValue, ResponseValueResultEquivalent, ResponseValue.semanticEquivalent]
+          simp [completeValue, ResponseValueResultEquivalent,
+            ResponseValue.semanticEquivalent]
       | list values =>
           have hvalues :
               ListResponseValueResultEquivalent
